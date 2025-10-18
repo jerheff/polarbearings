@@ -71,18 +71,14 @@ def test_auc_matches_sklearn(data: st.DataObject):
 
     # Generate arrays of that exact size
     labels = data.draw(
-        arrays(
-            dtype=np.int8, shape=size, elements=st.integers(min_value=0, max_value=1)
-        ),
+        arrays(dtype=np.int8, shape=size, elements=st.integers(min_value=0, max_value=1)),
         label="labels",
     )
     scores = data.draw(
         arrays(
             dtype=np.float64,
             shape=size,
-            elements=st.floats(
-                min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
-            ),
+            elements=st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False),
         ),
         label="scores",
     )

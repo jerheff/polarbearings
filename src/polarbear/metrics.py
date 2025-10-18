@@ -97,9 +97,82 @@ def roc_auc(target: str, score: str) -> pl.Expr:
     auc = u_statistic / (total_pos * total_neg)
 
     # Return final AUC with special handling for perfect ties
-    return (
-        pl.when(tie_cond)
-        .then(pl.lit(0.5))
-        .otherwise(auc)
-        .alias(f"roc_auc_{target}_{score}")
-    )
+    return pl.when(tie_cond).then(pl.lit(0.5)).otherwise(auc).alias(f"roc_auc_{target}_{score}")
+
+
+def log_loss(target: str, score: str, eps: float = 1e-15) -> pl.Expr:
+    """Compute log loss (binary cross-entropy) for binary classification.
+
+    Log loss measures the performance of a classification model where the
+    prediction is a probability value between 0 and 1. It penalizes false
+    classifications heavily, especially confident wrong predictions.
+
+    Args:
+        target: Name of the column containing binary labels (0 or 1).
+        score: Name of the column containing predicted probabilities [0, 1].
+        eps: Small constant to clip probabilities for numerical stability.
+
+    Returns:
+        A Polars expression that computes the log loss.
+
+    Examples:
+        >>> import polars as pl
+        >>> from polarbear import log_loss
+        >>>
+        >>> df = pl.DataFrame({
+        ...     "label": [0, 0, 1, 1],
+        ...     "prob": [0.1, 0.2, 0.8, 0.9]
+        ... })
+        >>> df.select(log_loss("label", "prob"))
+
+    Notes:
+        - Lower is better (0 is perfect)
+        - Heavily penalizes confident wrong predictions
+        - Scores are clipped to [eps, 1-eps] for numerical stability
+    """
+    # Clip probabilities to avoid log(0)
+    prob_clipped = pl.col(score).clip(eps, 1 - eps)
+
+    # Log loss = -1/N * Σ(y*log(p) + (1-y)*log(1-p))
+    target_float = pl.col(target).cast(pl.Float64)
+    loss = -(
+        target_float * prob_clipped.log() + (1 - target_float) * (1 - prob_clipped).log()
+    ).mean()
+
+    return loss.alias(f"log_loss_{target}_{score}")
+
+
+def brier_score(target: str, score: str) -> pl.Expr:
+    """Compute Brier score for binary classification.
+
+    The Brier score measures the mean squared error between predicted
+    probabilities and actual outcomes. It's a proper scoring rule that
+    measures the accuracy of probabilistic predictions.
+
+    Args:
+        target: Name of the column containing binary labels (0 or 1).
+        score: Name of the column containing predicted probabilities [0, 1].
+
+    Returns:
+        A Polars expression that computes the Brier score.
+
+    Examples:
+        >>> import polars as pl
+        >>> from polarbear import brier_score
+        >>>
+        >>> df = pl.DataFrame({
+        ...     "label": [0, 0, 1, 1],
+        ...     "prob": [0.1, 0.2, 0.8, 0.9]
+        ... })
+        >>> df.select(brier_score("label", "prob"))
+
+    Notes:
+        - Lower is better (0 is perfect)
+        - Brier score = mean((predicted_probability - actual_outcome)²)
+        - Proper scoring rule (rewards calibrated probabilities)
+    """
+    # Brier score = 1/N * Σ(p - y)²
+    target_float = pl.col(target).cast(pl.Float64)
+    brier = ((pl.col(score) - target_float) ** 2).mean()
+
+    return brier.alias(f"brier_score_{target}_{score}")

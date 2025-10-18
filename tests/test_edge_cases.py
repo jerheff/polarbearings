@@ -32,9 +32,7 @@ def test_tied_single_pair():
 
 def test_many_positives_one_negative():
     """Test imbalanced data: many positives, one negative."""
-    df = pl.DataFrame(
-        {"label": [1, 1, 1, 1, 0], "score": [0.9, 0.8, 0.7, 0.6, 0.5]}
-    )
+    df = pl.DataFrame({"label": [1, 1, 1, 1, 0], "score": [0.9, 0.8, 0.7, 0.6, 0.5]})
     result = df.select(roc_auc("label", "score")).to_series()[0]
     sklearn_result = roc_auc_score([1, 1, 1, 1, 0], [0.9, 0.8, 0.7, 0.6, 0.5])
     assert result == pytest.approx(sklearn_result)
@@ -42,9 +40,7 @@ def test_many_positives_one_negative():
 
 def test_one_positive_many_negatives():
     """Test imbalanced data: one positive, many negatives."""
-    df = pl.DataFrame(
-        {"label": [0, 0, 0, 0, 1], "score": [0.1, 0.2, 0.3, 0.4, 0.9]}
-    )
+    df = pl.DataFrame({"label": [0, 0, 0, 0, 1], "score": [0.1, 0.2, 0.3, 0.4, 0.9]})
     result = df.select(roc_auc("label", "score")).to_series()[0]
     sklearn_result = roc_auc_score([0, 0, 0, 0, 1], [0.1, 0.2, 0.3, 0.4, 0.9])
     assert result == pytest.approx(sklearn_result)
@@ -209,11 +205,7 @@ def test_with_nulls_filtered():
     )
 
     # Filter out nulls first
-    result = (
-        df.drop_nulls()
-        .select(roc_auc("label", "score"))
-        .to_series()[0]
-    )
+    result = df.drop_nulls().select(roc_auc("label", "score")).to_series()[0]
     assert result == pytest.approx(1.0)
 
 

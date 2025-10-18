@@ -16,9 +16,11 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual environments
 .venv/
@@ -31,8 +33,10 @@ env/
 .hypothesis/
 .coverage
 htmlcov/
+*.cover
+.tox/
 
-# IDE
+# IDEs
 .vscode/
 .idea/
 *.swp
@@ -41,3 +45,15 @@ htmlcov/
 
 # OS
 .DS_Store
+Thumbs.db
+
+# uv
+uv.lock
+
+# Ruff
+.ruff_cache/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
