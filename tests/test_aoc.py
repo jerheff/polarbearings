@@ -7,7 +7,7 @@ from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 from sklearn.metrics import roc_auc_score
 
-from aoc import roc_auc
+from polarbear import roc_auc
 
 
 def test_perfect_classification():

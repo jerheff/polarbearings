@@ -34,7 +34,7 @@ def roc_auc(target: str, score: str) -> pl.Expr:
     sorted_labels = pl.col(target).sort_by(pl.col(score), descending=True)
 
     # Group by distinct score values
-    distinct_scores = sorted_scores_desc.is_first()
+    distinct_scores = sorted_scores_desc.is_first_distinct()
 
     # Calculate FPR and TPR at each distinct threshold
     group_tpr = sorted_labels.cum_sum().filter(distinct_scores) / total_pos
