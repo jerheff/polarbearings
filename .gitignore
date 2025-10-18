@@ -32,6 +32,7 @@ env/
 .pytest_cache/
 .hypothesis/
 .coverage
+.coverage.*
 htmlcov/
 *.cover
 .tox/
@@ -39,6 +40,7 @@ htmlcov/
 # IDEs
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~

@@ -67,13 +67,18 @@ def roc_auc(target: str, score: str) -> pl.Expr:
         - scikit-learn's roc_auc_score: https://scikit-learn.org/stable/modules/generated/sklearn.metrics.roc_auc_score.html
         - ROC curves: https://en.wikipedia.org/wiki/Receiver_operating_characteristic
     """
-    # Calculate total number of positive and negative examples
-    total_pos = (pl.col(target) == 1).cast(pl.Float64).sum()
-    total_neg = (pl.col(target) == 0).cast(pl.Float64).sum()
+    # Cast target to float once to avoid repeated conversions
+    target_float = pl.col(target).cast(pl.Float64)
+
+    # Calculate total number of positive examples
+    total_pos = (target_float == 1).sum()
+    # Total negatives = count - positives (more efficient than separate computation)
+    total_neg = target_float.len() - total_pos
 
     # Edge case: all scores are identical (perfect ties)
-    # In this case, the classifier provides no discrimination → AUC = 0.5
-    tie_cond = pl.col(score).max() == pl.col(score).min()
+    # Check using variance (0 variance means all values are the same)
+    # This is faster than computing min and max separately
+    tie_cond = pl.col(score).var() == 0
 
     # Use Mann-Whitney U statistic formulation which handles ties correctly
     # AUC = (sum of ranks of positive class - min possible sum) / (n_pos * n_neg)
@@ -84,8 +89,8 @@ def roc_auc(target: str, score: str) -> pl.Expr:
     # rank() with method='average' gives the average rank for tied values
     ranks = pl.col(score).rank(method="average")
 
-    # Sum of ranks for positive examples
-    pos_rank_sum = (ranks * (pl.col(target) == 1).cast(pl.Float64)).sum()
+    # Sum of ranks for positive examples (reuse target_float to avoid casting)
+    pos_rank_sum = (ranks * (target_float == 1)).sum()
 
     # Min possible sum of ranks for positive examples is 1+2+...+n_pos = n_pos*(n_pos+1)/2
     min_pos_rank_sum = total_pos * (total_pos + 1) / 2
@@ -130,14 +135,18 @@ def log_loss(target: str, score: str, eps: float = 1e-15) -> pl.Expr:
         - Heavily penalizes confident wrong predictions
         - Scores are clipped to [eps, 1-eps] for numerical stability
     """
+    # Cast target to float once
+    target_float = pl.col(target).cast(pl.Float64)
+
     # Clip probabilities to avoid log(0)
     prob_clipped = pl.col(score).clip(eps, 1 - eps)
 
     # Log loss = -1/N * Σ(y*log(p) + (1-y)*log(1-p))
-    target_float = pl.col(target).cast(pl.Float64)
-    loss = -(
-        target_float * prob_clipped.log() + (1 - target_float) * (1 - prob_clipped).log()
-    ).mean()
+    # Compute log once per probability to avoid redundant calculations
+    log_prob = prob_clipped.log()
+    log_1_minus_prob = (1 - prob_clipped).log()
+
+    loss = -(target_float * log_prob + (1 - target_float) * log_1_minus_prob).mean()
 
     return loss.alias(f"log_loss_{target}_{score}")
 

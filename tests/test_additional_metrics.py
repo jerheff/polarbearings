@@ -64,6 +64,26 @@ class TestLogLoss:
         # Should not raise an error and should return finite value
         assert np.isfinite(result)
 
+    def test_probabilities_outside_range(self):
+        """Test with probabilities slightly outside [0, 1]."""
+        # Polars clip will handle these automatically
+        df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [-0.1, 0.2, 0.8, 1.1]})
+        result = df.select(log_loss("label", "prob")).to_series()[0]
+        # Should clip and return finite value
+        assert np.isfinite(result)
+        assert result > 0  # Should still have some loss
+
+    def test_all_same_probability(self):
+        """Test log loss when all predictions are the same."""
+        df = pl.DataFrame(
+            {"label": [0, 1, 0, 1, 1, 0], "prob": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]}
+        )
+        result = df.select(log_loss("label", "prob")).to_series()[0]
+        sklearn_result = sklearn_log_loss(
+            [0, 1, 0, 1, 1, 0], [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+        )
+        assert result == pytest.approx(sklearn_result, rel=1e-5)
+
 
 class TestBrierScore:
     """Tests for Brier score metric."""
@@ -127,6 +147,27 @@ class TestBrierScore:
         df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.2, 0.3, 0.7, 0.8]})
         result = df.select(brier_score("label", "prob")).to_series()[0]
         sklearn_result = brier_score_loss([0, 0, 1, 1], [0.2, 0.3, 0.7, 0.8])
+        assert result == pytest.approx(sklearn_result, rel=1e-5)
+
+    def test_probabilities_outside_range(self):
+        """Test Brier score with probabilities outside [0, 1]."""
+        # Values outside [0,1] should still compute MSE correctly
+        df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [-0.1, 0.2, 0.8, 1.1]})
+        result = df.select(brier_score("label", "prob")).to_series()[0]
+        # Should return finite value
+        assert np.isfinite(result)
+        # Brier score can be > 1 if probabilities are outside [0, 1]
+        assert result >= 0
+
+    def test_all_same_probability(self):
+        """Test Brier score when all predictions are the same."""
+        df = pl.DataFrame(
+            {"label": [0, 1, 0, 1, 1, 0], "prob": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]}
+        )
+        result = df.select(brier_score("label", "prob")).to_series()[0]
+        sklearn_result = brier_score_loss(
+            [0, 1, 0, 1, 1, 0], [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+        )
         assert result == pytest.approx(sklearn_result, rel=1e-5)
 
 

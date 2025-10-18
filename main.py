@@ -11,12 +11,12 @@ def main() -> None:
     print("Polarbear: High-performance metrics for Polars DataFrames")
     print("=" * 60)
 
-    # Create example data
+    # Create example data with realistic (imperfect) predictions
     df = pl.DataFrame(
         {
             "actual": [0, 0, 0, 1, 1, 1, 1, 0],
-            "score": [0.1, 0.2, 0.4, 0.6, 0.7, 0.8, 0.9, 0.3],
-            "probability": [0.1, 0.2, 0.4, 0.6, 0.7, 0.8, 0.9, 0.3],
+            "score": [0.2, 0.3, 0.6, 0.55, 0.7, 0.8, 0.9, 0.4],
+            "probability": [0.2, 0.3, 0.6, 0.55, 0.7, 0.8, 0.9, 0.4],
             "segment": ["A", "A", "B", "B", "A", "A", "B", "B"],
         }
     )
