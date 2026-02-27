@@ -75,13 +75,9 @@ class TestLogLoss:
 
     def test_all_same_probability(self):
         """Test log loss when all predictions are the same."""
-        df = pl.DataFrame(
-            {"label": [0, 1, 0, 1, 1, 0], "prob": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]}
-        )
+        df = pl.DataFrame({"label": [0, 1, 0, 1, 1, 0], "prob": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]})
         result = df.select(log_loss("label", "prob")).to_series()[0]
-        sklearn_result = sklearn_log_loss(
-            [0, 1, 0, 1, 1, 0], [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
-        )
+        sklearn_result = sklearn_log_loss([0, 1, 0, 1, 1, 0], [0.5, 0.5, 0.5, 0.5, 0.5, 0.5])
         assert result == pytest.approx(sklearn_result, rel=1e-5)
 
 
@@ -161,13 +157,9 @@ class TestBrierScore:
 
     def test_all_same_probability(self):
         """Test Brier score when all predictions are the same."""
-        df = pl.DataFrame(
-            {"label": [0, 1, 0, 1, 1, 0], "prob": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]}
-        )
+        df = pl.DataFrame({"label": [0, 1, 0, 1, 1, 0], "prob": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]})
         result = df.select(brier_score("label", "prob")).to_series()[0]
-        sklearn_result = brier_score_loss(
-            [0, 1, 0, 1, 1, 0], [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
-        )
+        sklearn_result = brier_score_loss([0, 1, 0, 1, 1, 0], [0.5, 0.5, 0.5, 0.5, 0.5, 0.5])
         assert result == pytest.approx(sklearn_result, rel=1e-5)
 
 

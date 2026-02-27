@@ -50,9 +50,7 @@ def main() -> None:
     print("\n" + "=" * 60)
     print("Perfect Classification Example")
     print("=" * 60)
-    perfect_df = pl.DataFrame(
-        {"label": [0, 0, 1, 1], "score": [0.1, 0.2, 0.8, 0.9]}
-    )
+    perfect_df = pl.DataFrame({"label": [0, 0, 1, 1], "score": [0.1, 0.2, 0.8, 0.9]})
     print(perfect_df)
     perfect_result = perfect_df.select(
         roc_auc("label", "score"),

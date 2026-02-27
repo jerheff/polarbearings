@@ -7,10 +7,10 @@ hooks = [
 ]
 
 [[repos]]
-repo = "https://github.com/pre-commit/mirrors-mypy"
-rev = "a66e98df7b4aeeb3724184b332785976d062b92e" # frozen: v1.19.1
+repo = "https://github.com/RobertCraigie/pyright-python"
+rev = "v1.1.408"
 hooks = [
-  { id = "mypy", args = ["--ignore-missing-imports"], additional_dependencies = ["polars", "numpy"], exclude = "^tests/" },
+  { id = "pyright" },
 ]
 
 [[repos]]

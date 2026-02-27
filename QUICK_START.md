@@ -59,7 +59,7 @@ git clone <repo-url>
 cd polarbear
 
 # Install dependencies
-uv sync --all-groups
+uv sync
 
 # Run tests
 uv run pytest tests/ -v

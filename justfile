@@ -8,7 +8,7 @@ default:
 
 # Install dependencies
 install:
-    uv sync --all-groups
+    uv sync
 
 # Run all tests with verbose output
 test:
@@ -50,9 +50,9 @@ format:
 format-check:
     uv run ruff format --check src/ tests/
 
-# Run type checking with mypy
+# Run type checking with pyright
 type-check:
-    uv run mypy src/polarbear
+    uv run pyright src/polarbear
 
 # Run all quality checks (lint + type-check)
 quality: lint type-check
@@ -64,7 +64,6 @@ ci: quality test
 clean:
     find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
     find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
-    find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
     find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
     find . -type d -name ".hypothesis" -exec rm -rf {} + 2>/dev/null || true
     find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true

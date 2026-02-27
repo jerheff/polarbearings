@@ -29,7 +29,7 @@ just pre-commit      # Quick pre-commit check (auto-fix + format + test)
 
 ### Initial Setup
 ```bash
-uv sync --all-groups  # Install all dependencies including dev and lint groups
+uv sync  # Install all dependencies including dev tools
 ```
 
 ### Running Tests

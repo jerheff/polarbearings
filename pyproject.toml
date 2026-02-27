@@ -19,14 +19,13 @@ packages = ["src/polarbear"]
 dev = [
     "hypothesis[numpy]>=6.131.9",
     "numpy>=2.2.5",
-    "pytest>=8.3.5",
+    "pyright>=1.1.408",
+    "pytest>=9.0.2",
     "pytest-benchmark>=5.1.0",
     "pytest-cov>=7.0.0",
+    "python-lsp-server>=1.14.0",
+    "ruff>=0.15.4",
     "scikit-learn>=1.6.1",
-]
-lint = [
-    "mypy>=1.15.0",
-    "ruff>=0.9.3",
 ]
 
 [tool.ruff]
@@ -51,17 +50,11 @@ ignore = [
 quote-style = "double"
 indent-style = "space"
 
-[tool.mypy]
-python_version = "3.11"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-plugins = ["numpy.typing.mypy_plugin"]
-
-[[tool.mypy.overrides]]
-module = ["polars.*", "sklearn.*"]
-ignore_missing_imports = true
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
