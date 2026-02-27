@@ -2,7 +2,7 @@
 repo = "https://github.com/astral-sh/ruff-pre-commit"
 rev = "a27a2e47c7751b639d2b5badf0ef6ff11fee893f" # frozen: v0.15.4
 hooks = [
-  { id = "ruff", args = ["--fix"] },
+  { id = "ruff-check", args = ["--fix"] },
   { id = "ruff-format" },
 ]
 
