@@ -1,0 +1,24 @@
+[[repos]]
+repo = "https://github.com/astral-sh/ruff-pre-commit"
+rev = "a27a2e47c7751b639d2b5badf0ef6ff11fee893f" # frozen: v0.15.4
+hooks = [
+  { id = "ruff", args = ["--fix"] },
+  { id = "ruff-format" },
+]
+
+[[repos]]
+repo = "https://github.com/pre-commit/mirrors-mypy"
+rev = "a66e98df7b4aeeb3724184b332785976d062b92e" # frozen: v1.19.1
+hooks = [
+  { id = "mypy", args = ["--ignore-missing-imports"], additional_dependencies = ["polars", "numpy"], exclude = "^tests/" },
+]
+
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "trailing-whitespace" },
+  { id = "end-of-file-fixer" },
+  { id = "check-yaml" },
+  { id = "check-added-large-files" },
+  { id = "check-merge-conflict" },
+]

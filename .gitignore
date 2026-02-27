@@ -40,7 +40,6 @@ htmlcov/
 # IDEs
 .vscode/
 .idea/
-.claude/
 *.swp
 *.swo
 *~
