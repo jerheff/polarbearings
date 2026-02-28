@@ -145,7 +145,7 @@ just test          # or: uv run pytest tests/ -v
 
 ### Check Code Quality
 ```bash
-just quality       # or: uv run ruff check src/ && uv run mypy src/
+just quality       # or: uv run ruff check src/ && uv run pyright src/polarbear
 ```
 
 ### Run Benchmarks

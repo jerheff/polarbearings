@@ -6,9 +6,10 @@
 default:
     @just --list
 
-# Install dependencies
+# Install dependencies and pre-commit hooks
 install:
     uv sync
+    prek install
 
 # Run all tests with verbose output
 test:

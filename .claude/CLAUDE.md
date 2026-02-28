@@ -9,14 +9,14 @@ Polarbear is a high-performance machine learning metrics library implemented as 
 **Key Features:**
 - ROC AUC, Log Loss, and Brier Score metrics
 - Thoroughly tested against scikit-learn with property-based testing
-- Full type hints and mypy strict mode
+- Full type hints and pyright strict mode
 - Supports Polars 1.0.0+
 
 ## Quick Commands
 
 ```bash
 just                 # List all available commands
-just install         # Install all dependencies
+just install         # Install dependencies + pre-commit hooks
 just test            # Run full test suite
 just test-fast       # Quick test run
 just quality         # Run linting and type checking
@@ -46,7 +46,7 @@ just test-versions-all      # Test against all supported Polars versions
 just lint                   # Check code style (ruff)
 just lint-fix              # Auto-fix style issues
 just format                # Format code
-just type-check            # Type checking (mypy strict mode)
+just type-check            # Type checking (pyright strict mode)
 just quality               # Run all quality checks (lint + type-check)
 ```
 
@@ -89,7 +89,7 @@ All metrics are implemented as Polars expressions that:
 
 - **Python Version:** 3.11+ (strict requirement)
 - **Line Length:** 100 characters
-- **Type Checking:** Mypy strict mode enabled
+- **Type Checking:** Pyright strict mode enabled
 - **Linting:** Ruff with pycodestyle, pyflakes, isort, flake8-bugbear, comprehensions, pyupgrade
 - **Formatting:** Double quotes, space indentation
 
@@ -119,7 +119,7 @@ When implementing a new metric:
 - numpy (test utilities)
 
 **Linting:**
-- mypy (type checking)
+- pyright (type checking)
 - ruff (linting and formatting)
 
 ## Common Tasks

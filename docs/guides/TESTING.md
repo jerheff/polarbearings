@@ -181,7 +181,7 @@ uv run ruff check --fix src/ tests/
 uv run ruff format src/ tests/
 
 # Type checking
-uv run mypy src/polarbear
+uv run pyright src/polarbear
 ```
 
 ## Adding New Tests
@@ -220,7 +220,7 @@ When adding new tests:
    ```bash
    uv run pytest tests/ -v
    uv run ruff check src/ tests/
-   uv run mypy src/polarbear
+   uv run pyright src/polarbear
    ```
 
 ## Troubleshooting
@@ -245,7 +245,7 @@ When adding new tests:
 ### Type checking fails
 
 1. Ensure all imports have type stubs
-2. Check `pyproject.toml` for mypy configuration
+2. Check `pyproject.toml` for pyright configuration
 3. Add type ignores only as last resort:
    ```python
    result = some_call()  # type: ignore[some-issue]
@@ -253,34 +253,14 @@ When adding new tests:
 
 ## Pre-commit Hooks
 
-Consider setting up pre-commit hooks to run checks automatically:
+Pre-commit hooks are configured in `prek.toml` and run automatically on commit.
 
 ```bash
-# Install pre-commit
-pip install pre-commit
+# Install hooks (included in `just install`)
+prek install
 
-# Install hooks
-pre-commit install
-
-# Run manually
-pre-commit run --all-files
-```
-
-Add `.pre-commit-config.yaml`:
-```yaml
-repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.3
-    hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.15.0
-    hooks:
-      - id: mypy
-        additional_dependencies: [numpy, polars-stubs]
+# Run manually against all files
+uv run prek run --all-files
 ```
 
 ## Getting Help
