@@ -7,9 +7,12 @@ default:
     @just --list
 
 # Install dependencies and pre-commit hooks
-install:
+setup:
     uv sync
     prek install
+
+# Verify repo is fully operational
+health: quality test
 
 # Run all tests with verbose output
 test:
@@ -19,13 +22,15 @@ test:
 test-fast:
     uv run pytest tests/ -q
 
-# Test against minimum and latest Polars versions
-test-versions:
-    uv run python test_versions.py --min-max --no-benchmark
+# Test against a specific Polars version (uses ephemeral overlay, venv unchanged)
+test-polars version:
+    uv run --with polars=={{version}} pytest tests/ -q --tb=short
 
-# Test against all supported Polars versions
-test-versions-all:
-    uv run python test_versions.py
+# Test against min, ~1 year old, and latest Polars versions
+test-compat:
+    just test-polars 1.0.0
+    just test-polars 1.24.0
+    just test-polars 1.38.1
 
 # Run tests with coverage report
 test-cov:
@@ -33,7 +38,7 @@ test-cov:
 
 # Run performance benchmarks
 bench:
-    uv run python benchmark.py
+    uv run pytest benchmarks/ -v --benchmark-only --benchmark-min-rounds=3 --benchmark-group-by=group --benchmark-columns=mean,stddev
 
 # Check code style with ruff
 lint:
@@ -46,10 +51,6 @@ lint-fix:
 # Format code with ruff
 format:
     uv run ruff format src/ tests/
-
-# Check if code is formatted correctly
-format-check:
-    uv run ruff format --check src/ tests/
 
 # Run type checking with pyright
 type-check:
@@ -73,7 +74,7 @@ clean:
     @echo "✓ Cleaned up cache files"
 
 # Full development setup: install dependencies and run checks
-dev: install quality test
+dev: setup quality test
     @echo "✓ Development environment ready!"
 
 # Quick pre-commit check

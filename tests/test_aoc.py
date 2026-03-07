@@ -78,7 +78,13 @@ def test_auc_matches_sklearn(data: st.DataObject):
         arrays(
             dtype=np.float64,
             shape=size,
-            elements=st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False),
+            elements=st.floats(
+                min_value=0.0,
+                max_value=1.0,
+                allow_nan=False,
+                allow_infinity=False,
+                allow_subnormal=False,
+            ),
         ),
         label="scores",
     )

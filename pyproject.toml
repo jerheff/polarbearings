@@ -17,20 +17,19 @@ packages = ["src/polarbear"]
 
 [dependency-groups]
 dev = [
-    "hypothesis[numpy]>=6.131.9",
-    "numpy>=2.2.5",
+    "hypothesis[numpy]>=6.131",
+    "numpy>=2.4",
     "pyright>=1.1.408",
-    "pytest>=9.0.2",
-    "pytest-benchmark>=5.1.0",
-    "pytest-cov>=7.0.0",
-    "python-lsp-server>=1.14.0",
-    "ruff>=0.15.4",
-    "scikit-learn>=1.6.1",
+    "pytest>=9",
+    "pytest-benchmark>=5.1",
+    "pytest-cov>=7",
+    "python-lsp-server>=1.14",
+    "ruff>=0.15",
+    "scikit-learn>=1.8",
 ]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
 
 [tool.ruff.lint]
 select = [
@@ -58,5 +57,11 @@ venv = ".venv"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_*.py"]
+python_files = ["test_*.py", "bench_*.py"]
 python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["polarbear"]
+
+[tool.coverage.report]
+omit = ["tests/*", "benchmarks/*"]

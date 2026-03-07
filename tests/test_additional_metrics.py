@@ -1,8 +1,12 @@
 """Tests for additional metrics (log loss, Brier score)."""
 
+import hypothesis
 import numpy as np
 import polars as pl
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
+from hypothesis.extra.numpy import arrays
 from sklearn.metrics import brier_score_loss
 from sklearn.metrics import log_loss as sklearn_log_loss
 
@@ -191,7 +195,7 @@ class TestMetricsTogether:
         assert "brier_score_label_score" in result.columns
 
     def test_grouped_metrics(self):
-        """Test metrics with group_by."""
+        """Test metrics with group_by validate values against sklearn."""
         df = pl.DataFrame(
             {
                 "group": ["A", "A", "A", "A", "B", "B", "B", "B"],
@@ -200,11 +204,105 @@ class TestMetricsTogether:
             }
         )
 
-        result = df.group_by("group").agg(
-            log_loss("label", "prob"),
-            brier_score("label", "prob"),
+        result = (
+            df.group_by("group")
+            .agg(log_loss("label", "prob"), brier_score("label", "prob"))
+            .sort("group")
         )
 
-        assert len(result) == 2
-        assert "log_loss_label_prob" in result.columns
-        assert "brier_score_label_prob" in result.columns
+        labels_a, probs_a = [0, 0, 1, 1], [0.1, 0.2, 0.8, 0.9]
+        labels_b, probs_b = [0, 1, 1, 1], [0.3, 0.6, 0.7, 0.9]
+
+        assert result["log_loss_label_prob"][0] == pytest.approx(
+            sklearn_log_loss(labels_a, probs_a), rel=1e-5
+        )
+        assert result["log_loss_label_prob"][1] == pytest.approx(
+            sklearn_log_loss(labels_b, probs_b), rel=1e-5
+        )
+        assert result["brier_score_label_prob"][0] == pytest.approx(
+            brier_score_loss(labels_a, probs_a), rel=1e-5
+        )
+        assert result["brier_score_label_prob"][1] == pytest.approx(
+            brier_score_loss(labels_b, probs_b), rel=1e-5
+        )
+
+    def test_log_loss_random_data(self):
+        """Multi-iteration random sklearn comparison for log loss."""
+        np.random.seed(42)
+        for _ in range(10):
+            n = np.random.randint(20, 200)
+            labels = np.random.randint(0, 2, n)
+            probs = np.clip(np.random.rand(n), 0.01, 0.99)
+            df = pl.DataFrame({"label": labels, "prob": probs})
+            result = df.select(log_loss("label", "prob")).to_series()[0]
+            expected = sklearn_log_loss(labels, probs)
+            assert result == pytest.approx(expected, rel=1e-5)
+
+    def test_brier_score_random_data(self):
+        """Multi-iteration random sklearn comparison for brier score."""
+        np.random.seed(42)
+        for _ in range(10):
+            n = np.random.randint(20, 200)
+            labels = np.random.randint(0, 2, n)
+            probs = np.random.rand(n)
+            df = pl.DataFrame({"label": labels, "prob": probs})
+            result = df.select(brier_score("label", "prob")).to_series()[0]
+            expected = brier_score_loss(labels, probs)
+            assert result == pytest.approx(expected, rel=1e-5)
+
+
+class TestLogLossHypothesis:
+    @given(st.data())
+    @settings(deadline=None)
+    def test_matches_sklearn(self, data: st.DataObject):
+        size = data.draw(st.integers(min_value=2, max_value=500), label="size")
+        labels = data.draw(
+            arrays(dtype=np.int8, shape=size, elements=st.integers(min_value=0, max_value=1)),
+            label="labels",
+        )
+        probs = data.draw(
+            arrays(
+                dtype=np.float64,
+                shape=size,
+                elements=st.floats(
+                    min_value=0.01, max_value=0.99, allow_nan=False, allow_infinity=False
+                ),
+            ),
+            label="probs",
+        )
+        hypothesis.assume(labels.sum() > 0)
+        hypothesis.assume(labels.sum() < len(labels))
+
+        df = pl.DataFrame({"label": labels.tolist(), "prob": probs.tolist()})
+        result = df.select(log_loss("label", "prob")).to_series()[0]
+        expected = sklearn_log_loss(labels, probs)
+        assert result == pytest.approx(expected, rel=1e-5)
+
+
+class TestBrierScoreHypothesis:
+    @given(st.data())
+    @settings(deadline=None)
+    def test_matches_sklearn(self, data: st.DataObject):
+        size = data.draw(st.integers(min_value=1, max_value=500), label="size")
+        labels = data.draw(
+            arrays(dtype=np.int8, shape=size, elements=st.integers(min_value=0, max_value=1)),
+            label="labels",
+        )
+        probs = data.draw(
+            arrays(
+                dtype=np.float64,
+                shape=size,
+                elements=st.floats(
+                    min_value=0.0,
+                    max_value=1.0,
+                    allow_nan=False,
+                    allow_infinity=False,
+                    allow_subnormal=False,
+                ),
+            ),
+            label="probs",
+        )
+        df = pl.DataFrame({"label": labels.tolist(), "prob": probs.tolist()})
+        result = df.select(brier_score("label", "prob")).to_series()[0]
+        expected = brier_score_loss(labels, probs)
+        assert result == pytest.approx(expected, rel=1e-5)
