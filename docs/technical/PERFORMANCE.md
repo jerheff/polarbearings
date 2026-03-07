@@ -25,13 +25,13 @@ Polarbear excels at grouped metric calculations:
 
 ### Optimizations Applied
 
-#### ROC AUC (`src/polarbear/metrics.py:70-105`)
+#### ROC AUC (`src/polarbear/roc_auc.py`)
 - ✅ Cast target to Float64 **once** instead of multiple times
 - ✅ Calculate `total_neg` as `len - total_pos` (eliminates separate sum)
 - ✅ Use variance check (`var() == 0`) instead of `min() == max()` for tie detection
 - ✅ Reuse `target_float` to avoid redundant casting
 
-#### Log Loss (`src/polarbear/metrics.py:138-151`)
+#### Log Loss (`src/polarbear/log_loss.py`)
 - ✅ Move target casting before other operations
 - ✅ Cache log computations (`log_prob` and `log_1_minus_prob`)
 
@@ -94,8 +94,6 @@ Run performance benchmarks:
 
 ```bash
 just bench
-# or
-uv run python benchmark.py
 ```
 
 This will test:
@@ -183,4 +181,4 @@ All benchmarks:
 - Measure end-to-end time including result materialization
 - Run on same hardware and environment
 
-See `benchmark.py` for full benchmark code.
+See `benchmarks/` for benchmark code.

@@ -15,7 +15,7 @@ uv add polarbear
 ### Requirements
 
 - Python >= 3.11
-- Polars >= 1.0.0 (tested up to 1.34.0)
+- Polars >= 1.0.0
 
 ### Basic Usage
 
@@ -37,6 +37,38 @@ result = df.select(
 )
 
 print(result)
+```
+
+### Classification Metrics
+
+```python
+from polarbear import precision, recall, f1_score, specificity, matthews_corrcoef
+
+df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
+
+result = df.select(
+    precision("label", "prob"),
+    recall("label", "prob"),
+    f1_score("label", "prob"),
+    specificity("label", "prob"),
+    matthews_corrcoef("label", "prob"),
+)
+```
+
+### Regression Metrics
+
+```python
+from polarbear import mae, mse, rmse, r2_score, mape
+
+df = pl.DataFrame({"y": [1.0, 2.0, 3.0], "pred": [1.1, 2.2, 2.8]})
+
+result = df.select(
+    mae("y", "pred"),
+    mse("y", "pred"),
+    rmse("y", "pred"),
+    r2_score("y", "pred"),
+    mape("y", "pred"),
+)
 ```
 
 ### With Group By
@@ -73,26 +105,10 @@ Install [just](https://github.com/casey/just): `brew install just`
 just                    # List all commands
 just test               # Run tests
 just test-fast          # Quick test run
-just test-versions      # Test min & latest Polars
+just test-compat        # Test min, mid & latest Polars
 just quality            # Lint + type check
 just ci                 # Full CI checks
 just pre-commit         # Quick pre-commit check
-```
-
-### Testing Polars Compatibility
-
-```bash
-# Quick test (min 1.0.0 + latest 1.34.0)
-just test-versions
-
-# Or manually
-uv run python test_versions.py --min-max
-
-# Test all versions
-uv run python test_versions.py
-
-# Test specific versions
-uv run python test_versions.py --versions 1.0.0 1.20.0
 ```
 
 ### Before Committing
@@ -110,31 +126,40 @@ just ci
 ```
 polarbear/
 ├── src/polarbear/
-│   ├── __init__.py           # Public API
-│   └── metrics.py            # Metric implementations
+│   ├── __init__.py              # Public API exports
+│   ├── roc_auc.py               # ROC AUC metric
+│   ├── average_precision.py     # Average precision metric
+│   ├── log_loss.py              # Log loss metric
+│   ├── brier_score.py           # Brier score metric
+│   ├── classification.py        # Threshold-based classification metrics
+│   └── regression.py            # Regression metrics
 ├── tests/
-│   ├── test_aoc.py          # ROC AUC tests
-│   ├── test_additional_metrics.py  # Log loss & Brier tests
-│   └── test_edge_cases.py   # Edge case tests
-├── benchmark.py              # Performance benchmarks
-├── test_versions.py          # Version compatibility testing
-├── justfile                  # Task runner commands
+│   ├── test_aoc.py              # ROC AUC tests
+│   ├── test_additional_metrics.py   # Log loss & Brier tests
+│   ├── test_average_precision.py    # Average precision tests
+│   ├── test_classification.py       # Classification metric tests
+│   ├── test_regression.py           # Regression metric tests
+│   ├── test_new_classification.py   # MCC, kappa, specificity, fbeta tests
+│   ├── test_new_regression.py       # R², MAPE tests
+│   ├── test_weights.py              # Weighted metric tests
+│   ├── test_edge_cases.py           # Edge case tests
+│   └── test_degenerate_inputs.py    # Degenerate input tests
+├── benchmarks/                  # Performance benchmarks
+├── justfile                     # Task runner commands
 └── docs/
     ├── guides/
-    │   └── TESTING.md       # Comprehensive testing guide
+    │   └── TESTING.md           # Testing guide
     └── technical/
         ├── POLARS_COMPATIBILITY.md  # Version compatibility info
-        └── PERFORMANCE.md   # Performance analysis & benchmarks
+        └── PERFORMANCE.md      # Performance analysis & benchmarks
 ```
 
 ## Key Files
 
 - **`justfile`**: Development commands (run `just --list`)
-- **`docs/guides/TESTING.md`**: Full testing documentation
+- **`docs/guides/TESTING.md`**: Testing documentation
 - **`docs/technical/PERFORMANCE.md`**: Performance analysis
 - **`docs/technical/POLARS_COMPATIBILITY.md`**: Version compatibility
-- **`test_versions.py`**: Test multiple Polars versions locally
-- **`benchmark.py`**: Performance benchmarking
 
 ## Common Tasks
 
@@ -150,12 +175,7 @@ just quality       # or: uv run ruff check src/ && uv run pyright src/polarbear
 
 ### Run Benchmarks
 ```bash
-just bench         # or: uv run python benchmark.py
-```
-
-### Test Polars Versions
-```bash
-just test-versions  # or: uv run python test_versions.py --min-max
+just bench
 ```
 
 ### Format Code
@@ -173,15 +193,10 @@ Polarbear is **2-4x faster than sklearn** on large datasets:
 | Log Loss | 1.8ms | 3.01x |
 | Brier Score | 0.16ms | 2.91x |
 
-See `benchmark.py` for detailed benchmarks.
-
 ## Polars Version Support
 
 - **Minimum**: 1.0.0 (July 2024)
-- **Latest tested**: 1.34.0 (October 2025)
-- **Tested versions**: 1.0.0, 1.10.0, 1.20.0, 1.34.0
-
-All tests pass on all tested versions. See `docs/technical/POLARS_COMPATIBILITY.md` for details.
+- **CI tested**: 1.0.0, 1.24.0, 1.38.1
 
 ## Getting Help
 
@@ -189,11 +204,9 @@ All tests pass on all tested versions. See `docs/technical/POLARS_COMPATIBILITY.
 - **Testing guide**: `docs/guides/TESTING.md`
 - **Performance**: `docs/technical/PERFORMANCE.md`
 - **Issues**: Report on GitHub
-- **Questions**: Open a discussion
 
 ## Links
 
-- **Repository**: [GitHub](https://github.com/your-username/polarbear)
 - **Just**: [Installation](https://github.com/casey/just#installation)
 - **Polars**: [Documentation](https://docs.pola.rs/)
 - **uv**: [Documentation](https://docs.astral.sh/uv/)

@@ -253,7 +253,7 @@ class TestMetricsTogether:
 
 class TestLogLossHypothesis:
     @given(st.data())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
     def test_matches_sklearn(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=2, max_value=500), label="size")
         labels = data.draw(
@@ -281,7 +281,7 @@ class TestLogLossHypothesis:
 
 class TestBrierScoreHypothesis:
     @given(st.data())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
     def test_matches_sklearn(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=1, max_value=500), label="size")
         labels = data.draw(

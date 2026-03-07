@@ -54,7 +54,5 @@ uv.lock
 # Ruff
 .ruff_cache/
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+# Mutation testing
+mutants/

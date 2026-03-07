@@ -133,6 +133,98 @@ def balanced_accuracy(
     return result.alias(_alias("balanced_accuracy", target, prob, threshold, weight))
 
 
+def specificity(
+    target: str, prob: str, threshold: float = 0.5, weight: str | None = None
+) -> pl.Expr:
+    """Compute specificity (true negative rate) at a decision threshold.
+
+    Specificity = TN / (TN + FP). Returns null when no actual negatives exist.
+
+    Args:
+        target: Column with binary labels (0 or 1).
+        prob: Column with predicted probabilities.
+        threshold: Decision threshold (predict positive if prob >= threshold).
+        weight: Optional column with sample weights.
+    """
+    _tp, fp, _fn, tn = _confusion_components(target, prob, threshold, weight)
+    denom = tn + fp
+    result = pl.when(denom == 0).then(None).otherwise(tn / denom)
+    return result.alias(_alias("specificity", target, prob, threshold, weight))
+
+
+def fbeta_score(
+    target: str, prob: str, beta: float, threshold: float = 0.5, weight: str | None = None
+) -> pl.Expr:
+    """Compute F-beta score at a decision threshold.
+
+    F_beta = (1 + beta^2) * TP / ((1 + beta^2) * TP + beta^2 * FN + FP).
+    Generalizes F1 (beta=1). Use beta < 1 to weight precision higher,
+    beta > 1 to weight recall higher. Returns null when undefined.
+
+    Args:
+        target: Column with binary labels (0 or 1).
+        prob: Column with predicted probabilities.
+        beta: Weight of recall relative to precision.
+        threshold: Decision threshold (predict positive if prob >= threshold).
+        weight: Optional column with sample weights.
+    """
+    tp, fp, fn, _tn = _confusion_components(target, prob, threshold, weight)
+    beta_sq = beta**2
+    denom = (1 + beta_sq) * tp + beta_sq * fn + fp
+    result = pl.when(denom == 0).then(None).otherwise((1 + beta_sq) * tp / denom)
+    alias = f"fbeta_{beta:g}_{target}_{prob}_{threshold:g}"
+    if weight is not None:
+        alias += f"_{weight}"
+    return result.alias(alias)
+
+
+def matthews_corrcoef(
+    target: str, prob: str, threshold: float = 0.5, weight: str | None = None
+) -> pl.Expr:
+    """Compute Matthews correlation coefficient at a decision threshold.
+
+    MCC = (TP*TN - FP*FN) / sqrt((TP+FP)(TP+FN)(TN+FP)(TN+FN)).
+    Returns null when any marginal total is zero. Range: [-1, 1].
+
+    Args:
+        target: Column with binary labels (0 or 1).
+        prob: Column with predicted probabilities.
+        threshold: Decision threshold (predict positive if prob >= threshold).
+        weight: Optional column with sample weights.
+    """
+    tp, fp, fn, tn = _confusion_components(target, prob, threshold, weight)
+    numerator = tp * tn - fp * fn
+    denom_sq = (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)
+    undefined = ((tp + fp) == 0) | ((tp + fn) == 0) | ((tn + fp) == 0) | ((tn + fn) == 0)
+    result = pl.when(undefined).then(None).otherwise(numerator / denom_sq.sqrt())
+    return result.alias(_alias("mcc", target, prob, threshold, weight))
+
+
+def cohens_kappa(
+    target: str, prob: str, threshold: float = 0.5, weight: str | None = None
+) -> pl.Expr:
+    """Compute Cohen's kappa at a decision threshold.
+
+    Kappa = (p_o - p_e) / (1 - p_e), where p_o is observed agreement and
+    p_e is expected agreement by chance. Returns null when undefined.
+
+    Args:
+        target: Column with binary labels (0 or 1).
+        prob: Column with predicted probabilities.
+        threshold: Decision threshold (predict positive if prob >= threshold).
+        weight: Optional column with sample weights.
+    """
+    tp, fp, fn, tn = _confusion_components(target, prob, threshold, weight)
+    total = tp + fp + fn + tn
+    p_o = (tp + tn) / total
+    p_pos = ((tp + fn) / total) * ((tp + fp) / total)
+    p_neg = ((tn + fp) / total) * ((tn + fn) / total)
+    p_e = p_pos + p_neg
+    undefined = (total == 0) | (p_e == 1)
+    result = pl.when(undefined).then(None).otherwise((p_o - p_e) / (1 - p_e))
+    return result.alias(_alias("cohens_kappa", target, prob, threshold, weight))
+
+
 def threshold_sweep(
     metric_fn: _MetricFn,
     target: str,

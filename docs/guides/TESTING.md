@@ -7,7 +7,7 @@ If you have [just](https://github.com/casey/just) installed, use these convenien
 ```bash
 just test              # Run all tests
 just test-fast         # Run tests (quiet mode)
-just test-versions     # Test min and latest Polars versions
+just test-compat       # Test min, mid & latest Polars versions
 just test-cov          # Run tests with coverage
 just bench             # Run benchmarks
 just quality           # Run linting and type checking
@@ -31,95 +31,29 @@ uv run pytest tests/ -v
 uv run pytest --cov=src/polarbear --cov-report=term-missing tests/
 ```
 
-### Run benchmarks
-```bash
-uv run python benchmark.py
-```
-
 ## Testing Multiple Polars Versions Locally
 
-We provide two convenient ways to test against multiple Polars versions locally.
+Use the `just test-polars` and `just test-compat` commands:
 
-### Option 1: Python Script (Recommended)
-
-The `test_versions.py` script provides the most flexible testing options:
-
-#### Test minimum and latest versions (fastest)
 ```bash
-uv run python test_versions.py --min-max
-```
+# Test against min, ~1 year old, and latest Polars versions
+just test-compat
 
-#### Test all default versions
-```bash
-uv run python test_versions.py
-```
-
-#### Test specific versions
-```bash
-uv run python test_versions.py --versions 1.0.0 1.20.0 1.34.0
-```
-
-#### Skip benchmarks for faster testing
-```bash
-uv run python test_versions.py --min-max --no-benchmark
-```
-
-#### Verbose output
-```bash
-uv run python test_versions.py --min-max --verbose
-```
-
-#### Get help
-```bash
-uv run python test_versions.py --help
-```
-
-### Option 2: Shell Script (Simpler)
-
-The `test_versions.sh` script provides a simpler alternative:
-
-#### Test minimum and latest (default)
-```bash
-./test_versions.sh
-```
-
-#### Test all default versions
-```bash
-./test_versions.sh --all
-```
-
-#### Test specific versions
-```bash
-./test_versions.sh 1.0.0 1.34.0
+# Test a specific version
+just test-polars 1.0.0
 ```
 
 ### Supported Polars Versions
 
 - **Minimum**: 1.0.0
-- **Latest tested**: 1.34.0
-- **Default test versions**: 1.0.0, 1.10.0, 1.20.0, 1.34.0
-
-## Manual Version Testing
-
-If you prefer to test versions manually:
-
-```bash
-# Install specific version
-uv pip install polars==1.0.0
-
-# Run tests
-uv run pytest tests/ -v
-
-# Restore latest version
-uv pip install polars==1.34.0
-```
+- **CI tested**: 1.0.0, 1.24.0, 1.38.1
 
 ## Continuous Integration
 
-Our CI automatically tests against multiple Polars versions on every push and PR:
+CI automatically tests against multiple Polars versions on every push and PR:
 
-- **Python versions**: 3.11, 3.12, 3.13
-- **Polars versions**: 1.0.0, 1.10.0, 1.20.0, 1.34.0
+- **Python versions**: 3.11, 3.12, 3.13, 3.14
+- **Polars versions**: 1.0.0, 1.24.0, 1.38.1
 
 See `.github/workflows/ci.yml` for the full matrix.
 
@@ -127,45 +61,40 @@ See `.github/workflows/ci.yml` for the full matrix.
 
 ```
 tests/
-├── test_aoc.py                 # ROC AUC tests with property-based testing
-├── test_additional_metrics.py  # Log loss and Brier score tests
-└── test_edge_cases.py          # Edge case tests for all metrics
+├── test_aoc.py                    # ROC AUC tests with property-based testing
+├── test_additional_metrics.py     # Log loss and Brier score tests
+├── test_average_precision.py      # Average precision tests
+├── test_classification.py         # Precision, recall, F1, accuracy, balanced accuracy
+├── test_new_classification.py     # Specificity, fbeta, MCC, Cohen's kappa
+├── test_regression.py             # MAE, MSE, RMSE tests
+├── test_new_regression.py         # R², MAPE tests
+├── test_weights.py                # Weighted metric tests
+├── test_edge_cases.py             # Edge case tests for all metrics
+└── test_degenerate_inputs.py      # Degenerate input tests
 ```
 
 ### Test Categories
 
-1. **Property-based tests** (`test_aoc.py`)
-   - Uses Hypothesis for generative testing
+1. **Property-based tests** (Hypothesis)
+   - Generative testing with random data
    - Verifies mathematical properties
    - Compares against sklearn
 
-2. **Unit tests** (`test_additional_metrics.py`)
+2. **Unit tests**
    - Tests specific functionality
    - Tests edge cases (perfect predictions, worst case, etc.)
    - Verifies sklearn compatibility
 
-3. **Edge case tests** (`test_edge_cases.py`)
+3. **Edge case tests**
    - Minimal datasets (single positive/negative)
    - Imbalanced data
    - Tied scores
    - Large datasets (10k samples)
    - Grouped aggregations
 
-## Performance Testing
-
-### Run benchmarks
-```bash
-uv run python benchmark.py
-```
-
-This tests performance across different dataset sizes:
-- 100, 1,000, 10,000, 100,000 samples
-- Compares against sklearn
-- Tests grouped operations
-
-### Expected Performance
-
-All metrics should be **2-4x faster** than sklearn on large datasets (100k+ samples).
+4. **Weighted metric tests**
+   - Uniform weights match unweighted
+   - Weighted results match sklearn with sample_weight
 
 ## Linting and Type Checking
 
@@ -188,10 +117,7 @@ uv run pyright src/polarbear
 
 When adding new tests:
 
-1. **Place in appropriate file**:
-   - ROC AUC → `test_aoc.py`
-   - Log loss/Brier score → `test_additional_metrics.py`
-   - Edge cases → `test_edge_cases.py`
+1. **Place in appropriate file** or create a new `tests/test_<metric_name>.py`
 
 2. **Follow naming convention**: `test_<description>`
 
@@ -218,37 +144,7 @@ When adding new tests:
 
 5. **Run tests before committing**:
    ```bash
-   uv run pytest tests/ -v
-   uv run ruff check src/ tests/
-   uv run pyright src/polarbear
-   ```
-
-## Troubleshooting
-
-### Tests fail with specific Polars version
-
-1. Check if the version is supported (>= 1.0.0)
-2. Verify the exact error message
-3. Check if Polars API changed in that version
-4. Update implementation or minimum version as needed
-
-### Benchmark performance degraded
-
-1. Run benchmarks multiple times to rule out system noise
-2. Compare with previous results in `PERFORMANCE_COMPARISON.md`
-3. Use profiling tools to identify bottlenecks:
-   ```bash
-   uv run python -m cProfile -o output.prof benchmark.py
-   uv run python -m pstats output.prof
-   ```
-
-### Type checking fails
-
-1. Ensure all imports have type stubs
-2. Check `pyproject.toml` for pyright configuration
-3. Add type ignores only as last resort:
-   ```python
-   result = some_call()  # type: ignore[some-issue]
+   just ci
    ```
 
 ## Pre-commit Hooks
@@ -256,15 +152,9 @@ When adding new tests:
 Pre-commit hooks are configured in `prek.toml` and run automatically on commit.
 
 ```bash
-# Install hooks (included in `just install`)
+# Install hooks
 prek install
 
 # Run manually against all files
 uv run prek run --all-files
 ```
-
-## Getting Help
-
-- **Documentation**: Check `README.md` and other `*.md` files
-- **Issues**: Report bugs at the project's issue tracker
-- **CI Logs**: Check GitHub Actions for detailed CI output

@@ -26,6 +26,7 @@ dev = [
     "python-lsp-server>=1.14",
     "ruff>=0.15",
     "scikit-learn>=1.8",
+    "mutmut>=3.5",
 ]
 
 [tool.ruff]
@@ -65,3 +66,7 @@ source = ["polarbear"]
 
 [tool.coverage.report]
 omit = ["tests/*", "benchmarks/*"]
+
+[tool.mutmut]
+paths_to_mutate = ["src/polarbear/"]
+tests_dir = ["tests/"]

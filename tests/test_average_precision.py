@@ -137,7 +137,7 @@ class TestAveragePrecisionHypothesis:
     """Property-based tests using Hypothesis."""
 
     @given(st.data())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
     def test_matches_sklearn(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=2, max_value=500), label="size")
         labels = data.draw(
@@ -167,7 +167,7 @@ class TestAveragePrecisionHypothesis:
         assert result == pytest.approx(expected, rel=1e-5)
 
     @given(st.data())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
     def test_tied_scores_match_sklearn(self, data: st.DataObject):
         """Specifically test with many tied scores."""
         size = data.draw(st.integers(min_value=4, max_value=200), label="size")

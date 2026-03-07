@@ -59,6 +59,11 @@ type-check:
 # Run all quality checks (lint + type-check)
 quality: lint type-check
 
+# Run mutation testing
+mutant:
+    rm -rf mutants/
+    uv run mutmut run
+
 # Run all CI checks locally (quality + tests)
 ci: quality test
 
@@ -71,6 +76,7 @@ clean:
     find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
     find . -type f -name "*.pyc" -delete
     find . -type f -name ".coverage" -delete
+    rm -rf mutants/
     @echo "✓ Cleaned up cache files"
 
 # Full development setup: install dependencies and run checks

@@ -7,7 +7,7 @@ High-performance machine learning metrics implemented as native Polars expressio
 - **Fast**: Metrics implemented as Polars expressions for maximum performance
 - **Correct**: Thoroughly tested against scikit-learn with property-based testing
 - **Simple**: Clean, intuitive API that follows Polars conventions
-- **Type-safe**: Full type hints and mypy support
+- **Type-safe**: Full type hints with pyright strict mode
 
 ## Installation
 
@@ -48,71 +48,119 @@ print(result)
 
 ## Available Metrics
 
-### ROC AUC
+### Ranking Metrics
 
-Receiver Operating Characteristic Area Under the Curve (ROC AUC) for binary classification.
+#### ROC AUC
+
+Receiver Operating Characteristic Area Under the Curve for binary classification.
 
 ```python
 from polarbear import roc_auc
 
-# Perfect classification (AUC = 1.0)
-df = pl.DataFrame({
-    "label": [0, 0, 1, 1],
-    "score": [0.1, 0.2, 0.8, 0.9]
-})
+df = pl.DataFrame({"label": [0, 0, 1, 1], "score": [0.1, 0.2, 0.8, 0.9]})
 df.select(roc_auc("label", "score"))  # Returns: 1.0
-
-# Random prediction (AUC = 0.5)
-df = pl.DataFrame({
-    "label": [0, 1, 0, 1],
-    "score": [0.5, 0.5, 0.5, 0.5]
-})
-df.select(roc_auc("label", "score"))  # Returns: 0.5
 ```
 
-**Implementation Details:**
-- Uses the Mann-Whitney U statistic formulation for correct tie handling
-- Matches scikit-learn's `roc_auc_score` exactly, including edge cases
-- Handles tied scores correctly by assigning fractional ranks
-- Returns 0.5 when all scores are identical (no discrimination)
+- Uses the Mann-Whitney U statistic for correct tie handling
+- Matches scikit-learn's `roc_auc_score` exactly
 
-### Log Loss (Binary Cross-Entropy)
+#### Average Precision
 
-Measures the performance of probabilistic predictions. Lower is better (0 is perfect).
+Non-interpolated average precision score for binary classification.
+
+```python
+from polarbear import average_precision
+
+df = pl.DataFrame({"label": [0, 0, 1, 1], "score": [0.1, 0.4, 0.35, 0.8]})
+df.select(average_precision("label", "score"))
+```
+
+- Matches scikit-learn's `average_precision_score`
+- Handles tied scores correctly
+
+### Probabilistic Metrics
+
+#### Log Loss (Binary Cross-Entropy)
 
 ```python
 from polarbear import log_loss
 
-df = pl.DataFrame({
-    "label": [0, 0, 1, 1],
-    "prob": [0.1, 0.2, 0.8, 0.9]
-})
+df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.2, 0.8, 0.9]})
 df.select(log_loss("label", "prob"))
 ```
 
-**Features:**
-- Heavily penalizes confident wrong predictions
-- Automatic probability clipping for numerical stability
-- Perfect match with sklearn's `log_loss`
-
-### Brier Score
-
-Mean squared error for probabilistic predictions. Lower is better (0 is perfect).
+#### Brier Score
 
 ```python
 from polarbear import brier_score
 
-df = pl.DataFrame({
-    "label": [0, 0, 1, 1],
-    "prob": [0.1, 0.2, 0.8, 0.9]
-})
+df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.2, 0.8, 0.9]})
 df.select(brier_score("label", "prob"))
 ```
 
-**Features:**
-- Proper scoring rule (rewards calibrated probabilities)
-- Always in range [0, 1]
-- Perfect match with sklearn's `brier_score_loss`
+### Classification Metrics (Threshold-Based)
+
+All classification metrics accept an optional `threshold` parameter (default 0.5).
+
+```python
+from polarbear import precision, recall, f1_score, fbeta_score, specificity
+from polarbear import accuracy, balanced_accuracy, matthews_corrcoef, cohens_kappa
+
+df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
+
+df.select(
+    precision("label", "prob"),
+    recall("label", "prob"),
+    f1_score("label", "prob"),
+    specificity("label", "prob"),
+    accuracy("label", "prob"),
+    balanced_accuracy("label", "prob"),
+    matthews_corrcoef("label", "prob"),
+    cohens_kappa("label", "prob"),
+)
+
+# F-beta with custom beta (0.5 weights precision higher, 2.0 weights recall higher)
+df.select(fbeta_score("label", "prob", beta=2.0))
+
+# Custom threshold
+df.select(precision("label", "prob", threshold=0.7))
+```
+
+#### Threshold Sweep
+
+Compute any classification metric across multiple thresholds in a single pass:
+
+```python
+from polarbear import f1_score, threshold_sweep
+
+df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
+df.select(*threshold_sweep(f1_score, "label", "prob", [0.3, 0.5, 0.7]))
+```
+
+### Regression Metrics
+
+```python
+from polarbear import mae, mse, rmse, r2_score, mape
+
+df = pl.DataFrame({"y": [1.0, 2.0, 3.0, 4.0], "pred": [1.1, 2.2, 2.8, 4.5]})
+
+df.select(
+    mae("y", "pred"),
+    mse("y", "pred"),
+    rmse("y", "pred"),
+    r2_score("y", "pred"),
+    mape("y", "pred"),
+)
+```
+
+### Sample Weights
+
+All metrics support optional sample weights:
+
+```python
+df.select(roc_auc("label", "score", weight="sample_weight"))
+df.select(mae("y", "pred", weight="w"))
+```
 
 ## Use Cases
 
@@ -185,8 +233,6 @@ uv run ruff check src/ tests/
 uv run ruff format src/ tests/
 ```
 
-See [`docs/guides/TESTING.md`](docs/guides/TESTING.md) for more details.
-
 ## Testing
 
 Polarbear uses a comprehensive testing strategy:
@@ -194,20 +240,17 @@ Polarbear uses a comprehensive testing strategy:
 - **Unit tests**: Basic functionality and edge cases
 - **Property-based tests**: Random data generation with Hypothesis
 - **Compatibility tests**: Verified against scikit-learn on multiple Polars versions
-- **Benchmarks**: Performance comparisons against sklearn
 
 ```bash
 # Run all tests
 just test  # or: uv run pytest
 
 # Test multiple Polars versions
-just test-versions  # or: uv run python test_versions.py --min-max
+just test-compat
 
 # Run benchmarks
-just bench  # or: uv run python benchmark.py
+just bench
 ```
-
-See [`docs/guides/TESTING.md`](docs/guides/TESTING.md) for comprehensive testing documentation.
 
 ## Performance
 
@@ -219,44 +262,32 @@ Polarbear is **2-4x faster than sklearn** on large datasets:
 | Log Loss | 1.8ms | **3.01x faster** |
 | Brier Score | 0.16ms | **2.91x faster** |
 
-See [`docs/technical/PERFORMANCE.md`](docs/technical/PERFORMANCE.md) for detailed benchmarks and optimization insights.
-
 ## Requirements
 
 - **Python**: 3.11+
-- **Polars**: 1.0.0+ (tested up to 1.34.0)
-
-See [`docs/technical/POLARS_COMPATIBILITY.md`](docs/technical/POLARS_COMPATIBILITY.md) for version compatibility details.
+- **Polars**: 1.0.0+
 
 ## Roadmap
 
 - [x] ROC AUC for binary classification
 - [x] Log Loss / Binary Cross-Entropy
 - [x] Brier Score
-- [x] Comprehensive testing & benchmarks
+- [x] Average Precision Score
+- [x] Precision, Recall, F1 Score, Accuracy, Balanced Accuracy
+- [x] Specificity, F-beta Score, Matthews Correlation Coefficient, Cohen's Kappa
+- [x] R-squared, MAPE
+- [x] Weighted variants for all metrics
 - [x] Multi-version Polars support (1.0.0+)
-- [ ] Weighted ROC AUC
 - [ ] Multi-class ROC AUC (one-vs-rest, one-vs-one)
 - [ ] Precision-Recall AUC
-- [ ] Average Precision Score
-- [ ] F1 Score, Precision, Recall
-- [ ] Confusion Matrix
 - [ ] Calibration metrics (ECE, MCE)
-
-## Documentation
-
-- **[Quick Start Guide](QUICK_START.md)** - Get started quickly
-- **[Testing Guide](docs/guides/TESTING.md)** - Comprehensive testing documentation
-- **[Performance Analysis](docs/technical/PERFORMANCE.md)** - Benchmarks and optimization insights
-- **[Polars Compatibility](docs/technical/POLARS_COMPATIBILITY.md)** - Version compatibility information
 
 ## Contributing
 
 Contributions are welcome! Please:
 
-1. Read [`docs/guides/TESTING.md`](docs/guides/TESTING.md) for development workflow
-2. Run `just ci` to verify your changes locally
-3. Submit a Pull Request with a clear description
+1. Run `just ci` to verify your changes locally
+2. Submit a Pull Request with a clear description
 
 ## License
 

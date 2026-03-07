@@ -1,5 +1,6 @@
 """Tests for regression metrics."""
 
+import hypothesis
 import numpy as np
 import polars as pl
 import pytest
@@ -189,7 +190,7 @@ class TestRegressionEdgeCases:
 
 class TestRegressionHypothesis:
     @given(st.data())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
     def test_mae_matches_sklearn(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=1, max_value=500), label="size")
         y = data.draw(
@@ -218,7 +219,7 @@ class TestRegressionHypothesis:
         assert result == pytest.approx(expected, rel=1e-5)
 
     @given(st.data())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
     def test_mse_matches_sklearn(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=1, max_value=500), label="size")
         y = data.draw(
@@ -247,7 +248,7 @@ class TestRegressionHypothesis:
         assert result == pytest.approx(expected, rel=1e-5)
 
     @given(st.data())
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
     def test_rmse_matches_sklearn(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=1, max_value=500), label="size")
         y = data.draw(

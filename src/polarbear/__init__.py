@@ -9,30 +9,44 @@ from polarbear.brier_score import brier_score
 from polarbear.classification import (
     accuracy,
     balanced_accuracy,
+    cohens_kappa,
     f1_score,
+    fbeta_score,
+    matthews_corrcoef,
     percentile_thresholds,
     precision,
     recall,
+    specificity,
     threshold_sweep,
 )
 from polarbear.log_loss import log_loss
-from polarbear.regression import mae, mse, rmse
+from polarbear.regression import mae, mape, mse, r2_score, rmse
 from polarbear.roc_auc import roc_auc
 
 __version__: str = "0.1.0"
 __all__: list[str] = [
+    # Ranking / probabilistic
     "roc_auc",
     "average_precision",
     "log_loss",
     "brier_score",
+    # Classification (threshold-based)
     "precision",
     "recall",
     "f1_score",
+    "fbeta_score",
+    "specificity",
     "accuracy",
     "balanced_accuracy",
+    "matthews_corrcoef",
+    "cohens_kappa",
+    # Utilities
     "threshold_sweep",
     "percentile_thresholds",
+    # Regression
     "mae",
     "mse",
     "rmse",
+    "r2_score",
+    "mape",
 ]
