@@ -27,6 +27,7 @@ dev = [
     "ruff>=0.15",
     "scikit-learn>=1.8",
     "mutmut>=3.5",
+    "pytest-timeout>=2.4.0",
 ]
 
 [tool.ruff]
@@ -60,6 +61,7 @@ venv = ".venv"
 testpaths = ["tests"]
 python_files = ["test_*.py", "bench_*.py"]
 python_functions = ["test_*"]
+markers = ["hypothesis: property-based tests using Hypothesis (slow)"]
 
 [tool.coverage.run]
 source = ["polarbear"]
@@ -70,3 +72,5 @@ omit = ["tests/*", "benchmarks/*"]
 [tool.mutmut]
 paths_to_mutate = ["src/polarbear/"]
 tests_dir = ["tests/"]
+test_command = "uv run pytest tests/ -x -m 'not hypothesis' -q --tb=no --timeout=2 --timeout-method=thread"
+test_time_multiplier = 10

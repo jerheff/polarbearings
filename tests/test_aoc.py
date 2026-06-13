@@ -31,7 +31,9 @@ def test_worst_classification():
         elements=st.integers(min_value=0, max_value=1),
     )
 )
-@settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
+@settings(
+    deadline=None, database=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors]
+)
 def test_constant_score_property(labels):
     # Property: For any labels, constant scores should give AUC = 0.5
     labels = np.array([0, 1, 0, 1])  # Ensure we have both classes
@@ -44,7 +46,9 @@ def test_constant_score_property(labels):
 
 
 @given(size=st.integers(min_value=10000, max_value=50000))
-@settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
+@settings(
+    deadline=None, database=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors]
+)
 def test_random_noise_classification_property(size):
     # Property: Randomly generated labels and scores should have AUC ≈ 0.5
     seed = np.random.randint(0, 2**32 - 1)
@@ -64,7 +68,9 @@ def test_random_noise_classification_property(size):
 
 
 @given(st.data())
-@settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
+@settings(
+    deadline=None, database=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors]
+)
 def test_auc_matches_sklearn(data: st.DataObject):
     # Choose a size for both arrays
     size = data.draw(st.integers(min_value=1, max_value=1000), label="size")

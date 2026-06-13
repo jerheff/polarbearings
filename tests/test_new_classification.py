@@ -131,7 +131,11 @@ class TestFbetaScore:
         assert result == pytest.approx(expected, rel=1e-5)
 
     @given(st.data())
-    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
+    @settings(
+        deadline=None,
+        database=None,
+        suppress_health_check=[hypothesis.HealthCheck.differing_executors],
+    )
     def test_fbeta_matches_sklearn_property(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=4, max_value=200), label="size")
         beta = data.draw(st.sampled_from([0.5, 1.0, 2.0]), label="beta")
@@ -224,6 +228,7 @@ class TestMatthewsCorrcoef:
     @given(st.data())
     @settings(
         deadline=None,
+        database=None,
         suppress_health_check=[
             hypothesis.HealthCheck.differing_executors,
             hypothesis.HealthCheck.filter_too_much,
@@ -309,7 +314,11 @@ class TestCohensKappa:
         assert df.select(cohens_kappa("label", "prob")).to_series()[0] is None
 
     @given(st.data())
-    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
+    @settings(
+        deadline=None,
+        database=None,
+        suppress_health_check=[hypothesis.HealthCheck.differing_executors],
+    )
     def test_kappa_matches_sklearn_property(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=10, max_value=200), label="size")
         labels = data.draw(

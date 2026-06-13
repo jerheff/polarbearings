@@ -82,7 +82,11 @@ class TestR2Score:
         assert result == pytest.approx(expected, rel=1e-4)
 
     @given(st.data())
-    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
+    @settings(
+        deadline=None,
+        database=None,
+        suppress_health_check=[hypothesis.HealthCheck.differing_executors],
+    )
     def test_r2_matches_sklearn_property(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=2, max_value=500), label="size")
         y = data.draw(
@@ -172,7 +176,11 @@ class TestMAPE:
         assert result == pytest.approx(expected, rel=1e-4)
 
     @given(st.data())
-    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
+    @settings(
+        deadline=None,
+        database=None,
+        suppress_health_check=[hypothesis.HealthCheck.differing_executors],
+    )
     def test_mape_matches_sklearn_property(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=2, max_value=200), label="size")
         y = data.draw(

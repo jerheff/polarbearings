@@ -360,7 +360,11 @@ class TestClassificationHypothesis:
     """Property-based tests for classification metrics."""
 
     @given(st.data())
-    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
+    @settings(
+        deadline=None,
+        database=None,
+        suppress_health_check=[hypothesis.HealthCheck.differing_executors],
+    )
     def test_precision_matches_sklearn(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=4, max_value=200), label="size")
         labels = data.draw(
@@ -392,7 +396,11 @@ class TestClassificationHypothesis:
         assert result == pytest.approx(expected, rel=1e-5)
 
     @given(st.data())
-    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
+    @settings(
+        deadline=None,
+        database=None,
+        suppress_health_check=[hypothesis.HealthCheck.differing_executors],
+    )
     def test_recall_matches_sklearn(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=4, max_value=200), label="size")
         labels = data.draw(
@@ -424,7 +432,11 @@ class TestClassificationHypothesis:
         assert result == pytest.approx(expected, rel=1e-5)
 
     @given(st.data())
-    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
+    @settings(
+        deadline=None,
+        database=None,
+        suppress_health_check=[hypothesis.HealthCheck.differing_executors],
+    )
     def test_f1_matches_sklearn(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=4, max_value=200), label="size")
         labels = data.draw(
@@ -457,7 +469,11 @@ class TestClassificationHypothesis:
         assert result == pytest.approx(expected, rel=1e-5)
 
     @given(st.data())
-    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
+    @settings(
+        deadline=None,
+        database=None,
+        suppress_health_check=[hypothesis.HealthCheck.differing_executors],
+    )
     def test_accuracy_matches_sklearn(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=2, max_value=200), label="size")
         labels = data.draw(
@@ -487,7 +503,11 @@ class TestClassificationHypothesis:
         assert result == pytest.approx(expected, rel=1e-5)
 
     @given(st.data())
-    @settings(deadline=None, suppress_health_check=[hypothesis.HealthCheck.differing_executors])
+    @settings(
+        deadline=None,
+        database=None,
+        suppress_health_check=[hypothesis.HealthCheck.differing_executors],
+    )
     def test_balanced_accuracy_matches_sklearn(self, data: st.DataObject):
         size = data.draw(st.integers(min_value=4, max_value=200), label="size")
         labels = data.draw(
