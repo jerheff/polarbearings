@@ -11,14 +11,16 @@ High-performance machine learning metrics implemented as native Polars expressio
 
 ## Installation
 
+> **Note:** Not yet published to PyPI. Install from source until the first release.
+
 ```bash
-pip install polarbear
+pip install git+https://github.com/jerheff/polarbear.git
 ```
 
-Or with uv:
+Or, once published:
 
 ```bash
-uv add polarbear
+pip install polarbear   # or: uv add polarbear
 ```
 
 ## Quick Start
@@ -152,6 +154,8 @@ df.select(
     mape("y", "pred"),
 )
 ```
+
+> **MAPE note:** Rows where `target == 0` are **excluded** (the percentage error is undefined there). This differs from scikit-learn's `mean_absolute_percentage_error`, which keeps those rows using an epsilon floor and can return very large values. All other metrics match scikit-learn.
 
 ### Sample Weights
 
