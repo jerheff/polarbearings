@@ -23,7 +23,6 @@ from polarbear.log_loss import log_loss
 from polarbear.regression import mae, mape, mse, r2_score, rmse
 from polarbear.roc_auc import roc_auc
 
-__version__: str = "0.1.0"
 __all__: list[str] = [
     # Ranking / probabilistic
     "roc_auc",
