@@ -161,12 +161,17 @@ tests_dir = ["tests/"]
 # we invoke the project venv's python directly (../.venv from mutants/) to avoid
 # uv re-resolving per mutant, which otherwise blows the timeout. Assumes the venv
 # lives at .venv (uv default).
-test_command = "PYTHONPATH=src ../.venv/bin/python -m pytest tests/ -x -m 'not hypothesis' -q --tb=no --timeout=60 --timeout-method=thread"
-# Per-mutant time budget (mutmut 3.x) = (estimated_test_time + timeout_constant)
-# * timeout_multiplier, for both the wall clock and (×2) the CPU rlimit. Our
-# test_command runs the whole non-hypothesis suite each time and pays fixed
-# python+polars import overhead, which the per-test estimate doesn't capture —
-# with the defaults (15.0 / 1.0) that starved slower mutants into spurious
-# SIGXCPU timeouts. Raise both so timeouts mean a genuine hang, not overhead.
-timeout_multiplier = 30.0
-timeout_constant = 5.0
+#
+# POLARS_MAX_THREADS=1: each mutant run is its own process and mutmut already
+# parallelizes across mutants, so a 10-thread polars pool per process just
+# oversubscribes the box and stalls processes (the full suite here is <1s and
+# the slowest single test is 0.01s — nothing is genuinely slow). Single-threaded
+# polars removes that churn; mutmut does the parallelism.
+test_command = "POLARS_MAX_THREADS=1 PYTHONPATH=src ../.venv/bin/python -m pytest tests/ -x -m 'not hypothesis' -q --tb=no --timeout=20 --timeout-method=thread"
+# mutmut 3.x budget = (estimated_test_time + timeout_constant) * timeout_multiplier.
+# Our bare-pytest test_command doesn't load mutmut's timing plugin, so
+# estimated_test_time is ~0 and the budget is effectively a flat
+# timeout_constant*timeout_multiplier floor. The suite is <1s, so ~20s is ~20x
+# headroom: a timeout now means a process genuinely stalled, not a slow test.
+timeout_multiplier = 10.0
+timeout_constant = 2.0
