@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # Keep the SHA-pinned GitHub Actions current via weekly PRs. Python deps are
+  # intentionally left out: under the lowest-direct strategy the lock pins
+  # direct deps to their floors, and Dependabot security alerts already cover
+  # vulnerable transitives separately.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"

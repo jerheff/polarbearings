@@ -290,7 +290,6 @@ breakdown and methodology.
 - [x] Weighted variants for all metrics
 - [x] Multi-version Polars support (1.0.0+)
 - [ ] Multi-class ROC AUC (one-vs-rest, one-vs-one)
-- [ ] Precision-Recall AUC
 - [ ] Calibration metrics (ECE, MCE)
 
 ## Contributing

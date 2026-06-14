@@ -6,6 +6,16 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege by default; jobs that need more (e.g. a publish job needing
+# id-token: write) opt in explicitly.
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Lower bounds — Py ${{ matrix.python-version }} / Polars ${{ matrix.polars-version }}
@@ -30,12 +40,13 @@ jobs:
             polars-version: "1.38.1"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           version: "latest"
+          enable-cache: true
 
       - name: Install dependencies (lowest-direct)
         run: uv sync
@@ -60,12 +71,13 @@ jobs:
         python-version: ["3.11", "3.14"]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           version: "latest"
+          enable-cache: true
 
       # Override the repo's lowest-direct default and ignore the committed
       # lock to pull the newest compatible everything. Guards against APIs
@@ -86,12 +98,13 @@ jobs:
       UV_PYTHON: "3.11"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           version: "latest"
+          enable-cache: true
 
       - name: Build sdist + wheel
         run: uv build
@@ -116,12 +129,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           version: "latest"
+          enable-cache: true
 
       # Default (lowest-direct) env: ty type-checks against floor Polars,
       # catching use of any API newer than polars>=1.0.0.
@@ -148,12 +162,13 @@ jobs:
       UV_PYTHON: "3.14"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           version: "latest"
+          enable-cache: true
 
       # Benchmark against the newest Polars — that's the perf number that matters.
       - name: Install dependencies (highest)
