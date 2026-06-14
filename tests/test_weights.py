@@ -39,7 +39,7 @@ from polarbear import (
 )
 
 
-@pytest.fixture()
+@pytest.fixture
 def weighted_binary_data():
     """Common weighted binary classification data."""
     np.random.seed(42)

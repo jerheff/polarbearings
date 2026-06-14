@@ -50,17 +50,42 @@ line-length = 100
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "ANN",  # flake8-annotations — require type hints on functions/params
+    "D",    # pydocstyle — require & format docstrings
+    "N",    # pep8-naming
+    "RUF",  # ruff-specific rules
+    "SIM",  # flake8-simplify
+    "RET",  # flake8-return
+    "PIE",  # flake8-pie
+    "TC",   # flake8-type-checking
+    "ARG",  # flake8-unused-arguments
+    "PT",   # flake8-pytest-style
+    "PERF", # perflint
+    "FURB", # refurb — modernizing rewrites
 ]
 ignore = [
-    "E501",  # line too long (handled by formatter)
+    "E501",    # line length — handled by the formatter
+    "ANN401",  # allow explicit `Any` where the type is genuinely dynamic
+    "RUF002",  # ambiguous unicode in docstrings (µ, ×, ², ₙ are intentional math)
+    "RUF003",  # ambiguous unicode in comments (same)
+    "RUF022",  # __all__ is grouped by metric category on purpose, not sorted
 ]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests/benchmarks: don't require type annotations or docstrings on every test
+# function and fixture (noisy, low value). Keep pytest-style + bugbear + naming.
+"tests/**" = ["ANN", "D", "ARG"]
+"benchmarks/**" = ["ANN", "D", "ARG"]
 
 [tool.ruff.format]
 quote-style = "double"

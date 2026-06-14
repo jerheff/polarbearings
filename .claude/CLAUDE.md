@@ -91,7 +91,7 @@ All metrics are implemented as Polars expressions that:
 - **Python Version:** 3.11+ (strict requirement)
 - **Line Length:** 100 characters
 - **Type Checking:** ty (Astral's type checker)
-- **Linting:** Ruff with pycodestyle, pyflakes, isort, flake8-bugbear, comprehensions, pyupgrade
+- **Linting:** Ruff — pycodestyle, pyflakes, isort, bugbear, comprehensions, pyupgrade, plus annotations (ANN), docstrings (D, google convention), naming, simplify, return, pie, type-checking, unused-args, pytest-style, perflint, refurb. `src/` must be fully type-annotated and docstringed; tests/benchmarks are exempt from ANN/D.
 - **Formatting:** Double quotes, space indentation
 
 ## Adding New Metrics

@@ -45,17 +45,17 @@ test-cov:
 bench:
     uv run pytest benchmarks/ -v --benchmark-only --benchmark-min-rounds=3 --benchmark-group-by=group --benchmark-columns=mean,stddev
 
-# Check code style with ruff
+# Check code style with ruff (whole project)
 lint:
-    uv run ruff check src/ tests/
+    uv run ruff check
 
 # Fix code style issues automatically
 lint-fix:
-    uv run ruff check --fix src/ tests/
+    uv run ruff check --fix
 
 # Format code with ruff
 format:
-    uv run ruff format src/ tests/
+    uv run ruff format
 
 # Run type checking with ty (whole project: src, tests, benchmarks)
 type-check:
