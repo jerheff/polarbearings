@@ -57,9 +57,9 @@ lint-fix:
 format:
     uv run ruff format src/ tests/
 
-# Run type checking with ty
+# Run type checking with ty (whole project: src, tests, benchmarks)
 type-check:
-    uv run ty check src/polarbear
+    uv run ty check
 
 # Run all quality checks (lint + type-check)
 quality: lint type-check

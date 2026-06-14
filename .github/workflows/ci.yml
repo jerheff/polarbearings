@@ -103,7 +103,7 @@ jobs:
         run: uv run ruff format --check src/ tests/
 
       - name: Run ty
-        run: uv run ty check src/polarbear
+        run: uv run ty check
 
       - name: Tests with coverage gate (100%)
         run: uv run pytest -m 'not hypothesis' --cov=polarbear --cov-report=term-missing --cov-fail-under=100 -q

@@ -228,7 +228,7 @@ uv sync --all-groups
 uv run pytest
 
 # Run type checking
-uv run ty check src/polarbear
+uv run ty check
 
 # Run linting
 uv run ruff check src/ tests/

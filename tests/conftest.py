@@ -12,8 +12,8 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
         ):
             item.add_marker(pytest.mark.hypothesis)
             continue
-        # Also catch tests in *Hypothesis classes or with _property suffix
-        if "Hypothesis" in (item.cls.__name__ if item.cls else "") or item.name.endswith(
-            "_property"
-        ):
+        # Also catch tests in *Hypothesis classes or with _property suffix.
+        # `cls` only exists on class-collected items, not the base Item type.
+        cls = getattr(item, "cls", None)
+        if "Hypothesis" in (cls.__name__ if cls else "") or item.name.endswith("_property"):
             item.add_marker(pytest.mark.hypothesis)

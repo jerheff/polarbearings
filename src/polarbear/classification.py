@@ -215,13 +215,14 @@ def cohens_kappa(
         weight: Optional column with sample weights.
     """
     tp, fp, fn, tn = _confusion_components(target, prob, threshold, weight)
-    total = tp + fp + fn + tn
-    p_o = (tp + tn) / total
-    p_pos = ((tp + fn) / total) * ((tp + fp) / total)
-    p_neg = ((tn + fp) / total) * ((tn + fn) / total)
-    p_e = p_pos + p_neg
-    undefined = (total == 0) | (p_e == 1)
-    result = pl.when(undefined).then(None).otherwise((p_o - p_e) / (1 - p_e))
+    # Compact 2x2 form, algebraically identical to (p_o - p_e) / (1 - p_e) but a
+    # far shallower expression tree (avoids polars' >512-element depth warning on
+    # the nested p_o/p_e formulation). Since denom == total**2 * (1 - p_e),
+    # denom == 0 captures both undefined cases: empty input (total == 0) and
+    # perfect expected agreement (p_e == 1).
+    numerator = 2 * (tp * tn - fp * fn)
+    denom = (tp + fp) * (fp + tn) + (tp + fn) * (fn + tn)
+    result = pl.when(denom == 0).then(None).otherwise(numerator / denom)
     return result.alias(_alias("cohens_kappa", target, prob, threshold, weight))
 
 

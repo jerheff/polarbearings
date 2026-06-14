@@ -69,14 +69,19 @@ indent-style = "space"
 [tool.ty.environment]
 python-version = "3.11"
 
-[tool.ty.src]
-include = ["src"]
+[tool.ty.terminal]
+# Fail on warning-level diagnostics too, not just errors — keep the whole tree
+# (src, tests, benchmarks) type-clean. ty checks the full project by default.
+error-on-warning = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "bench_*.py"]
 python_functions = ["test_*"]
 markers = ["hypothesis: property-based tests using Hypothesis (slow)"]
+# Escalate deprecations to test failures so the highest-resolution job flags an
+# API polars/sklearn is phasing out the moment it appears, not when it's removed.
+filterwarnings = ["error::DeprecationWarning"]
 
 [tool.coverage.run]
 source = ["polarbear"]
