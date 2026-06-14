@@ -156,5 +156,10 @@ omit = ["tests/*", "benchmarks/*"]
 [tool.mutmut]
 paths_to_mutate = ["src/polarbear/"]
 tests_dir = ["tests/"]
-test_command = "uv run pytest tests/ -x -m 'not hypothesis' -q --tb=no --timeout=2 --timeout-method=thread"
+# mutmut runs this from the mutants/ dir. PYTHONPATH=src puts the mutated copy
+# (mutants/src) ahead of the editable install so mutations are actually exercised;
+# we invoke the project venv's python directly (../.venv from mutants/) to avoid
+# uv re-resolving per mutant, which otherwise blows the timeout. Assumes the venv
+# lives at .venv (uv default).
+test_command = "PYTHONPATH=src ../.venv/bin/python -m pytest tests/ -x -m 'not hypothesis' -q --tb=no --timeout=10 --timeout-method=thread"
 test_time_multiplier = 10
