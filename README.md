@@ -7,7 +7,7 @@ High-performance machine learning metrics implemented as native Polars expressio
 - **Fast**: Metrics implemented as Polars expressions for maximum performance
 - **Correct**: Thoroughly tested against scikit-learn with property-based testing
 - **Simple**: Clean, intuitive API that follows Polars conventions
-- **Type-safe**: Full type hints with pyright strict mode
+- **Type-safe**: Full type hints, checked with [ty](https://github.com/astral-sh/ty)
 
 ## Installation
 
@@ -228,7 +228,7 @@ uv sync --all-groups
 uv run pytest
 
 # Run type checking
-uv run pyright src/polarbear
+uv run ty check src/polarbear
 
 # Run linting
 uv run ruff check src/ tests/

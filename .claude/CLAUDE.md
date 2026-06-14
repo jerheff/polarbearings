@@ -9,7 +9,7 @@ Polarbear is a high-performance machine learning metrics library implemented as 
 **Key Features:**
 - 18 metrics (+2 utilities): ranking, probabilistic, classification, and regression
 - Thoroughly tested against scikit-learn with property-based testing
-- Full type hints and pyright strict mode
+- Full type hints, checked with ty
 - Supports Polars 1.0.0+
 
 ## Quick Commands
@@ -45,7 +45,7 @@ just test-compat            # Test against min, mid, and latest Polars versions
 just lint                   # Check code style (ruff)
 just lint-fix              # Auto-fix style issues
 just format                # Format code
-just type-check            # Type checking (pyright strict mode)
+just type-check            # Type checking (ty)
 just quality               # Run all quality checks (lint + type-check)
 ```
 
@@ -90,7 +90,7 @@ All metrics are implemented as Polars expressions that:
 
 - **Python Version:** 3.11+ (strict requirement)
 - **Line Length:** 100 characters
-- **Type Checking:** Pyright strict mode enabled
+- **Type Checking:** ty (Astral's type checker)
 - **Linting:** Ruff with pycodestyle, pyflakes, isort, flake8-bugbear, comprehensions, pyupgrade
 - **Formatting:** Double quotes, space indentation
 
@@ -120,7 +120,7 @@ When implementing a new metric:
 - numpy (test utilities)
 
 **Linting:**
-- pyright (type checking)
+- ty (type checking)
 - ruff (linting and formatting)
 
 ## Common Tasks

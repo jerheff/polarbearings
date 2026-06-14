@@ -110,7 +110,7 @@ uv run ruff check --fix src/ tests/
 uv run ruff format src/ tests/
 
 # Type checking
-uv run pyright src/polarbear
+uv run ty check src/polarbear
 ```
 
 ## Adding New Tests

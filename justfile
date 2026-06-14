@@ -52,9 +52,9 @@ lint-fix:
 format:
     uv run ruff format src/ tests/
 
-# Run type checking with pyright
+# Run type checking with ty
 type-check:
-    uv run pyright src/polarbear
+    uv run ty check src/polarbear
 
 # Run all quality checks (lint + type-check)
 quality: lint type-check

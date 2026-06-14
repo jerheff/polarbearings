@@ -19,12 +19,12 @@ packages = ["src/polarbear"]
 dev = [
     "hypothesis[numpy]>=6.131",
     "numpy>=2.4",
-    "pyright>=1.1.408",
+    "ty>=0.0.49",
     "pytest>=9",
     "pytest-benchmark>=5.1",
     "pytest-cov>=7",
     "python-lsp-server>=1.14",
-    "ruff>=0.15",
+    "ruff>=0.15.17",
     "scikit-learn>=1.8",
     "mutmut>=3.5",
     "pytest-timeout>=2.4.0",
@@ -51,11 +51,11 @@ ignore = [
 quote-style = "double"
 indent-style = "space"
 
-[tool.pyright]
-pythonVersion = "3.11"
-typeCheckingMode = "strict"
-venvPath = "."
-venv = ".venv"
+[tool.ty.environment]
+python-version = "3.11"
+
+[tool.ty.src]
+include = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -274,7 +274,10 @@ def percentile_thresholds(series: pl.Series, percentiles: list[float]) -> list[f
         >>> scores = pl.Series([0.1, 0.2, 0.3, 0.5, 0.7, 0.8, 0.9])
         >>> percentile_thresholds(scores, [25, 50, 75])
     """
-    return [
-        float(series.quantile(p / 100, interpolation="linear"))  # type: ignore[arg-type]
-        for p in percentiles
-    ]
+    thresholds: list[float] = []
+    for p in percentiles:
+        q = series.quantile(p / 100, interpolation="linear")
+        if q is None:
+            raise ValueError("Cannot compute percentile thresholds on an empty series.")
+        thresholds.append(float(q))
+    return thresholds
