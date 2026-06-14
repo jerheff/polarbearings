@@ -41,6 +41,10 @@ dev = [
 ]
 
 [tool.uv]
+# Require a recent uv so the committed lock format and resolution behavior stay
+# consistent across contributors and CI (the version contract for the tool).
+required-version = ">=0.11"
+
 # Resolve (and lock) direct dependencies to their LOWEST allowed versions, so
 # development happens against our advertised floors — most importantly
 # polars>=1.0.0. This surfaces accidental use of a newer polars API at dev/CI
