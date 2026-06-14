@@ -161,5 +161,12 @@ tests_dir = ["tests/"]
 # we invoke the project venv's python directly (../.venv from mutants/) to avoid
 # uv re-resolving per mutant, which otherwise blows the timeout. Assumes the venv
 # lives at .venv (uv default).
-test_command = "PYTHONPATH=src ../.venv/bin/python -m pytest tests/ -x -m 'not hypothesis' -q --tb=no --timeout=10 --timeout-method=thread"
-test_time_multiplier = 10
+test_command = "PYTHONPATH=src ../.venv/bin/python -m pytest tests/ -x -m 'not hypothesis' -q --tb=no --timeout=60 --timeout-method=thread"
+# Per-mutant time budget (mutmut 3.x) = (estimated_test_time + timeout_constant)
+# * timeout_multiplier, for both the wall clock and (×2) the CPU rlimit. Our
+# test_command runs the whole non-hypothesis suite each time and pays fixed
+# python+polars import overhead, which the per-test estimate doesn't capture —
+# with the defaults (15.0 / 1.0) that starved slower mutants into spurious
+# SIGXCPU timeouts. Raise both so timeouts mean a genuine hang, not overhead.
+timeout_multiplier = 30.0
+timeout_constant = 5.0
