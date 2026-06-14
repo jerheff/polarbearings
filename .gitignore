@@ -48,9 +48,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# uv
-uv.lock
-
 # Ruff
 .ruff_cache/
 
