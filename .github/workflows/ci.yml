@@ -79,6 +79,38 @@ jobs:
       - name: Run tests
         run: uv run pytest -v --tb=short
 
+  package:
+    name: Package — build wheel & test the installed artifact
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.11"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+
+      - name: Build sdist + wheel
+        run: uv build
+
+      - name: Validate package metadata
+        run: uvx twine check dist/*
+
+      # Clean env with ONLY the dev/test tooling — NOT the project, NOT its
+      # runtime deps. Installing the wheel must then pull its own deps (polars),
+      # which verifies the wheel declares them correctly. No locked versions.
+      - name: Install dev tooling + the built wheel
+        run: |
+          uv venv .venv-wheel
+          uv pip install --python .venv-wheel --group dev
+          uv pip install --python .venv-wheel dist/*.whl
+
+      - name: Test against the installed wheel
+        run: .venv-wheel/bin/python -m pytest tests/ -q
+
   lint:
     name: Lint, Types & Coverage
     runs-on: ubuntu-latest

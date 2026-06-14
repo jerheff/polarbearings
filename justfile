@@ -37,6 +37,21 @@ test-compat:
 test-highest:
     uv run --isolated --resolution highest pytest tests/ -q --tb=short
 
+# Test the PUBLISHED wheel the way a real user installs it: a clean venv with
+# only the dev/test tooling, then the wheel — which must pull its OWN runtime
+# deps (polars). Catches missing/incorrect dependency declarations and packaging
+# bugs the editable dev install masks. Uses no locked versions on purpose.
+test-wheel:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rm -rf dist .venv-wheel
+    uv build
+    uv venv .venv-wheel
+    uv pip install --python .venv-wheel --group dev
+    uv pip install --python .venv-wheel dist/*.whl
+    uvx twine check dist/*
+    .venv-wheel/bin/python -m pytest tests/ -q
+
 # Run tests with coverage report
 test-cov:
     uv run pytest --cov=src/polarbear --cov-report=term-missing tests/
