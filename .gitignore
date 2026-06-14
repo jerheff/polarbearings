@@ -53,3 +53,7 @@ Thumbs.db
 
 # Mutation testing
 mutants/
+
+# Claude Code — local agent state (not authored project content)
+.claude/agent-memory/
+.claude/worktrees/
