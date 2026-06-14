@@ -15,6 +15,12 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/polarbear"]
 
+[tool.hatch.build.targets.sdist]
+# Scope the source distribution explicitly so it can't vacuum up working-tree
+# junk (.claude/, .github/, caches, dev configs). pyproject.toml + PKG-INFO are
+# always included by the backend.
+only-include = ["src", "tests", "README.md", "LICENSE"]
+
 [dependency-groups]
 dev = [
     # Tooling — floors kept current so the `lowest-direct` dev resolution
