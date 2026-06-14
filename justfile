@@ -32,6 +32,11 @@ test-compat:
     just test-polars 1.24.0
     just test-polars 1.38.1
 
+# Test the UPPER bound: newest compatible deps (the dev default is the floor).
+# Mirrors the test-highest CI job; leaves the committed lock untouched.
+test-highest:
+    uv run --isolated --resolution highest pytest tests/ -q --tb=short
+
 # Run tests with coverage report
 test-cov:
     uv run pytest --cov=src/polarbear --cov-report=term-missing tests/

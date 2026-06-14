@@ -17,18 +17,33 @@ packages = ["src/polarbear"]
 
 [dependency-groups]
 dev = [
-    "hypothesis[numpy]>=6.131",
-    "numpy>=2.4",
+    # Tooling — floors kept current so the `lowest-direct` dev resolution
+    # (see [tool.uv]) still gives modern tools, not stale ones.
     "ty>=0.0.49",
-    "pytest>=9",
-    "pytest-benchmark>=5.1",
-    "pytest-cov>=7",
-    "python-lsp-server>=1.14",
     "ruff>=0.15.17",
+    "pytest>=9.1",
+    "pytest-cov>=7.1",
+    "pytest-benchmark>=5.2",
+    "pytest-timeout>=2.4",
+    "hypothesis[numpy]>=6.155",
+    "mutmut>=3.6",
+    "python-lsp-server>=1.14",
+    # Compatibility targets — floors kept LOW on purpose. We verify behavior
+    # at their minimum supported version, so `lowest-direct` should pin these
+    # to the floor.
+    "numpy>=2.4",
     "scikit-learn>=1.8",
-    "mutmut>=3.5",
-    "pytest-timeout>=2.4.0",
 ]
+
+[tool.uv]
+# Resolve (and lock) direct dependencies to their LOWEST allowed versions, so
+# development happens against our advertised floors — most importantly
+# polars>=1.0.0. This surfaces accidental use of a newer polars API at dev/CI
+# time rather than only in a user's older environment. Transitive dependencies
+# still resolve to their highest compatible versions ("lowest-direct", not
+# "lowest"). The upper bound is guarded separately by the highest-resolution CI
+# job and `just test-highest`.
+resolution = "lowest-direct"
 
 [tool.ruff]
 line-length = 100

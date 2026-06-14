@@ -123,6 +123,29 @@ When implementing a new metric:
 - ty (type checking)
 - ruff (linting and formatting)
 
+## Dependency Resolution Strategy
+
+This project develops and locks against the **lowest** allowed direct
+dependencies (`[tool.uv] resolution = "lowest-direct"` in pyproject.toml), and
+`.python-version` pins **3.11** — the minimum supported interpreter.
+
+**Why:** the headline guarantee is "supports polars 1.0.0+". Resolving direct
+deps to their floors means `uv sync` installs polars 1.0.0, so `ty check` and
+the test suite catch accidental use of a newer polars API at dev time, not in a
+user's older environment. Transitive deps still resolve to their highest
+compatible versions.
+
+**Floor policy:**
+- Runtime/compat targets (`polars`, `numpy`, `scikit-learn`) keep **low** floors
+  on purpose — those floors are what we promise to support.
+- Tooling (`ty`, `ruff`, `pytest`, `hypothesis`, …) keeps **current** floors so
+  lowest-direct still gives modern tools, not stale ones.
+
+**The upper bound is guarded separately** so we also catch APIs deprecated or
+removed since our floors:
+- `just test-highest` — run the suite against newest compatible deps locally.
+- The `test-highest` CI job — `uv sync --upgrade --resolution highest`.
+
 ## Common Tasks
 
 **Before committing:**

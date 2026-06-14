@@ -8,12 +8,15 @@ on:
 
 jobs:
   test:
-    name: Test Python ${{ matrix.python-version }} / Polars ${{ matrix.polars-version }}
+    name: Lower bounds — Py ${{ matrix.python-version }} / Polars ${{ matrix.polars-version }}
     runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
     strategy:
       fail-fast: false
       matrix:
-        # Polars version strategy: minimum supported, ~1 year old, and latest
+        # Dev deps resolve to their floors (lowest-direct, the repo default).
+        # Polars is then pinned across its supported range: floor, ~1yr old, recent.
         python-version: ["3.11", "3.14"]
         polars-version: ["1.0.0", "1.24.0", "1.38.1"]
         include:
@@ -34,13 +37,10 @@ jobs:
         with:
           version: "latest"
 
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Install dependencies
+      - name: Install dependencies (lowest-direct)
         run: uv sync
 
-      - name: Install specific Polars version
+      - name: Pin Polars version
         run: uv pip install polars==${{ matrix.polars-version }}
 
       - name: Run tests
@@ -48,6 +48,36 @@ jobs:
 
       - name: Run hypothesis tests with more examples
         run: uv run pytest tests/test_aoc.py::test_auc_matches_sklearn -v --hypothesis-seed=0
+
+  test-highest:
+    name: Upper bounds — Py ${{ matrix.python-version }} / latest deps
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+
+      # Override the repo's lowest-direct default and ignore the committed
+      # lock to pull the newest compatible everything. Guards against APIs
+      # deprecated or removed since our floors.
+      - name: Install dependencies (highest)
+        run: uv sync --upgrade --resolution highest
+
+      - name: Show resolved Polars
+        run: uv run python -c "import polars; print('polars', polars.__version__)"
+
+      - name: Run tests
+        run: uv run pytest -v --tb=short
 
   lint:
     name: Lint and Type Check
@@ -61,10 +91,9 @@ jobs:
         with:
           version: "latest"
 
-      - name: Set up Python
-        run: uv python install 3.14
-
-      - name: Install dependencies
+      # Default (lowest-direct) env: ty type-checks against floor Polars,
+      # catching use of any API newer than polars>=1.0.0.
+      - name: Install dependencies (lowest-direct)
         run: uv sync
 
       - name: Run ruff check
@@ -80,6 +109,8 @@ jobs:
     name: Benchmark
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    env:
+      UV_PYTHON: "3.14"
 
     steps:
       - uses: actions/checkout@v6
@@ -89,11 +120,9 @@ jobs:
         with:
           version: "latest"
 
-      - name: Set up Python
-        run: uv python install 3.14
-
-      - name: Install dependencies
-        run: uv sync
+      # Benchmark against the newest Polars — that's the perf number that matters.
+      - name: Install dependencies (highest)
+        run: uv sync --upgrade --resolution highest
 
       - name: Run benchmarks
         run: uv run pytest benchmarks/ -v --benchmark-only --benchmark-min-rounds=3 --benchmark-group-by=group --benchmark-columns=mean,stddev
