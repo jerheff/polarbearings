@@ -158,3 +158,38 @@ prek install
 # Run manually against all files
 uv run prek run --all-files
 ```
+
+## Mutation Testing (mutmut)
+
+```bash
+just mutant          # generate + run mutants
+uv run mutmut results  # list survivors
+```
+
+**Important caveat — full-runs are unreliable on this project.** mutmut 3.x runs
+each mutant's tests with an in-process pytest inside a per-mutant `os.fork()`
+with no `exec` (it does *not* use the `test_command` setting). Polars' rayon
+engine is **fork-unsafe**: a forked child that runs any parallel operation
+(`sort`, `cum_sum`, `group_by`, …) deadlocks and is killed as a spurious
+**timeout**. Because mutmut counts a timeout as "caught", a timeout can *mask* a
+real survivor whose covering test happens to use such an op. There is no mutmut
+option to change this — the fork is hardcoded, and `--max-children` only controls
+concurrency (a single forked child still deadlocks).
+
+So treat a mutmut run's survivor list as a set of *candidates*, not the final
+word, and **confirm each candidate with the trampoline method**, which runs
+pytest as an ordinary subprocess (no fork, no deadlock) and is the source of
+truth for whether a mutant is killed:
+
+```bash
+# From the generated mutants/ directory, activate one mutant and run the suite.
+# Nonzero exit == the mutant is killed.
+cd mutants
+MUTANT_UNDER_TEST=polarbear.<module>.<mutant_name> \
+  PYTHONPATH=src ../.venv/bin/python -m pytest tests/ -m 'not hypothesis' -q
+```
+
+Find a mutant's name/diff with `uv run mutmut show <id>`. Mutant verdicts are
+also stored per source file in `mutants/src/polarbear/<file>.py.meta` under
+`exit_code_by_key` (1 = killed, 0 = survived, -24/24/36/152/255 = timeout,
+null = not run).

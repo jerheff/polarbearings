@@ -156,22 +156,21 @@ omit = ["tests/*", "benchmarks/*"]
 [tool.mutmut]
 paths_to_mutate = ["src/polarbear/"]
 tests_dir = ["tests/"]
-# mutmut runs this from the mutants/ dir. PYTHONPATH=src puts the mutated copy
-# (mutants/src) ahead of the editable install so mutations are actually exercised;
-# we invoke the project venv's python directly (../.venv from mutants/) to avoid
-# uv re-resolving per mutant, which otherwise blows the timeout. Assumes the venv
-# lives at .venv (uv default).
+# Skip the slow property-based tests during mutation runs.
+pytest_add_cli_args = ["-m", "not hypothesis"]
 #
-# POLARS_MAX_THREADS=1: each mutant run is its own process and mutmut already
-# parallelizes across mutants, so a 10-thread polars pool per process just
-# oversubscribes the box and stalls processes (the full suite here is <1s and
-# the slowest single test is 0.01s — nothing is genuinely slow). Single-threaded
-# polars removes that churn; mutmut does the parallelism.
-test_command = "POLARS_MAX_THREADS=1 PYTHONPATH=src ../.venv/bin/python -m pytest tests/ -x -m 'not hypothesis' -q --tb=no --timeout=20 --timeout-method=thread"
-# mutmut 3.x budget = (estimated_test_time + timeout_constant) * timeout_multiplier.
-# Our bare-pytest test_command doesn't load mutmut's timing plugin, so
-# estimated_test_time is ~0 and the budget is effectively a flat
-# timeout_constant*timeout_multiplier floor. The suite is <1s, so ~20s is ~20x
-# headroom: a timeout now means a process genuinely stalled, not a slow test.
-timeout_multiplier = 10.0
-timeout_constant = 2.0
+# CAVEAT — mutmut full-runs are unreliable on this project. mutmut 3.x runs each
+# mutant's tests with an in-process pytest inside a per-mutant os.fork() with no
+# exec (it ignores `test_command`). Polars' rayon engine is fork-unsafe, so a
+# forked child that runs any parallel op (sort, cum_sum, group_by, …) deadlocks
+# and is killed as a spurious "timeout". Timeouts count as "caught", so they can
+# mask a genuine survivor whose covering test happens to use such an op. There is
+# no mutmut option to change this (the fork is hardcoded; --max-children only sets
+# concurrency and a single forked child still deadlocks).
+#
+# SOURCE OF TRUTH for whether a mutant is killed: activate it via the trampoline
+# and run pytest as a normal subprocess (no fork, no deadlock), e.g. from mutants/:
+#   MUTANT_UNDER_TEST=polarbear.<module>.<mutant> \
+#     PYTHONPATH=src ../.venv/bin/python -m pytest tests/ -m 'not hypothesis'
+# Nonzero exit == killed. Use mutmut to ENUMERATE survivor candidates, then
+# confirm each with this method. See docs/guides/TESTING.md.
