@@ -258,13 +258,20 @@ just bench
 
 ## Performance
 
-Polarbear is **2-4x faster than sklearn** on large datasets:
+Polarbear runs every metric as a native Polars expression, so it's typically
+**~2.4–17x faster than scikit-learn** for single metrics and **15–80x faster**
+for grouped metrics — the gap grows on newer Polars and on larger data.
 
-| Metric | 100k samples | Speedup vs sklearn |
-|--------|--------------|-------------------|
-| ROC AUC | 3.2ms | **3.99x faster** |
-| Log Loss | 1.8ms | **3.01x faster** |
-| Brier Score | 0.16ms | **2.91x faster** |
+Speedup vs scikit-learn at 100k samples (higher is better):
+
+| Metric | polars 1.0.0 | polars 1.41 |
+|--------|:---:|:---:|
+| ROC AUC | 5.3x | 5.4x |
+| Log Loss | 4.7x | 7.9x |
+| Brier Score | 11.9x | 17.2x |
+
+See [docs/technical/PERFORMANCE.md](docs/technical/PERFORMANCE.md) for the full
+breakdown and methodology.
 
 ## Requirements
 

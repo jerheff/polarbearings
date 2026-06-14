@@ -257,6 +257,11 @@ class TestPercentileThresholds:
         result = df.select(*threshold_sweep(precision, "label", "prob", thresholds))
         assert result.shape == (1, 3)
 
+    def test_empty_series_raises(self):
+        """An empty series has no quantile, so a clear error beats float(None)."""
+        with pytest.raises(ValueError, match="empty series"):
+            percentile_thresholds(pl.Series("prob", [], dtype=pl.Float64), [50])
+
 
 class TestClassificationGroupBy:
     def test_precision_group_by(self):

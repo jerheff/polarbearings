@@ -1,25 +1,39 @@
 # Performance Analysis
 
-## Current Performance vs sklearn
+## Current Performance vs scikit-learn
 
-Polarbear is **2-4x faster than sklearn** on large datasets:
+Every metric runs as a native Polars expression in Polars' Rust engine, with no
+Python-level loops. In practice that is **~2.4–17x faster than scikit-learn for
+single metrics, and 15–80x faster for grouped metrics** — and the gap *widens*
+on newer Polars.
 
-| Metric | 100 samples | 100k samples | Speedup |
-|--------|------------|--------------|---------|
-| **ROC AUC** | 0.136ms (2.23x) | 3.162ms (3.99x) | **3.99x** |
-| **Log Loss** | 0.105ms (2.23x) | 1.831ms (3.01x) | **3.01x** |
-| **Brier Score** | 0.048ms (1.85x) | 0.162ms (2.91x) | **2.91x** |
+Speedup = scikit-learn mean time ÷ polarbear mean time (higher is better).
+Measured on a single machine (Apple Silicon) via this repo's `benchmarks/`, 5+
+rounds each. Absolute times are hardware-specific; the **ratios** are the
+portable signal. Two dependency resolutions are shown — our advertised floor
+(**polars 1.0.0**, the dev default) and the latest (**polars 1.41.2**):
 
-### Grouped Operations
+### Single metrics (speedup vs scikit-learn)
 
-Polarbear excels at grouped metric calculations:
+| Metric | n | polars 1.0.0 | polars 1.41 |
+|--------|---:|:---:|:---:|
+| ROC AUC | 1,000 | 2.5x | 3.1x |
+| ROC AUC | 100,000 | 5.3x | 5.4x |
+| Log Loss | 1,000 | 3.1x | 3.1x |
+| Log Loss | 100,000 | 4.7x | 7.9x |
+| Brier Score | 1,000 | 2.6x | 3.2x |
+| Brier Score | 100,000 | 11.9x | 17.2x |
 
-| Groups | Samples/Group | Total Samples | Time |
-|--------|--------------|--------------|------|
-| 10 | 1,000 | 10,000 | 0.78ms |
-| 100 | 1,000 | 100,000 | 3.42ms |
-| 1,000 | 100 | 100,000 | 4.45ms |
-| 100 | 10,000 | 1,000,000 | 37.11ms |
+### Grouped metrics (all metrics per group via `group_by().agg()`)
+
+| Groups (×100 rows) | polars 1.0.0 | polars 1.41 |
+|-------------------:|:---:|:---:|
+| 10 | 15x | 20x |
+| 100 | 45x | 61x |
+| 1,000 | 57x | 81x |
+
+Grouped is where polarbear shines most: a single vectorized pass replaces a
+Python loop that calls scikit-learn once per group.
 
 ## Optimization History
 
@@ -86,7 +100,10 @@ Polarbear excels at grouped metric calculations:
 
 4. **Grouped operations**: **1.46x faster** for small group aggregations, with consistent 13-15% improvements across larger datasets.
 
-5. **Still faster than sklearn**: Polarbear maintains 2-4x speedup over sklearn for large datasets.
+5. **Newer Polars widens the gap**: the same code is meaningfully faster on
+   polars 1.41 than on the 1.0.0 floor (e.g. Log Loss at 100k: 4.7x → 7.9x;
+   grouped at 1,000 groups: 57x → 81x), so the floor numbers above are the
+   conservative end.
 
 ## Benchmarking
 

@@ -13,6 +13,9 @@ from sklearn.metrics import (
     f1_score as sklearn_f1,
 )
 from sklearn.metrics import (
+    fbeta_score as sklearn_fbeta,
+)
+from sklearn.metrics import (
     log_loss as sklearn_log_loss,
 )
 from sklearn.metrics import (
@@ -28,6 +31,7 @@ from polarbear import (
     balanced_accuracy,
     brier_score,
     f1_score,
+    fbeta_score,
     log_loss,
     precision,
     recall,
@@ -144,6 +148,17 @@ class TestWeightedClassification:
         preds = (probs >= threshold).astype(int)
         expected = sklearn_f1(labels, preds, sample_weight=weights)
         assert result == pytest.approx(expected, rel=1e-4)
+
+    def test_weighted_fbeta_matches_sklearn(self, weighted_binary_data):
+        df, labels, probs, weights = weighted_binary_data
+        threshold = 0.5
+        for beta in (0.5, 2.0):
+            result = df.select(
+                fbeta_score("label", "prob", beta=beta, threshold=threshold, weight="w")
+            ).to_series()[0]
+            preds = (probs >= threshold).astype(int)
+            expected = sklearn_fbeta(labels, preds, beta=beta, sample_weight=weights)
+            assert result == pytest.approx(expected, rel=1e-4)
 
     def test_weighted_accuracy_matches_sklearn(self, weighted_binary_data):
         df, labels, probs, weights = weighted_binary_data
