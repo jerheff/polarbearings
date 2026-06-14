@@ -14,6 +14,14 @@ hooks = [
 ]
 
 [[repos]]
+repo = "https://github.com/astral-sh/uv-pre-commit"
+rev = "fe063293315003e95dff96d43c4928f8799a5c62" # frozen: 0.11.21
+hooks = [
+  # Fail if uv.lock is out of sync with pyproject.toml (we commit the lock).
+  { id = "uv-lock" },
+]
+
+[[repos]]
 repo = "builtin"
 hooks = [
   { id = "trailing-whitespace" },
@@ -22,4 +30,6 @@ hooks = [
   { id = "check-toml" },
   { id = "check-added-large-files" },
   { id = "check-merge-conflict" },
+  { id = "check-case-conflict" },   # cross-platform: no names differing only in case
+  { id = "detect-private-key" },    # never commit a private key
 ]

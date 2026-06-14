@@ -68,6 +68,7 @@ select = [
     "PT",   # flake8-pytest-style
     "PERF", # perflint
     "FURB", # refurb — modernizing rewrites
+    "T10",  # flake8-debugger — no stray breakpoint()/pdb
 ]
 ignore = [
     "E501",    # line length — handled by the formatter
