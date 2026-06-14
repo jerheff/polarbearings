@@ -24,7 +24,10 @@ from sklearn.metrics import (
 from polarbear import (
     accuracy,
     balanced_accuracy,
+    cohens_kappa,
     f1_score,
+    fbeta_score,
+    matthews_corrcoef,
     percentile_thresholds,
     precision,
     recall,
@@ -543,3 +546,44 @@ class TestClassificationHypothesis:
         preds = (probs >= threshold).astype(int)
         expected = balanced_accuracy_score(labels, preds)
         assert result == pytest.approx(expected, rel=1e-5)
+
+
+class TestColumnNames:
+    """The output column name is part of the public API: it encodes the metric,
+    the input columns, the threshold, and (when present) the weight column.
+    """
+
+    DF = pl.DataFrame(
+        {"label": [0, 1, 1, 0], "prob": [0.2, 0.8, 0.6, 0.3], "w": [1.0, 2.0, 1.0, 3.0]}
+    )
+
+    def test_unweighted_names(self):
+        cols = self.DF.select(
+            fbeta_score("label", "prob", beta=2.0),
+            matthews_corrcoef("label", "prob"),
+            cohens_kappa("label", "prob"),
+        ).columns
+        assert cols == [
+            "fbeta_2_label_prob_0.5",
+            "mcc_label_prob_0.5",
+            "cohens_kappa_label_prob_0.5",
+        ]
+
+    def test_weighted_names_carry_weight_suffix(self):
+        cols = self.DF.select(
+            fbeta_score("label", "prob", beta=2.0, weight="w"),
+            matthews_corrcoef("label", "prob", weight="w"),
+            cohens_kappa("label", "prob", weight="w"),
+        ).columns
+        assert cols == [
+            "fbeta_2_label_prob_0.5_w",
+            "mcc_label_prob_0.5_w",
+            "cohens_kappa_label_prob_0.5_w",
+        ]
+
+    def test_threshold_in_name(self):
+        cols = self.DF.select(
+            matthews_corrcoef("label", "prob", threshold=0.7),
+            cohens_kappa("label", "prob", threshold=0.7),
+        ).columns
+        assert cols == ["mcc_label_prob_0.7", "cohens_kappa_label_prob_0.7"]

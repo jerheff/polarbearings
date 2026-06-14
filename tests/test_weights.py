@@ -7,6 +7,7 @@ from sklearn.metrics import (
     accuracy_score,
     average_precision_score,
     brier_score_loss,
+    cohen_kappa_score,
     roc_auc_score,
 )
 from sklearn.metrics import (
@@ -17,6 +18,9 @@ from sklearn.metrics import (
 )
 from sklearn.metrics import (
     log_loss as sklearn_log_loss,
+)
+from sklearn.metrics import (
+    matthews_corrcoef as sklearn_mcc,
 )
 from sklearn.metrics import (
     precision_score as sklearn_precision,
@@ -30,9 +34,11 @@ from polarbear import (
     average_precision,
     balanced_accuracy,
     brier_score,
+    cohens_kappa,
     f1_score,
     fbeta_score,
     log_loss,
+    matthews_corrcoef,
     precision,
     recall,
     roc_auc,
@@ -50,6 +56,26 @@ def weighted_binary_data():
     weights = np.random.rand(n) + 0.5
     df = pl.DataFrame({"label": labels, "prob": probs, "w": weights})
     return df, labels, probs, weights
+
+
+@pytest.fixture
+def skewed_weighted_data():
+    """Non-separable data with skewed weights.
+
+    `weighted_binary_data` is perfectly separable (every label predicted
+    correctly at threshold 0.5), so weighted and unweighted scores are both
+    1.0 — useless for catching a metric that silently ignores its weights.
+    Here scores are random (misclassifications exist) and weights are skewed
+    (20x vs 0.3x), so weighted != unweighted by a wide margin.
+    """
+    np.random.seed(7)
+    n = 300
+    labels = np.random.randint(0, 2, n)
+    probs = np.random.rand(n)
+    weights = np.where(np.arange(n) % 3 == 0, 20.0, 0.3)
+    preds = (probs >= 0.5).astype(int)
+    df = pl.DataFrame({"label": labels, "prob": probs, "w": weights})
+    return df, labels, preds, weights
 
 
 class TestWeightedROCAUC:
@@ -215,6 +241,35 @@ class TestWeightedClassification:
             ).to_series()[0]
             expected_f = sklearn_f1(labels, preds, sample_weight=weights)
             assert result_f == pytest.approx(expected_f, rel=1e-4), f"f1 at t={threshold}"
+
+    def test_weighted_fbeta_matches_sklearn_nonseparable(self, skewed_weighted_data):
+        """Weighted fbeta on non-separable data with skewed weights.
+
+        Unlike `weighted_binary_data` (separable -> always 1.0), here weighted
+        and unweighted differ, so a metric that ignores its weight argument is
+        caught.
+        """
+        df, labels, preds, weights = skewed_weighted_data
+        for beta in (0.5, 2.0):
+            result = df.select(
+                fbeta_score("label", "prob", beta=beta, threshold=0.5, weight="w")
+            ).to_series()[0]
+            expected = sklearn_fbeta(labels, preds, beta=beta, sample_weight=weights)
+            assert result == pytest.approx(expected, rel=1e-4)
+
+    def test_weighted_mcc_matches_sklearn(self, skewed_weighted_data):
+        df, labels, preds, weights = skewed_weighted_data
+        result = df.select(
+            matthews_corrcoef("label", "prob", threshold=0.5, weight="w")
+        ).to_series()[0]
+        expected = sklearn_mcc(labels, preds, sample_weight=weights)
+        assert result == pytest.approx(expected, rel=1e-4)
+
+    def test_weighted_cohens_kappa_matches_sklearn(self, skewed_weighted_data):
+        df, labels, preds, weights = skewed_weighted_data
+        result = df.select(cohens_kappa("label", "prob", threshold=0.5, weight="w")).to_series()[0]
+        expected = cohen_kappa_score(labels, preds, sample_weight=weights)
+        assert result == pytest.approx(expected, rel=1e-4)
 
 
 class TestWeightedGroupBy:

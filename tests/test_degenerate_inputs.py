@@ -10,7 +10,7 @@ import math
 import polars as pl
 import pytest
 
-from polarbear import brier_score, log_loss, roc_auc
+from polarbear import brier_score, fbeta_score, log_loss, matthews_corrcoef, roc_auc
 
 
 class TestRocAucSingleClass:
@@ -128,3 +128,42 @@ class TestSingleRow:
         df = pl.DataFrame({"label": [1], "prob": [0.9]})
         result = df.select(brier_score("label", "prob")).to_series()[0]
         assert result == pytest.approx(0.01)
+
+
+class TestMccDegenerate:
+    """MCC is undefined (null) when any confusion-matrix marginal is zero, e.g.
+    when only one class is present. These also guard the exact boundary of the
+    undefined check (== 0 on each marginal, not == 1 or some other value).
+    """
+
+    def test_all_positive_labels_is_null(self):
+        """Only positives present -> no actual negatives -> MCC undefined."""
+        df = pl.DataFrame({"y": [1, 1, 1, 1], "p": [0.2, 0.8, 0.3, 0.9]})
+        assert df.select(matthews_corrcoef("y", "p")).to_series()[0] is None
+
+    def test_all_negative_labels_is_null(self):
+        """Only negatives present -> no actual positives -> MCC undefined."""
+        df = pl.DataFrame({"y": [0, 0, 0, 0], "p": [0.2, 0.8, 0.3, 0.9]})
+        assert df.select(matthews_corrcoef("y", "p")).to_series()[0] is None
+
+    def test_minimal_perfect_two_sample(self):
+        """One positive + one negative, both classified correctly: every marginal
+        equals exactly 1 (>0), so MCC is defined and equals +1.0.
+        """
+        df = pl.DataFrame({"y": [1, 0], "p": [0.9, 0.1]})
+        assert df.select(matthews_corrcoef("y", "p")).to_series()[0] == pytest.approx(1.0)
+
+
+class TestFbetaDegenerate:
+    def test_only_false_negative_is_zero(self):
+        """One positive predicted negative, one true negative: denom == 1 (>0),
+        so fbeta is defined and equals 0.0 (no true positives).
+        """
+        df = pl.DataFrame({"y": [1, 0], "p": [0.1, 0.1]})
+        result = df.select(fbeta_score("y", "p", beta=1.0)).to_series()[0]
+        assert result == pytest.approx(0.0)
+
+    def test_no_positives_or_predictions_is_null(self):
+        """All true negatives -> denom == 0 -> fbeta undefined (null)."""
+        df = pl.DataFrame({"y": [0, 0], "p": [0.1, 0.2]})
+        assert df.select(fbeta_score("y", "p", beta=1.0)).to_series()[0] is None
