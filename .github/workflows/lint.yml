@@ -1,0 +1,49 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prek:
+    name: Pre-commit hooks (PR diff / full on push)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # full history so the PR base..head diff resolves
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: "latest"
+          enable-cache: true
+
+      # The ty hook resolves the project's types against the floor env, so the
+      # venv (with polars) must exist before prek runs.
+      - name: Install dependencies (lowest-direct)
+        run: uv sync
+
+      # On PRs, run hooks only on files changed vs the base branch — fast feedback.
+      - name: Run prek on changed files
+        if: github.event_name == 'pull_request'
+        run: >
+          uvx prek run
+          --from-ref ${{ github.event.pull_request.base.sha }}
+          --to-ref ${{ github.event.pull_request.head.sha }}
+          --show-diff-on-failure --color always
+
+      # On push to main, run every hook on every file so main stays fully clean.
+      - name: Run prek on all files
+        if: github.event_name == 'push'
+        run: uvx prek run --all-files --show-diff-on-failure --color always

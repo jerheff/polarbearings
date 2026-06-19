@@ -1,0 +1,48 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Build wheel & test the installed artifact
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.11"
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Build sdist + wheel
+        run: uv build
+
+      - name: Validate package metadata
+        run: uvx twine check dist/*
+
+      # Clean env with ONLY the dev/test tooling — NOT the project, NOT its
+      # runtime deps. Installing the wheel must then pull its own deps (polars),
+      # which verifies the wheel declares them correctly. No locked versions.
+      - name: Install dev tooling + the built wheel
+        run: |
+          uv venv .venv-wheel
+          uv pip install --python .venv-wheel --group dev
+          uv pip install --python .venv-wheel dist/*.whl
+
+      - name: Test against the installed wheel
+        run: .venv-wheel/bin/python -m pytest tests/ -q

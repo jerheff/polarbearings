@@ -1,0 +1,112 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lower bounds — Py ${{ matrix.python-version }} / Polars ${{ matrix.polars-version }}
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Dev deps resolve to their floors (lowest-direct, the repo default).
+        # Polars is then pinned across its supported range: floor, ~1yr old, recent.
+        python-version: ["3.11", "3.14"]
+        polars-version: ["1.0.0", "1.24.0", "1.41.2"]
+        include:
+          - python-version: "3.12"
+            polars-version: "1.0.0"
+          - python-version: "3.12"
+            polars-version: "1.41.2"
+          - python-version: "3.13"
+            polars-version: "1.0.0"
+          - python-version: "3.13"
+            polars-version: "1.41.2"
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Install dependencies (lowest-direct)
+        run: uv sync
+
+      - name: Pin Polars version
+        run: uv pip install polars==${{ matrix.polars-version }}
+
+      - name: Run tests
+        run: uv run pytest -v --tb=short
+
+      - name: Run hypothesis tests with more examples
+        run: uv run pytest -m hypothesis --hypothesis-profile=thorough --hypothesis-seed=0 -q
+
+  test-highest:
+    name: Upper bounds — Py ${{ matrix.python-version }} / latest deps
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: "latest"
+          enable-cache: true
+
+      # Override the repo's lowest-direct default and ignore the committed
+      # lock to pull the newest compatible everything. Guards against APIs
+      # deprecated or removed since our floors.
+      - name: Install dependencies (highest)
+        run: uv sync --upgrade --resolution highest
+
+      - name: Show resolved Polars
+        run: uv run python -c "import polars; print('polars', polars.__version__)"
+
+      - name: Run tests
+        run: uv run pytest -v --tb=short
+
+  coverage:
+    name: Coverage (100% gate)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: "latest"
+          enable-cache: true
+
+      # Floor env (lowest-direct) so coverage is measured against polars>=1.0.0.
+      # ruff/format/ty run in the Lint workflow's prek job.
+      - name: Install dependencies (lowest-direct)
+        run: uv sync
+
+      # Coverage gate: fails below 100% (threshold lives in pyproject's
+      # [tool.coverage.report] fail_under, so local `just test-cov` matches).
+      - name: Tests with coverage gate
+        run: uv run pytest -m 'not hypothesis' --cov=polarbearings --cov-report=term-missing -q

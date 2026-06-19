@@ -1,0 +1,44 @@
+name: Benchmark
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: Benchmark
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.14"
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: "latest"
+          enable-cache: true
+
+      # Benchmark against the newest Polars — that's the perf number that matters.
+      - name: Install dependencies (highest)
+        run: uv sync --upgrade --resolution highest
+
+      # Cap the size sweep so CI stays fast (the 1M/10M cases are for local
+      # runs); keep the rigorous flags in sync with `bench_flags` in the justfile.
+      - name: Run benchmarks
+        env:
+          BENCH_MAX_N: "100000"
+        run: >
+          uv run pytest benchmarks/
+          --benchmark-only --benchmark-warmup=on --benchmark-disable-gc
+          --benchmark-min-rounds=20 --benchmark-calibration-precision=10
+          --benchmark-columns=median,iqr,ops,rounds --benchmark-sort=name
+          --benchmark-group-by=group
