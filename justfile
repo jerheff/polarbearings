@@ -59,6 +59,26 @@ test-wheel:
     uvx twine check dist/*
     .venv-wheel/bin/python -m pytest tests/ -q
 
+# Build the sdist + wheel into dist/ (uv build backend) and validate metadata.
+build:
+    rm -rf dist
+    uv build
+    uvx twine check dist/*
+
+# Dry-run publish to Test PyPI (auth: UV_PUBLISH_TOKEN with a test.pypi.org token).
+publish-test: build
+    uv publish --index testpypi
+
+# Smoke-test the published Test PyPI build in a throwaway env (deps from real PyPI).
+install-test:
+    uv run --no-project --refresh-package polarbear \
+        --index testpypi --index https://pypi.org/simple/ --index-strategy unsafe-best-match \
+        --with polarbear python -c "import polarbear; print('OK', len(polarbear.__all__), 'names')"
+
+# Publish to real PyPI (auth: UV_PUBLISH_TOKEN with a pypi.org token).
+publish: build
+    uv publish
+
 # Run tests with coverage report
 test-cov:
     uv run pytest --cov=src/polarbear --cov-report=term-missing tests/

@@ -38,14 +38,8 @@ Repository = "https://github.com/jerheff/polarbear"
 Issues = "https://github.com/jerheff/polarbear/issues"
 
 [build-system]
-requires = ["hatchling>=1.30,<2"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/polarbear"]
-
-[tool.hatch.build.targets.sdist]
-only-include = ["src", "tests", "README.md", "LICENSE"]
+requires = ["uv_build>=0.11.22,<0.12.0"]
+build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
@@ -74,6 +68,21 @@ required-version = ">=0.11"
 # "lowest"). The upper bound is guarded separately by the highest-resolution CI
 # job and `just test-highest`.
 resolution = "lowest-direct"
+
+# uv's native build backend (PEP 517). The src/ layout is auto-detected; we only
+# extend the source distribution to also ship the test suite (matching the prior
+# hatchling sdist), so downstream packagers can run the tests.
+[tool.uv.build-backend]
+source-include = ["tests/**"]
+
+# Test PyPI, for dry-run publishing. `explicit = true` keeps it out of dependency
+# resolution — it is only used when named, e.g. `uv publish --index testpypi`.
+# Auth via UV_PUBLISH_TOKEN (a test.pypi.org token) or trusted publishing.
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
 
 [tool.ruff]
 line-length = 100
