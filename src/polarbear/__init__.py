@@ -19,6 +19,7 @@ from polarbear.classification import (
     specificity,
     threshold_sweep,
 )
+from polarbear.gini import gini_coefficient
 from polarbear.log_loss import log_loss
 from polarbear.regression import mae, mape, mse, r2_score, rmse
 from polarbear.roc_auc import roc_auc
@@ -29,6 +30,7 @@ __all__: list[str] = [
     "average_precision",
     "log_loss",
     "brier_score",
+    "gini_coefficient",
     # Classification (threshold-based)
     "precision",
     "recall",

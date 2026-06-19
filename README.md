@@ -80,6 +80,22 @@ df.select(average_precision("label", "score"))
 - Matches scikit-learn's `average_precision_score`
 - Handles tied scores correctly
 
+#### Gini Coefficient
+
+Normalized Gini coefficient for ranking non-negative targets (e.g. fraud losses).
+
+```python
+from polarbear import gini_coefficient
+
+df = pl.DataFrame({"loss": [1.0, 2.0, 3.0, 4.0], "score": [1.0, 2.0, 3.0, 4.0]})
+df.select(gini_coefficient("loss", "score"))  # Returns: 1.0 for perfect ordering
+```
+
+- Returns values between ``-1.0`` and ``1.0``.
+- ``1.0`` means the score ordering is optimal for the observed target distribution.
+- ``0.0`` means the score is no better than random.
+- Supports optional sample weights.
+
 ### Probabilistic Metrics
 
 #### Log Loss (Binary Cross-Entropy)
@@ -128,6 +144,22 @@ df.select(fbeta_score("label", "prob", beta=2.0))
 df.select(precision("label", "prob", threshold=0.7))
 ```
 
+**Metric reference:**
+
+| Metric | Formula | Returns `null` when |
+|---|---|---|
+| `precision` | TP / (TP + FP) | No positive predictions |
+| `recall` | TP / (TP + FN) | No actual positives |
+| `specificity` | TN / (TN + FP) | No actual negatives |
+| `f1_score` | 2·TP / (2·TP + FP + FN) | Undefined denominator |
+| `fbeta_score` | (1+β²)·TP / ((1+β²)·TP + β²·FN + FP) | Undefined denominator |
+| `accuracy` | (TP + TN) / total | Empty data |
+| `balanced_accuracy` | (TPR + TNR) / 2 | Either class absent |
+| `matthews_corrcoef` | (TP·TN − FP·FN) / √(...) | Any marginal total is zero |
+| `cohens_kappa` | (p_o − p_e) / (1 − p_e) | All predictions one class |
+
+> `fbeta_score` takes `beta` as a required positional argument before `threshold`. `balanced_accuracy` and `matthews_corrcoef` are more robust to class imbalance than `accuracy`.
+
 #### Threshold Sweep
 
 Compute any classification metric across multiple thresholds in a single pass:
@@ -137,6 +169,18 @@ from polarbear import f1_score, threshold_sweep
 
 df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
 df.select(*threshold_sweep(f1_score, "label", "prob", [0.3, 0.5, 0.7]))
+```
+
+#### Percentile Thresholds
+
+Compute threshold values from percentiles of the score distribution, useful for selecting thresholds relative to model output ranges rather than absolute values:
+
+```python
+from polarbear import f1_score, percentile_thresholds, threshold_sweep
+
+scores = df["prob"]
+thresholds = percentile_thresholds(scores, [10, 25, 50, 75, 90])
+df.select(*threshold_sweep(f1_score, "label", "prob", thresholds))
 ```
 
 ### Regression Metrics
@@ -289,6 +333,7 @@ breakdown and methodology.
 - [x] R-squared, MAPE
 - [x] Weighted variants for all metrics
 - [x] Multi-version Polars support (1.0.0+)
+- [x] Gini coefficient (normalized for non-negative targets)
 - [ ] Multi-class ROC AUC (one-vs-rest, one-vs-one)
 - [ ] Calibration metrics (ECE, MCE)
 
