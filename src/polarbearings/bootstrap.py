@@ -30,7 +30,7 @@ Entry points:
 import functools
 from collections.abc import Callable, Sequence
 from statistics import NormalDist, stdev
-from typing import overload
+from typing import Literal, TypedDict, get_args, overload
 
 import polars as pl
 
@@ -64,7 +64,18 @@ _U64_SCALE = 2.0**64
 # Metrics with no ``weight`` parameter cannot use the weighted bootstrap.
 _NON_WEIGHTABLE = frozenset({"max_error", "median_absolute_error"})
 
-_VALID_METHODS = ("percentile", "basic", "normal", "bc")
+_Method = Literal["percentile", "basic", "normal", "bc"]
+_VALID_METHODS = get_args(_Method)
+
+
+class BootstrapCI(TypedDict):
+    """The whole-frame interval returned by :func:`bootstrap_ci`."""
+
+    estimate: float
+    low: float
+    high: float
+
+
 _PPF_CLAMP = 1e-12
 
 
@@ -187,7 +198,7 @@ def _quantile_py(sorted_vals: list[float], q: float) -> float:
 
 
 def _reduce_ci(
-    dist: list[float], estimate: float, level: float, method: str
+    dist: list[float], estimate: float, level: float, method: _Method
 ) -> tuple[float, float]:
     """Compute (low, high) from a materialized distribution in pure Python."""
     s = sorted(dist)
@@ -218,7 +229,7 @@ def _bootstrap_ci_by(
     weight: WeightInput,
     n_resamples: int,
     level: float,
-    method: str,
+    method: _Method,
     by: Sequence[str],
     seed: int,
     metric_kwargs: dict[str, object],
@@ -279,11 +290,11 @@ def bootstrap_ci(
     weight: WeightInput = ...,
     n_resamples: int = ...,
     level: float = ...,
-    method: str = ...,
+    method: _Method = ...,
     by: None = ...,
     seed: int = ...,
     **metric_kwargs: object,
-) -> dict[str, float]: ...
+) -> BootstrapCI: ...
 
 
 @overload
@@ -294,7 +305,7 @@ def bootstrap_ci(
     weight: WeightInput = ...,
     n_resamples: int = ...,
     level: float = ...,
-    method: str = ...,
+    method: _Method = ...,
     by: str | Sequence[str],
     seed: int = ...,
     **metric_kwargs: object,
@@ -308,11 +319,11 @@ def bootstrap_ci(
     weight: WeightInput = None,
     n_resamples: int = 200,
     level: float = 0.95,
-    method: str = "percentile",
+    method: _Method = "percentile",
     by: str | Sequence[str] | None = None,
     seed: int = 0,
     **metric_kwargs: object,
-) -> dict[str, float] | pl.DataFrame:
+) -> BootstrapCI | pl.DataFrame:
     """Compute a whole-frame bootstrap confidence interval for a metric.
 
     Returns ``{estimate, low, high}``: ``estimate`` is the metric on the observed
@@ -394,7 +405,7 @@ def ci_from_distribution(
     distribution: str | pl.Expr,
     *,
     level: float = 0.95,
-    method: str = "percentile",
+    method: _Method = "percentile",
     estimate: str | pl.Expr | None = None,
 ) -> pl.Expr:
     """Build a ``{low, high}`` confidence-interval struct from a bootstrap distribution.

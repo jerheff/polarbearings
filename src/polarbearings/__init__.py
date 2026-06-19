@@ -5,7 +5,12 @@ as native Polars expressions.
 """
 
 from polarbearings.average_precision import average_precision
-from polarbearings.bootstrap import bootstrap, bootstrap_ci, ci_from_distribution
+from polarbearings.bootstrap import (
+    BootstrapCI,
+    bootstrap,
+    bootstrap_ci,
+    ci_from_distribution,
+)
 from polarbearings.brier_score import brier_score
 from polarbearings.classification import (
     accuracy,
@@ -62,6 +67,7 @@ __all__: list[str] = [
     # Utilities
     "threshold_sweep",
     "percentile_thresholds",
+    "BootstrapCI",
     "bootstrap",
     "bootstrap_ci",
     "ci_from_distribution",

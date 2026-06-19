@@ -4,11 +4,7 @@ from typing import Protocol
 
 import polars as pl
 
-from polarbearings._common import WeightInput, resolve_weight, weight_suffix
-
-# A positive-class label may be any scalar value comparable to the target column
-# (e.g. 1, 100, "cancer", True). Defaults to 1 for backward compatibility.
-_PosLabel = int | float | str | bool
+from polarbearings._common import PosLabel, WeightInput, resolve_weight, weight_suffix
 
 
 class _MetricFn(Protocol):
@@ -18,7 +14,7 @@ class _MetricFn(Protocol):
         prob: str,
         threshold: float = ...,
         weight: WeightInput = ...,
-        pos_label: _PosLabel = ...,
+        pos_label: PosLabel = ...,
     ) -> pl.Expr: ...
 
 
@@ -27,7 +23,7 @@ def _confusion_components(
     prob: str,
     threshold: float,
     weight: WeightInput = None,
-    pos_label: _PosLabel = 1,
+    pos_label: PosLabel = 1,
 ) -> tuple[pl.Expr, pl.Expr, pl.Expr, pl.Expr]:
     """Compute TP, FP, FN, TN as Polars expressions.
 
@@ -65,7 +61,7 @@ def _alias(
     prob: str,
     threshold: float,
     weight: WeightInput,
-    pos_label: _PosLabel = 1,
+    pos_label: PosLabel = 1,
 ) -> str:
     """Build a consistent alias string.
 
@@ -84,7 +80,7 @@ def confusion_matrix(
     prob: str,
     threshold: float = 0.5,
     weight: WeightInput = None,
-    pos_label: _PosLabel = 1,
+    pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute the binary confusion matrix at a decision threshold as a struct.
 
@@ -138,7 +134,7 @@ def precision(
     prob: str,
     threshold: float = 0.5,
     weight: WeightInput = None,
-    pos_label: _PosLabel = 1,
+    pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute precision at a decision threshold.
 
@@ -162,7 +158,7 @@ def recall(
     prob: str,
     threshold: float = 0.5,
     weight: WeightInput = None,
-    pos_label: _PosLabel = 1,
+    pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute recall at a decision threshold.
 
@@ -186,7 +182,7 @@ def f1_score(
     prob: str,
     threshold: float = 0.5,
     weight: WeightInput = None,
-    pos_label: _PosLabel = 1,
+    pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute F1 score at a decision threshold.
 
@@ -210,7 +206,7 @@ def accuracy(
     prob: str,
     threshold: float = 0.5,
     weight: WeightInput = None,
-    pos_label: _PosLabel = 1,
+    pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute accuracy at a decision threshold.
 
@@ -234,7 +230,7 @@ def balanced_accuracy(
     prob: str,
     threshold: float = 0.5,
     weight: WeightInput = None,
-    pos_label: _PosLabel = 1,
+    pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute balanced accuracy at a decision threshold.
 
@@ -263,7 +259,7 @@ def specificity(
     prob: str,
     threshold: float = 0.5,
     weight: WeightInput = None,
-    pos_label: _PosLabel = 1,
+    pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute specificity (true negative rate) at a decision threshold.
 
@@ -288,7 +284,7 @@ def fbeta_score(
     beta: float,
     threshold: float = 0.5,
     weight: WeightInput = None,
-    pos_label: _PosLabel = 1,
+    pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute F-beta score at a decision threshold.
 
@@ -320,7 +316,7 @@ def matthews_corrcoef(
     prob: str,
     threshold: float = 0.5,
     weight: WeightInput = None,
-    pos_label: _PosLabel = 1,
+    pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute Matthews correlation coefficient at a decision threshold.
 
@@ -347,7 +343,7 @@ def cohens_kappa(
     prob: str,
     threshold: float = 0.5,
     weight: WeightInput = None,
-    pos_label: _PosLabel = 1,
+    pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute Cohen's kappa at a decision threshold.
 
@@ -379,7 +375,7 @@ def threshold_sweep(
     prob: str,
     thresholds: list[float],
     weight: WeightInput = None,
-    pos_label: _PosLabel = 1,
+    pos_label: PosLabel = 1,
 ) -> list[pl.Expr]:
     """Generate metric expressions across multiple thresholds.
 

@@ -2,14 +2,11 @@
 
 import polars as pl
 
-from polarbearings._common import WeightInput, weight_expr, weight_suffix
-
-# A positive-class label may be any scalar value comparable to the target column.
-_PosLabel = int | float | str | bool
+from polarbearings._common import PosLabel, WeightInput, weight_expr, weight_suffix
 
 
 def roc_auc(
-    target: str, score: str, weight: WeightInput = None, pos_label: _PosLabel = 1
+    target: str, score: str, weight: WeightInput = None, pos_label: PosLabel = 1
 ) -> pl.Expr:
     """Compute ROC AUC score for binary classification as a Polars expression.
 
@@ -59,7 +56,7 @@ def roc_auc(
     return _roc_auc_unweighted(target, score, pos_label, alias)
 
 
-def _roc_auc_unweighted(target: str, score: str, pos_label: _PosLabel, alias: str) -> pl.Expr:
+def _roc_auc_unweighted(target: str, score: str, pos_label: PosLabel, alias: str) -> pl.Expr:
     """Mann-Whitney U statistic approach (fast, no weights)."""
     is_pos = pl.col(target) == pos_label
 
@@ -93,7 +90,7 @@ def _roc_auc_unweighted(target: str, score: str, pos_label: _PosLabel, alias: st
 
 
 def _roc_auc_weighted(
-    target: str, score: str, weight: str | pl.Expr, pos_label: _PosLabel, alias: str
+    target: str, score: str, weight: str | pl.Expr, pos_label: PosLabel, alias: str
 ) -> pl.Expr:
     """Trapezoidal rule on weighted ROC curve."""
     is_pos = (pl.col(target) == pos_label).cast(pl.Float64)

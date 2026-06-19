@@ -8,6 +8,7 @@ numpy/scipy on the *same* distribution (so it's the method, not Monte-Carlo nois
 
 import functools
 import sys
+from typing import Any, cast
 
 import numpy as np
 import polars as pl
@@ -150,7 +151,8 @@ class TestCiFromDistributionExpr:
     def test_invalid_method_raises(self):
         df = pl.DataFrame({"d": [[1.0, 2.0, 3.0]]})
         with pytest.raises(ValueError, match="method must be one of"):
-            df.select(ci_from_distribution("d", method="bogus"))
+            # cast: deliberately invalid value to exercise the runtime guard
+            df.select(ci_from_distribution("d", method=cast("Any", "bogus")))
 
 
 class TestBootstrapCi:
@@ -187,7 +189,8 @@ class TestBootstrapCi:
     def test_invalid_method_raises(self):
         df, *_ = _binary_df()
         with pytest.raises(ValueError, match="method must be one of"):
-            bootstrap_ci(df, roc_auc, "y", "p", method="nope")
+            # cast: deliberately invalid value to exercise the runtime guard
+            bootstrap_ci(df, roc_auc, "y", "p", method=cast("Any", "nope"))
 
     def test_agrees_with_numpy_bayesian_bootstrap(self):
         df, labels, scores = _binary_df(n=4000, seed=0)

@@ -1,10 +1,16 @@
 """Shared helpers for metric implementations."""
 
+from typing import TypeAlias
+
 import polars as pl
 
 # A sample-weight input: a column name, a Polars expression (e.g. a composed
 # weight like ``pl.col("w") * boot_weight``), or ``None`` for the unweighted case.
-WeightInput = str | pl.Expr | None
+WeightInput: TypeAlias = str | pl.Expr | None
+
+# A positive-class label: any scalar value comparable to the target column
+# (e.g. 1, 100, "cancer", True). Defaults to 1 for backward compatibility.
+PosLabel: TypeAlias = int | float | str | bool
 
 
 def weight_expr(weight: str | pl.Expr) -> pl.Expr:
