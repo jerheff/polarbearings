@@ -183,6 +183,21 @@ def test_large_dataset():
     assert result == pytest.approx(roc_auc_score(labels, scores), rel=1e-5)
 
 
+def test_no_uint32_overflow_above_131k_rows():
+    # Regression: the Mann-Whitney U path multiplies positive/negative counts.
+    # `sum()` of a boolean is UInt32, so total_pos * total_neg (and
+    # total_pos * (total_pos + 1)) overflowed UInt32 once total_pos exceeded
+    # ~65k rows (n > ~131k), corrupting the AUC. 200k rows trips the old bug.
+    np.random.seed(42)
+    n = 200_000
+    labels = np.random.randint(0, 2, n)
+    scores = labels * 0.6 + np.random.randn(n) * 0.3
+    df = pl.DataFrame({"label": labels, "score": scores})
+    result = df.select(roc_auc("label", "score")).to_series()[0]
+    assert 0.0 <= result <= 1.0
+    assert result == pytest.approx(roc_auc_score(labels, scores), rel=1e-9)
+
+
 def test_group_by_auc():
     df = pl.DataFrame(
         {

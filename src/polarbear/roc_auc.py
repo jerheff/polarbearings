@@ -54,7 +54,11 @@ def _roc_auc_unweighted(target: str, score: str, alias: str) -> pl.Expr:
     """Mann-Whitney U statistic approach (fast, no weights)."""
     target_float = pl.col(target).cast(pl.Float64)
 
-    total_pos = (target_float == 1).sum()
+    # Widen counts to UInt64 before any multiplication: `sum()` of a boolean
+    # returns UInt32, and the products below (``total_pos * total_neg`` and
+    # ``total_pos * (total_pos + 1)``) overflow UInt32 once total_pos exceeds
+    # ~65k rows (i.e. n > ~131k), silently corrupting the AUC.
+    total_pos = (target_float == 1).sum().cast(pl.UInt64)
     total_neg = target_float.len() - total_pos
     single_class = (total_pos == 0) | (total_neg == 0)
 
