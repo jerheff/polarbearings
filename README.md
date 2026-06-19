@@ -4,9 +4,11 @@ High-performance machine learning metrics implemented as native Polars expressio
 
 ## Features
 
-- **Fast**: Metrics implemented as Polars expressions for maximum performance
-- **Correct**: Thoroughly tested against scikit-learn with property-based testing
-- **Simple**: Clean, intuitive API that follows Polars conventions
+- **Fast where it counts**: Native Polars expressions — large wins on grouped and probabilistic metrics (see [Performance](#performance))
+- **Weighted**: Sample weights on *every* metric
+- **Flexible labels**: Any positive class — `1`, `100`, `"cancer"`, `True` — via `pos_label`
+- **Correct**: scikit-learn-faithful, verified with property-based testing
+- **Composable**: Plain Polars expressions — drop into `group_by`, `over`, and lazy pipelines
 - **Type-safe**: Full type hints, checked with [ty](https://github.com/astral-sh/ty)
 
 ## Installation
@@ -47,6 +49,25 @@ print(result)
 # │ 0.833333                         │
 # └──────────────────────────────────┘
 ```
+
+## Where Polarbear Excels
+
+Every metric is a *pure Polars expression*. That design gives polarbear
+strengths a scikit-learn wrapper or a compiled plugin can't easily match:
+
+- **Group-wise metrics at scale** — metrics drop straight into `group_by().agg()`
+  and Polars parallelizes across groups (15–65x faster than a Python loop calling
+  scikit-learn per segment).
+- **Sample weights on every metric** — all 18 metrics accept an optional `weight`
+  column, including ROC AUC, log loss, MCC, and Cohen's kappa.
+- **Any positive class** — `pos_label` accepts `1`, `100`, `"cancer"`, `True`, …
+  no remapping your labels to 0/1.
+- **scikit-learn-faithful** — names and edge-case semantics mirror scikit-learn
+  (e.g. `null` for undefined cases), so migration is ~1:1.
+- **Composable & lazy-friendly** — pure expressions fold into lazy query plans,
+  `over()` windows, and the rest of your Polars pipeline.
+- **Zero build, one dependency** — pure Python emitting Polars expressions; no
+  compiled extension, installs anywhere Polars runs, supports Polars 1.0.0+.
 
 ## Available Metrics
 
@@ -203,12 +224,34 @@ df.select(
 
 ### Sample Weights
 
-All metrics support optional sample weights:
+*Every* metric supports optional sample weights via a `weight` column — including
+ones that are awkward or unsupported elsewhere, like ROC AUC, log loss, MCC, and
+Cohen's kappa:
 
 ```python
 df.select(roc_auc("label", "score", weight="sample_weight"))
+df.select(matthews_corrcoef("label", "prob", weight="w"))
 df.select(mae("y", "pred", weight="w"))
 ```
+
+### Custom Positive Class
+
+The positive class defaults to `1`, but `pos_label` lets it be any value —
+integers, strings, or booleans — with no need to remap your labels to `0`/`1`:
+
+```python
+# String labels
+df = pl.DataFrame({"outcome": ["cancer", "healthy", "cancer"], "p": [0.9, 0.2, 0.7]})
+df.select(precision("outcome", "p", pos_label="cancer"))
+
+df.select(roc_auc("y", "score", pos_label=100))     # integer labels {100, 200}
+df.select(f1_score("flag", "p", pos_label=True))     # boolean labels
+```
+
+Supported by the classification and binary metrics (ROC AUC, average precision,
+log loss, Brier score, precision/recall/F1/F-beta, accuracy, balanced accuracy,
+specificity, MCC, Cohen's kappa). Regression metrics take continuous targets, so
+they don't have `pos_label`.
 
 ## Use Cases
 
@@ -302,20 +345,33 @@ just bench
 
 ## Performance
 
-Polarbear runs every metric as a native Polars expression, so it's typically
-**~2.4–17x faster than scikit-learn** for single metrics and **15–80x faster**
-for grouped metrics — the gap grows on newer Polars and on larger data.
+Polarbear runs every metric as a native Polars expression. The advantage is
+**large and real where there's work to parallelize, and honest where there
+isn't.** Numbers below are speedup vs scikit-learn (scikit-learn time ÷
+polarbear time; higher = faster), median of clean benchmark runs.
 
-Speedup vs scikit-learn at 100k samples (higher is better):
+**Where polarbear wins big** — grouped metrics and probabilistic/ranking metrics:
 
-| Metric | polars 1.0.0 | polars 1.41 |
+| Metric | 100k rows | 10M rows |
 |--------|:---:|:---:|
-| ROC AUC | 5.3x | 5.4x |
-| Log Loss | 4.7x | 7.9x |
-| Brier Score | 11.9x | 17.2x |
+| Grouped metrics (per segment) | **15–65x** | — |
+| Brier Score | ~18x | ~8.6x |
+| Log Loss | ~5.7x | ~4–5x |
+| ROC AUC | ~4.5x | ~4.5x |
+| Precision / F1 | ~3.5–5x | ~2–3x |
+
+Grouped metrics are the standout: Polars parallelizes across groups while
+scikit-learn loops in Python.
+
+**Where it's at parity or slower** — trivial reductions (MAE, MSE, MAPE, R²) are
+roughly even with scikit-learn at small-to-mid sizes and *slower* on a single
+very large array, where NumPy's tight single-threaded loop beats one Polars
+expression. Reach for polarbear on grouped/composed pipelines and the
+probabilistic metrics; for a one-off MAE over a giant array, NumPy is fine.
 
 See [docs/technical/PERFORMANCE.md](docs/technical/PERFORMANCE.md) for the full
-breakdown and methodology.
+per-metric breakdown, the size-scaling curve, and the ceteris-paribus Polars
+version comparison.
 
 ## Requirements
 
@@ -332,6 +388,7 @@ breakdown and methodology.
 - [x] Specificity, F-beta Score, Matthews Correlation Coefficient, Cohen's Kappa
 - [x] R-squared, MAPE
 - [x] Weighted variants for all metrics
+- [x] Custom positive class label (`pos_label`: int, string, or bool)
 - [x] Multi-version Polars support (1.0.0+)
 - [x] Gini coefficient (normalized for non-negative targets)
 - [ ] Multi-class ROC AUC (one-vs-rest, one-vs-one)
