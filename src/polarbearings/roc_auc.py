@@ -71,7 +71,10 @@ def _roc_auc_unweighted(target: str, score: str, pos_label: _PosLabel, alias: st
     total_neg = pl.col(target).len() - total_pos
     single_class = (total_pos == 0) | (total_neg == 0)
 
-    tie_cond = pl.col(score).var() == 0
+    # All scores identical -> AUC is 0.5. Use max == min rather than var() == 0:
+    # variance squares the deviations, which underflows to 0.0 for tiny-magnitude
+    # but distinct scores (e.g. 5e-303 vs 0.0), falsely reporting a tie.
+    tie_cond = pl.col(score).max() == pl.col(score).min()
 
     ranks = pl.col(score).rank(method="average")
     pos_rank_sum = (ranks * is_pos).sum()

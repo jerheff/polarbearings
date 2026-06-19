@@ -111,6 +111,18 @@ def test_tied_single_pair():
     assert result == pytest.approx(roc_auc_score([0, 1], [0.5, 0.5]))
 
 
+def test_tiny_distinct_scores_not_treated_as_tied():
+    # Regression: scores so small their squared deviations underflow to 0.0 made
+    # the old var()==0 tie check falsely report a tie. The scores are distinct, so
+    # the AUC must be the real rank-based value (0.0 here), not 0.5. (Found by the
+    # thorough Hypothesis profile in CI.)
+    for scores in ([5.7223975e-303, 0.0], [1e-310, 0.0]):
+        df = pl.DataFrame({"label": [0, 1], "score": scores})
+        result = df.select(roc_auc("label", "score")).to_series()[0]
+        assert result == pytest.approx(roc_auc_score([0, 1], scores))
+        assert result == pytest.approx(0.0)
+
+
 def test_many_positives_one_negative():
     df = pl.DataFrame({"label": [1, 1, 1, 1, 0], "score": [0.9, 0.8, 0.7, 0.6, 0.5]})
     result = df.select(roc_auc("label", "score")).to_series()[0]
