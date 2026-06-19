@@ -15,8 +15,10 @@ Target values must be non-negative. Undefined cases return ``null``.
 
 import polars as pl
 
+from polarbear._common import WeightInput, weight_expr, weight_suffix
 
-def gini_coefficient(target: str, score: str, weight: str | None = None) -> pl.Expr:
+
+def gini_coefficient(target: str, score: str, weight: WeightInput = None) -> pl.Expr:
     """Compute the normalized Gini coefficient as a Polars expression.
 
     Args:
@@ -31,8 +33,7 @@ def gini_coefficient(target: str, score: str, weight: str | None = None) -> pl.E
         A Polars expression evaluating to the normalized Gini coefficient.
     """
     alias = f"gini_{target}_{score}"
-    if weight is not None:
-        alias += f"_{weight}"
+    alias += weight_suffix(weight)
 
     if weight is not None:
         return _gini_weighted(target, score, weight, alias)
@@ -60,10 +61,10 @@ def _gini_unweighted(target: str, score: str, alias: str) -> pl.Expr:
     return pl.when(undefined).then(None).otherwise(raw / perfect).alias(alias)
 
 
-def _gini_weighted(target: str, score: str, weight: str, alias: str) -> pl.Expr:
+def _gini_weighted(target: str, score: str, weight: str | pl.Expr, alias: str) -> pl.Expr:
     """Weighted normalized Gini via Lorenz curve areas."""
     target_float = pl.col(target).cast(pl.Float64)
-    weight_float = pl.col(weight).cast(pl.Float64)
+    weight_float = weight_expr(weight)
     score_col = pl.col(score).cast(pl.Float64)
 
     n = score_col.len().cast(pl.Float64)

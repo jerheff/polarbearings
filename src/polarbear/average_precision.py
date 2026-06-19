@@ -2,9 +2,11 @@
 
 import polars as pl
 
+from polarbear._common import WeightInput, resolve_weight, weight_suffix
+
 
 def average_precision(
-    target: str, score: str, weight: str | None = None, pos_label: int | float | str | bool = 1
+    target: str, score: str, weight: WeightInput = None, pos_label: int | float | str | bool = 1
 ) -> pl.Expr:
     """Compute average precision (non-interpolated) for binary classification.
 
@@ -47,8 +49,8 @@ def average_precision(
     sorted_neg_target = (1 - target_float).sort_by(score_col, descending=True)
     sorted_score = score_col.sort(descending=True)
 
-    if weight is not None:
-        weight_col = pl.col(weight).cast(pl.Float64)
+    weight_col = resolve_weight(weight)
+    if weight_col is not None:
         sorted_weight = weight_col.sort_by(score_col, descending=True)
         total_pos = (target_float * weight_col).sum()
         sorted_tp_weight = (target_float * weight_col).sort_by(score_col, descending=True)
@@ -82,8 +84,7 @@ def average_precision(
     ap = (prec * delta_recall).sum()
 
     alias = f"average_precision_{target}_{score}"
-    if weight is not None:
-        alias += f"_{weight}"
+    alias += weight_suffix(weight)
     if pos_label != 1:
         alias += f"_pos{pos_label}"
 

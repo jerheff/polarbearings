@@ -4,15 +4,16 @@ import math
 
 import polars as pl
 
+from polarbear._common import WeightInput, resolve_weight, weight_suffix
 
-def _regression_alias(name: str, target: str, pred: str, weight: str | None) -> str:
+
+def _regression_alias(name: str, target: str, pred: str, weight: WeightInput) -> str:
     alias = f"{name}_{target}_{pred}"
-    if weight is not None:
-        alias += f"_{weight}"
+    alias += weight_suffix(weight)
     return alias
 
 
-def r2_score(target: str, pred: str, weight: str | None = None) -> pl.Expr:
+def r2_score(target: str, pred: str, weight: WeightInput = None) -> pl.Expr:
     """Compute the coefficient of determination (R-squared).
 
     R² = 1 - SS_res / SS_tot, where SS_res = sum((y - pred)²) and
@@ -27,8 +28,8 @@ def r2_score(target: str, pred: str, weight: str | None = None) -> pl.Expr:
     y = pl.col(target).cast(pl.Float64)
     p = pl.col(pred).cast(pl.Float64)
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
+    w = resolve_weight(weight)
+    if w is not None:
         w_sum = w.sum()
         y_mean = (y * w).sum() / w_sum
         ss_res = ((y - p) ** 2 * w).sum()
@@ -42,7 +43,7 @@ def r2_score(target: str, pred: str, weight: str | None = None) -> pl.Expr:
     return result.alias(_regression_alias("r2_score", target, pred, weight))
 
 
-def mape(target: str, pred: str, weight: str | None = None) -> pl.Expr:
+def mape(target: str, pred: str, weight: WeightInput = None) -> pl.Expr:
     """Compute mean absolute percentage error.
 
     MAPE = mean(|y - pred| / |y|). Returns null on empty data. Rows where
@@ -57,8 +58,8 @@ def mape(target: str, pred: str, weight: str | None = None) -> pl.Expr:
     p = pl.col(pred).cast(pl.Float64)
     pct_error = (y - p).abs() / y.abs()
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
+    w = resolve_weight(weight)
+    if w is not None:
         # Filter out y==0 rows by setting their weight to null
         w_valid = pl.when(y == 0).then(None).otherwise(w)
         pct_valid = pl.when(y == 0).then(None).otherwise(pct_error)
@@ -70,7 +71,7 @@ def mape(target: str, pred: str, weight: str | None = None) -> pl.Expr:
     return result.alias(_regression_alias("mape", target, pred, weight))
 
 
-def mae(target: str, pred: str, weight: str | None = None) -> pl.Expr:
+def mae(target: str, pred: str, weight: WeightInput = None) -> pl.Expr:
     """Compute mean absolute error.
 
     MAE = mean(|target - pred|), or weighted: sum(w·|target - pred|) / sum(w).
@@ -82,16 +83,13 @@ def mae(target: str, pred: str, weight: str | None = None) -> pl.Expr:
     """
     diff = (pl.col(target).cast(pl.Float64) - pl.col(pred).cast(pl.Float64)).abs()
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
-        result = (diff * w).sum() / w.sum()
-    else:
-        result = diff.mean()
+    w = resolve_weight(weight)
+    result = (diff * w).sum() / w.sum() if w is not None else diff.mean()
 
     return result.alias(_regression_alias("mae", target, pred, weight))
 
 
-def mse(target: str, pred: str, weight: str | None = None) -> pl.Expr:
+def mse(target: str, pred: str, weight: WeightInput = None) -> pl.Expr:
     """Compute mean squared error.
 
     MSE = mean((target - pred)²), or weighted: sum(w·(target - pred)²) / sum(w).
@@ -103,16 +101,13 @@ def mse(target: str, pred: str, weight: str | None = None) -> pl.Expr:
     """
     diff_sq = (pl.col(target).cast(pl.Float64) - pl.col(pred).cast(pl.Float64)) ** 2
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
-        result = (diff_sq * w).sum() / w.sum()
-    else:
-        result = diff_sq.mean()
+    w = resolve_weight(weight)
+    result = (diff_sq * w).sum() / w.sum() if w is not None else diff_sq.mean()
 
     return result.alias(_regression_alias("mse", target, pred, weight))
 
 
-def rmse(target: str, pred: str, weight: str | None = None) -> pl.Expr:
+def rmse(target: str, pred: str, weight: WeightInput = None) -> pl.Expr:
     """Compute root mean squared error.
 
     RMSE = sqrt(MSE).
@@ -124,16 +119,13 @@ def rmse(target: str, pred: str, weight: str | None = None) -> pl.Expr:
     """
     diff_sq = (pl.col(target).cast(pl.Float64) - pl.col(pred).cast(pl.Float64)) ** 2
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
-        result = ((diff_sq * w).sum() / w.sum()).sqrt()
-    else:
-        result = diff_sq.mean().sqrt()
+    w = resolve_weight(weight)
+    result = ((diff_sq * w).sum() / w.sum()).sqrt() if w is not None else diff_sq.mean().sqrt()
 
     return result.alias(_regression_alias("rmse", target, pred, weight))
 
 
-def mean_squared_log_error(target: str, pred: str, weight: str | None = None) -> pl.Expr:
+def mean_squared_log_error(target: str, pred: str, weight: WeightInput = None) -> pl.Expr:
     """Compute mean squared logarithmic error (MSLE).
 
     MSLE = mean((log1p(y) - log1p(pred))²), or weighted by sample weights.
@@ -160,16 +152,13 @@ def mean_squared_log_error(target: str, pred: str, weight: str | None = None) ->
         pl.col(target).cast(pl.Float64).log1p() - pl.col(pred).cast(pl.Float64).log1p()
     ) ** 2
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
-        result = (sq_log_err * w).sum() / w.sum()
-    else:
-        result = sq_log_err.mean()
+    w = resolve_weight(weight)
+    result = (sq_log_err * w).sum() / w.sum() if w is not None else sq_log_err.mean()
 
     return result.alias(_regression_alias("mean_squared_log_error", target, pred, weight))
 
 
-def root_mean_squared_log_error(target: str, pred: str, weight: str | None = None) -> pl.Expr:
+def root_mean_squared_log_error(target: str, pred: str, weight: WeightInput = None) -> pl.Expr:
     """Compute root mean squared logarithmic error (RMSLE).
 
     RMSLE = sqrt(MSLE) = sqrt(mean((log1p(y) - log1p(pred))²)). Mirrors
@@ -194,8 +183,8 @@ def root_mean_squared_log_error(target: str, pred: str, weight: str | None = Non
         pl.col(target).cast(pl.Float64).log1p() - pl.col(pred).cast(pl.Float64).log1p()
     ) ** 2
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
+    w = resolve_weight(weight)
+    if w is not None:
         result = ((sq_log_err * w).sum() / w.sum()).sqrt()
     else:
         result = sq_log_err.mean().sqrt()
@@ -256,7 +245,7 @@ def median_absolute_error(target: str, pred: str) -> pl.Expr:
     return abs_err.median().alias(_regression_alias("median_absolute_error", target, pred, None))
 
 
-def explained_variance_score(target: str, pred: str, weight: str | None = None) -> pl.Expr:
+def explained_variance_score(target: str, pred: str, weight: WeightInput = None) -> pl.Expr:
     """Compute the explained variance score.
 
     explained_variance = 1 - Var(y - pred) / Var(y), using population variances
@@ -280,8 +269,8 @@ def explained_variance_score(target: str, pred: str, weight: str | None = None) 
     p = pl.col(pred).cast(pl.Float64)
     diff = y - p
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
+    w = resolve_weight(weight)
+    if w is not None:
         w_sum = w.sum()
         diff_mean = (diff * w).sum() / w_sum
         y_mean = (y * w).sum() / w_sum
@@ -298,7 +287,7 @@ def explained_variance_score(target: str, pred: str, weight: str | None = None) 
 
 
 def mean_pinball_loss(
-    target: str, pred: str, alpha: float = 0.5, weight: str | None = None
+    target: str, pred: str, alpha: float = 0.5, weight: WeightInput = None
 ) -> pl.Expr:
     """Compute the mean pinball loss (a.k.a. quantile loss).
 
@@ -323,16 +312,13 @@ def mean_pinball_loss(
     err = pl.col(target).cast(pl.Float64) - pl.col(pred).cast(pl.Float64)
     loss = pl.when(err >= 0).then(alpha * err).otherwise((alpha - 1) * err)
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
-        result = (loss * w).sum() / w.sum()
-    else:
-        result = loss.mean()
+    w = resolve_weight(weight)
+    result = (loss * w).sum() / w.sum() if w is not None else loss.mean()
 
     return result.alias(_regression_alias("mean_pinball_loss", target, pred, weight))
 
 
-def smape(target: str, pred: str, weight: str | None = None) -> pl.Expr:
+def smape(target: str, pred: str, weight: WeightInput = None) -> pl.Expr:
     """Compute the symmetric mean absolute percentage error (sMAPE).
 
     sMAPE = mean(2 * |y - pred| / (|y| + |pred|)). Has no scikit-learn analog.
@@ -359,16 +345,13 @@ def smape(target: str, pred: str, weight: str | None = None) -> pl.Expr:
     denom = y.abs() + p.abs()
     per_sample = pl.when(denom == 0).then(0.0).otherwise(2.0 * (y - p).abs() / denom)
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
-        result = (per_sample * w).sum() / w.sum()
-    else:
-        result = per_sample.mean()
+    w = resolve_weight(weight)
+    result = (per_sample * w).sum() / w.sum() if w is not None else per_sample.mean()
 
     return result.alias(_regression_alias("smape", target, pred, weight))
 
 
-def huber_loss(target: str, pred: str, delta: float = 1.0, weight: str | None = None) -> pl.Expr:
+def huber_loss(target: str, pred: str, delta: float = 1.0, weight: WeightInput = None) -> pl.Expr:
     """Compute the mean Huber loss.
 
     For residual ``e = y - pred``, the per-sample loss is ``0.5 * e²`` when
@@ -394,16 +377,13 @@ def huber_loss(target: str, pred: str, delta: float = 1.0, weight: str | None = 
         pl.when(abs_err <= delta).then(0.5 * abs_err**2).otherwise(delta * (abs_err - 0.5 * delta))
     )
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
-        result = (loss * w).sum() / w.sum()
-    else:
-        result = loss.mean()
+    w = resolve_weight(weight)
+    result = (loss * w).sum() / w.sum() if w is not None else loss.mean()
 
     return result.alias(_regression_alias("huber_loss", target, pred, weight))
 
 
-def log_cosh_loss(target: str, pred: str, weight: str | None = None) -> pl.Expr:
+def log_cosh_loss(target: str, pred: str, weight: WeightInput = None) -> pl.Expr:
     """Compute the mean log-cosh loss.
 
     log_cosh = mean(log(cosh(pred - y))). Has no scikit-learn metric. Behaves
@@ -429,10 +409,7 @@ def log_cosh_loss(target: str, pred: str, weight: str | None = None) -> pl.Expr:
     abs_err = (pl.col(pred).cast(pl.Float64) - pl.col(target).cast(pl.Float64)).abs()
     per_sample = abs_err + (-2.0 * abs_err).exp().log1p() - math.log(2.0)
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
-        result = (per_sample * w).sum() / w.sum()
-    else:
-        result = per_sample.mean()
+    w = resolve_weight(weight)
+    result = (per_sample * w).sum() / w.sum() if w is not None else per_sample.mean()
 
     return result.alias(_regression_alias("log_cosh_loss", target, pred, weight))

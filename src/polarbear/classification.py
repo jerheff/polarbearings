@@ -4,6 +4,8 @@ from typing import Protocol
 
 import polars as pl
 
+from polarbear._common import WeightInput, resolve_weight, weight_suffix
+
 # A positive-class label may be any scalar value comparable to the target column
 # (e.g. 1, 100, "cancer", True). Defaults to 1 for backward compatibility.
 _PosLabel = int | float | str | bool
@@ -15,7 +17,7 @@ class _MetricFn(Protocol):
         target: str,
         prob: str,
         threshold: float = ...,
-        weight: str | None = ...,
+        weight: WeightInput = ...,
         pos_label: _PosLabel = ...,
     ) -> pl.Expr: ...
 
@@ -24,7 +26,7 @@ def _confusion_components(
     target: str,
     prob: str,
     threshold: float,
-    weight: str | None = None,
+    weight: WeightInput = None,
     pos_label: _PosLabel = 1,
 ) -> tuple[pl.Expr, pl.Expr, pl.Expr, pl.Expr]:
     """Compute TP, FP, FN, TN as Polars expressions.
@@ -40,8 +42,8 @@ def _confusion_components(
     is_pos = pl.col(target) == pos_label
     predicted = pl.col(prob) >= threshold
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
+    w = resolve_weight(weight)
+    if w is not None:
         # filter().sum() over an empty selection returns 0.0 (not null), which
         # matches the all-one-class degenerate semantics of the product form.
         tp = w.filter(is_pos & predicted).sum()
@@ -62,7 +64,7 @@ def _alias(
     target: str,
     prob: str,
     threshold: float,
-    weight: str | None,
+    weight: WeightInput,
     pos_label: _PosLabel = 1,
 ) -> str:
     """Build a consistent alias string.
@@ -71,8 +73,7 @@ def _alias(
     default ``1``, so existing alias strings are unchanged for the common case.
     """
     alias = f"{name}_{target}_{prob}_{threshold:g}"
-    if weight is not None:
-        alias += f"_{weight}"
+    alias += weight_suffix(weight)
     if pos_label != 1:
         alias += f"_pos{pos_label}"
     return alias
@@ -82,7 +83,7 @@ def confusion_matrix(
     target: str,
     prob: str,
     threshold: float = 0.5,
-    weight: str | None = None,
+    weight: WeightInput = None,
     pos_label: _PosLabel = 1,
 ) -> pl.Expr:
     """Compute the binary confusion matrix at a decision threshold as a struct.
@@ -136,7 +137,7 @@ def precision(
     target: str,
     prob: str,
     threshold: float = 0.5,
-    weight: str | None = None,
+    weight: WeightInput = None,
     pos_label: _PosLabel = 1,
 ) -> pl.Expr:
     """Compute precision at a decision threshold.
@@ -160,7 +161,7 @@ def recall(
     target: str,
     prob: str,
     threshold: float = 0.5,
-    weight: str | None = None,
+    weight: WeightInput = None,
     pos_label: _PosLabel = 1,
 ) -> pl.Expr:
     """Compute recall at a decision threshold.
@@ -184,7 +185,7 @@ def f1_score(
     target: str,
     prob: str,
     threshold: float = 0.5,
-    weight: str | None = None,
+    weight: WeightInput = None,
     pos_label: _PosLabel = 1,
 ) -> pl.Expr:
     """Compute F1 score at a decision threshold.
@@ -208,7 +209,7 @@ def accuracy(
     target: str,
     prob: str,
     threshold: float = 0.5,
-    weight: str | None = None,
+    weight: WeightInput = None,
     pos_label: _PosLabel = 1,
 ) -> pl.Expr:
     """Compute accuracy at a decision threshold.
@@ -232,7 +233,7 @@ def balanced_accuracy(
     target: str,
     prob: str,
     threshold: float = 0.5,
-    weight: str | None = None,
+    weight: WeightInput = None,
     pos_label: _PosLabel = 1,
 ) -> pl.Expr:
     """Compute balanced accuracy at a decision threshold.
@@ -261,7 +262,7 @@ def specificity(
     target: str,
     prob: str,
     threshold: float = 0.5,
-    weight: str | None = None,
+    weight: WeightInput = None,
     pos_label: _PosLabel = 1,
 ) -> pl.Expr:
     """Compute specificity (true negative rate) at a decision threshold.
@@ -286,7 +287,7 @@ def fbeta_score(
     prob: str,
     beta: float,
     threshold: float = 0.5,
-    weight: str | None = None,
+    weight: WeightInput = None,
     pos_label: _PosLabel = 1,
 ) -> pl.Expr:
     """Compute F-beta score at a decision threshold.
@@ -308,8 +309,7 @@ def fbeta_score(
     denom = (1 + beta_sq) * tp + beta_sq * fn + fp
     result = pl.when(denom == 0).then(None).otherwise((1 + beta_sq) * tp / denom)
     alias = f"fbeta_{beta:g}_{target}_{prob}_{threshold:g}"
-    if weight is not None:
-        alias += f"_{weight}"
+    alias += weight_suffix(weight)
     if pos_label != 1:
         alias += f"_pos{pos_label}"
     return result.alias(alias)
@@ -319,7 +319,7 @@ def matthews_corrcoef(
     target: str,
     prob: str,
     threshold: float = 0.5,
-    weight: str | None = None,
+    weight: WeightInput = None,
     pos_label: _PosLabel = 1,
 ) -> pl.Expr:
     """Compute Matthews correlation coefficient at a decision threshold.
@@ -346,7 +346,7 @@ def cohens_kappa(
     target: str,
     prob: str,
     threshold: float = 0.5,
-    weight: str | None = None,
+    weight: WeightInput = None,
     pos_label: _PosLabel = 1,
 ) -> pl.Expr:
     """Compute Cohen's kappa at a decision threshold.
@@ -378,7 +378,7 @@ def threshold_sweep(
     target: str,
     prob: str,
     thresholds: list[float],
-    weight: str | None = None,
+    weight: WeightInput = None,
     pos_label: _PosLabel = 1,
 ) -> list[pl.Expr]:
     """Generate metric expressions across multiple thresholds.

@@ -2,12 +2,14 @@
 
 import polars as pl
 
+from polarbear._common import WeightInput, resolve_weight, weight_suffix
+
 
 def log_loss(
     target: str,
     prob: str,
     eps: float = 1e-15,
-    weight: str | None = None,
+    weight: WeightInput = None,
     pos_label: int | float | str | bool = 1,
 ) -> pl.Expr:
     """Compute log loss (binary cross-entropy) for binary classification.
@@ -35,15 +37,11 @@ def log_loss(
 
     per_sample = -(target_float * log_prob + (1 - target_float) * log_1_minus_prob)
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
-        loss = (per_sample * w).sum() / w.sum()
-    else:
-        loss = per_sample.mean()
+    w = resolve_weight(weight)
+    loss = (per_sample * w).sum() / w.sum() if w is not None else per_sample.mean()
 
     alias = f"log_loss_{target}_{prob}"
-    if weight is not None:
-        alias += f"_{weight}"
+    alias += weight_suffix(weight)
     if pos_label != 1:
         alias += f"_pos{pos_label}"
     return loss.alias(alias)

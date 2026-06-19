@@ -2,9 +2,11 @@
 
 import polars as pl
 
+from polarbear._common import WeightInput, resolve_weight, weight_suffix
+
 
 def brier_score(
-    target: str, prob: str, weight: str | None = None, pos_label: int | float | str | bool = 1
+    target: str, prob: str, weight: WeightInput = None, pos_label: int | float | str | bool = 1
 ) -> pl.Expr:
     """Compute Brier score for binary classification.
 
@@ -25,15 +27,11 @@ def brier_score(
     target_float = (pl.col(target) == pos_label).cast(pl.Float64)
     per_sample = (pl.col(prob) - target_float) ** 2
 
-    if weight is not None:
-        w = pl.col(weight).cast(pl.Float64)
-        brier = (per_sample * w).sum() / w.sum()
-    else:
-        brier = per_sample.mean()
+    w = resolve_weight(weight)
+    brier = (per_sample * w).sum() / w.sum() if w is not None else per_sample.mean()
 
     alias = f"brier_score_{target}_{prob}"
-    if weight is not None:
-        alias += f"_{weight}"
+    alias += weight_suffix(weight)
     if pos_label != 1:
         alias += f"_pos{pos_label}"
     return brier.alias(alias)

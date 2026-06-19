@@ -2,12 +2,14 @@
 
 import polars as pl
 
+from polarbear._common import WeightInput, weight_expr, weight_suffix
+
 # A positive-class label may be any scalar value comparable to the target column.
 _PosLabel = int | float | str | bool
 
 
 def roc_auc(
-    target: str, score: str, weight: str | None = None, pos_label: _PosLabel = 1
+    target: str, score: str, weight: WeightInput = None, pos_label: _PosLabel = 1
 ) -> pl.Expr:
     """Compute ROC AUC score for binary classification as a Polars expression.
 
@@ -48,8 +50,7 @@ def roc_auc(
         - Handles tied scores correctly.
     """
     alias = f"roc_auc_{target}_{score}"
-    if weight is not None:
-        alias += f"_{weight}"
+    alias += weight_suffix(weight)
     if pos_label != 1:
         alias += f"_pos{pos_label}"
 
@@ -89,13 +90,13 @@ def _roc_auc_unweighted(target: str, score: str, pos_label: _PosLabel, alias: st
 
 
 def _roc_auc_weighted(
-    target: str, score: str, weight: str, pos_label: _PosLabel, alias: str
+    target: str, score: str, weight: str | pl.Expr, pos_label: _PosLabel, alias: str
 ) -> pl.Expr:
     """Trapezoidal rule on weighted ROC curve."""
     is_pos = (pl.col(target) == pos_label).cast(pl.Float64)
     neg_indicator = 1 - is_pos
     score_col = pl.col(score)
-    weight_col = pl.col(weight).cast(pl.Float64)
+    weight_col = weight_expr(weight)
 
     total_wt_pos = (is_pos * weight_col).sum()
     total_wt_neg = (neg_indicator * weight_col).sum()
