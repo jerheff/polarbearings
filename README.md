@@ -16,13 +16,15 @@ High-performance machine learning metrics implemented as native Polars expressio
 > **Note:** Not yet published to PyPI. Install from source until the first release.
 
 ```bash
-pip install git+https://github.com/jerheff/polarbearings.git
+uv add git+https://github.com/jerheff/polarbearings.git
+# or: pip install git+https://github.com/jerheff/polarbearings.git
 ```
 
 Or, once published:
 
 ```bash
-pip install polarbearings   # or: uv add polarbearings
+uv add polarbearings
+# or: pip install polarbearings
 ```
 
 ## Quick Start
