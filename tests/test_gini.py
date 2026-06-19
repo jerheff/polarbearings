@@ -6,7 +6,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from polarbear import gini_coefficient
+from polarbearings import gini_coefficient
 
 
 def _rankdata_average(values: np.ndarray) -> np.ndarray:

@@ -35,7 +35,7 @@ from sklearn.metrics import (
     root_mean_squared_log_error as sklearn_rmsle,
 )
 
-from polarbear import (
+from polarbearings import (
     explained_variance_score,
     huber_loss,
     log_cosh_loss,

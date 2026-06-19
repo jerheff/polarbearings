@@ -9,7 +9,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from polarbear import f1_score, mae, roc_auc
+from polarbearings import f1_score, mae, roc_auc
 
 
 def _val(df: pl.DataFrame, expr: pl.Expr) -> float:

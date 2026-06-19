@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Polarbear is a high-performance machine learning metrics library implemented as native Polars expressions. It provides 2-4x faster metric computation compared to scikit-learn for large datasets.
+Polarbearings is a high-performance machine learning metrics library implemented as native Polars expressions. It provides 2-4x faster metric computation compared to scikit-learn for large datasets.
 
 **Key Features:**
 - 28 metrics (+2 utilities): ranking, probabilistic, classification, and regression
@@ -57,13 +57,13 @@ just bench                  # Run benchmarks against scikit-learn
 ## Architecture
 
 **Source Structure:**
-- `src/polarbear/__init__.py` - Public API exports
-- `src/polarbear/roc_auc.py` - ROC AUC (Mann-Whitney U statistic)
-- `src/polarbear/average_precision.py` - Average precision score
-- `src/polarbear/log_loss.py` - Log loss / binary cross-entropy
-- `src/polarbear/brier_score.py` - Brier score
-- `src/polarbear/classification.py` - Threshold-based classification metrics (precision, recall, F1, fbeta, specificity, accuracy, balanced accuracy, MCC, Cohen's kappa, threshold sweep, percentile thresholds)
-- `src/polarbear/regression.py` - Regression metrics (MAE, MSE, RMSE, R², MAPE)
+- `src/polarbearings/__init__.py` - Public API exports
+- `src/polarbearings/roc_auc.py` - ROC AUC (Mann-Whitney U statistic)
+- `src/polarbearings/average_precision.py` - Average precision score
+- `src/polarbearings/log_loss.py` - Log loss / binary cross-entropy
+- `src/polarbearings/brier_score.py` - Brier score
+- `src/polarbearings/classification.py` - Threshold-based classification metrics (precision, recall, F1, fbeta, specificity, accuracy, balanced accuracy, MCC, Cohen's kappa, threshold sweep, percentile thresholds)
+- `src/polarbearings/regression.py` - Regression metrics (MAE, MSE, RMSE, R², MAPE)
 
 **Metric Implementation Pattern:**
 All metrics are implemented as Polars expressions that:
@@ -98,8 +98,8 @@ All metrics are implemented as Polars expressions that:
 
 When implementing a new metric:
 
-1. Add the implementation to the appropriate module in `src/polarbear/` (classification.py, regression.py, or a new file for a new category)
-2. Export it in `src/polarbear/__init__.py`
+1. Add the implementation to the appropriate module in `src/polarbearings/` (classification.py, regression.py, or a new file for a new category)
+2. Export it in `src/polarbearings/__init__.py`
 3. Write unit tests in `tests/test_<metric_name>.py`
 4. Add property-based tests with Hypothesis
 5. Add compatibility tests against scikit-learn

@@ -13,13 +13,13 @@ from sklearn.metrics import (
     r2_score as sklearn_r2,
 )
 
-from polarbear import mae, mape, mse, r2_score
+from polarbearings import mae, mape, mse, r2_score
 
 
 class TestMAEPerformance:
     """MAE vs sklearn (shared ``regression_data``)."""
 
-    def test_polarbear_mae(
+    def test_polarbearings_mae(
         self, benchmark: BenchmarkFixture, regression_data: tuple[Any, Any, int]
     ) -> None:
         y, pred, n = regression_data
@@ -46,7 +46,7 @@ class TestMAEPerformance:
 class TestMSEPerformance:
     """MSE vs sklearn (shared ``regression_data``)."""
 
-    def test_polarbear_mse(
+    def test_polarbearings_mse(
         self, benchmark: BenchmarkFixture, regression_data: tuple[Any, Any, int]
     ) -> None:
         y, pred, n = regression_data
@@ -73,7 +73,7 @@ class TestMSEPerformance:
 class TestR2Performance:
     """R² vs sklearn — needs a total-variance pass (distinct shape)."""
 
-    def test_polarbear_r2(
+    def test_polarbearings_r2(
         self, benchmark: BenchmarkFixture, regression_data: tuple[Any, Any, int]
     ) -> None:
         y, pred, n = regression_data
@@ -100,7 +100,7 @@ class TestR2Performance:
 class TestMAPEPerformance:
     """MAPE vs sklearn — per-element division (strictly-positive targets)."""
 
-    def test_polarbear_mape(
+    def test_polarbearings_mape(
         self, benchmark: BenchmarkFixture, regression_positive: tuple[Any, Any, int]
     ) -> None:
         y, pred, n = regression_positive

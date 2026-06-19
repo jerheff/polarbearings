@@ -10,7 +10,7 @@ import math
 import polars as pl
 import pytest
 
-from polarbear import brier_score, fbeta_score, log_loss, matthews_corrcoef, roc_auc
+from polarbearings import brier_score, fbeta_score, log_loss, matthews_corrcoef, roc_auc
 
 
 class TestRocAucSingleClass:

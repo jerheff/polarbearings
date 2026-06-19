@@ -10,7 +10,7 @@ from hypothesis.extra.numpy import arrays
 from sklearn.metrics import brier_score_loss
 from sklearn.metrics import log_loss as sklearn_log_loss
 
-from polarbear import brier_score, log_loss
+from polarbearings import brier_score, log_loss
 
 
 class TestLogLoss:

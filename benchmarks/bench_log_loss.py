@@ -6,16 +6,16 @@ import polars as pl
 from pytest_benchmark.fixture import BenchmarkFixture
 from sklearn.metrics import log_loss as sklearn_log_loss
 
-from polarbear import log_loss
+from polarbearings import log_loss
 
 
 class TestLogLossPerformance:
     """Performance benchmarks for log loss (shared ``binary_probs``)."""
 
-    def test_polarbear_log_loss(
+    def test_polarbearings_log_loss(
         self, benchmark: BenchmarkFixture, binary_probs: tuple[Any, Any, int]
     ) -> None:
-        """Benchmark polarbear log loss."""
+        """Benchmark polarbearings log loss."""
         labels, probs, n = binary_probs
         benchmark.group = f"Log Loss n={n}"
         df = pl.DataFrame({"label": labels, "prob": probs})

@@ -9,7 +9,7 @@ from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 from sklearn.metrics import brier_score_loss
 
-from polarbear import brier_score
+from polarbearings import brier_score
 
 
 class TestBrierScore:

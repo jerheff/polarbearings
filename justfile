@@ -1,4 +1,4 @@
-# Polarbear Development Commands
+# Polarbearings Development Commands
 # Install just: https://github.com/casey/just
 # Documentation: docs/guides/TESTING.md
 
@@ -71,9 +71,9 @@ publish-test: build
 
 # Smoke-test the published Test PyPI build in a throwaway env (deps from real PyPI).
 install-test:
-    uv run --no-project --refresh-package polarbear \
+    uv run --no-project --refresh-package polarbearings \
         --index testpypi --index https://pypi.org/simple/ --index-strategy unsafe-best-match \
-        --with polarbear python -c "import polarbear; print('OK', len(polarbear.__all__), 'names')"
+        --with polarbearings python -c "import polarbearings; print('OK', len(polarbearings.__all__), 'names')"
 
 # Publish to real PyPI (auth: UV_PUBLISH_TOKEN with a pypi.org token).
 publish: build
@@ -81,7 +81,7 @@ publish: build
 
 # Run tests with coverage report
 test-cov:
-    uv run pytest --cov=src/polarbear --cov-report=term-missing tests/
+    uv run pytest --cov=src/polarbearings --cov-report=term-missing tests/
 
 # Cap the size sweep with BENCH_MAX_N (e.g. `BENCH_MAX_N=100000 just bench`).
 # Run performance benchmarks against the current/dev env

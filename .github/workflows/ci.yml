@@ -146,7 +146,7 @@ jobs:
       # Coverage gate: fails below 100% (threshold lives in pyproject's
       # [tool.coverage.report] fail_under, so local `just test-cov` matches).
       - name: Tests with coverage gate
-        run: uv run pytest -m 'not hypothesis' --cov=polarbear --cov-report=term-missing -q
+        run: uv run pytest -m 'not hypothesis' --cov=polarbearings --cov-report=term-missing -q
 
   prek:
     name: Pre-commit hooks (PR diff / full on push)

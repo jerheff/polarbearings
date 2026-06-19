@@ -1,7 +1,7 @@
 """Benchmarks for computing a *suite* of metrics in a single Polars pass.
 
 The single-metric ``bench_*.py`` files isolate per-metric speed. This file tests
-the *composability* thesis instead: because every polarbear metric is a plain
+the *composability* thesis instead: because every polarbearings metric is a plain
 ``pl.Expr``, dropping a whole suite of them into ONE ``df.select([...])`` lets
 Polars parallelize across the independent output expressions and share the
 column scans / common subexpressions — the same structural win that powers the
@@ -10,9 +10,9 @@ column scans / common subexpressions — the same structural win that powers the
 Three approaches are compared at each size on the shared binary-classification
 fixtures:
 
-* ``polarbear_one_select`` — every metric in a single ``df.select([...])`` (the
+* ``polarbearings_one_select`` — every metric in a single ``df.select([...])`` (the
   headline).
-* ``polarbear_n_selects`` — the same metrics, each in its own ``df.select(...)``,
+* ``polarbearings_n_selects`` — the same metrics, each in its own ``df.select(...)``,
   summed. Isolates the fuse/parallel benefit from raw per-metric speed by paying
   N separate query-plan + scan overheads.
 * ``sklearn_sequence`` — the corresponding sklearn functions called one after
@@ -25,7 +25,7 @@ genuinely comparable):
   specificity (= recall of the negative class), mcc, cohens_kappa;
 * probability-based: roc_auc, average_precision, log_loss, brier_score.
 
-polarbear also exposes ``fbeta_score`` and ``gini_coefficient``; they are left
+polarbearings also exposes ``fbeta_score`` and ``gini_coefficient``; they are left
 out of the comparable suite because fbeta duplicates f1 at beta=1 and gini has no
 direct sklearn function (it is ``2 * roc_auc - 1``), so including them would make
 the three approaches no longer line up one-to-one.
@@ -59,7 +59,7 @@ from sklearn.metrics import (
     recall_score as sklearn_recall,
 )
 
-from polarbear import (
+from polarbearings import (
     accuracy,
     average_precision,
     balanced_accuracy,
@@ -127,7 +127,7 @@ class TestMultiMetricSuite:
     *computing* them, not their numbers.
     """
 
-    def test_polarbear_one_select(
+    def test_polarbearings_one_select(
         self, benchmark: BenchmarkFixture, binary_probs: tuple[Any, Any, int]
     ) -> None:
         labels, probs, n = binary_probs
@@ -140,7 +140,7 @@ class TestMultiMetricSuite:
 
         benchmark(compute)
 
-    def test_polarbear_n_selects(
+    def test_polarbearings_n_selects(
         self, benchmark: BenchmarkFixture, binary_probs: tuple[Any, Any, int]
     ) -> None:
         labels, probs, n = binary_probs

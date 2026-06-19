@@ -3,8 +3,8 @@
 ## Methodology
 
 Every metric runs as a native Polars expression in Polars' Rust engine, with no
-Python-level loops. Speedup below is **scikit-learn median ÷ polarbear median**
-(higher = polarbear faster).
+Python-level loops. Speedup below is **scikit-learn median ÷ polarbearings median**
+(higher = polarbearings faster).
 
 Measured on a single machine (Apple Silicon) via this repo's `benchmarks/`,
 median/IQR over ≥20 warm rounds with GC disabled (`just bench`). Two Polars
@@ -23,7 +23,7 @@ highest` which would move all three. Absolute times are hardware-specific; the
 ## Speedup vs scikit-learn
 
 <!-- BEGIN:speedup-vs-sklearn -->
-_Speedup vs scikit-learn = sklearn median ÷ polarbear median (higher = polarbear faster)._
+_Speedup vs scikit-learn = sklearn median ÷ polarbearings median (higher = polarbearings faster)._
 
 | Metric | n | polars 1.0.0 | polars 1.41.2 |
 |---|---|---|---|
@@ -125,7 +125,7 @@ _Speedup vs scikit-learn = sklearn median ÷ polarbear median (higher = polarbea
 ## Polars version comparison (ceteris paribus)
 
 <!-- BEGIN:polars-version-ratio -->
-_polarbear median on polars 1.41.2 ÷ polars 1.0.0 (> 1.00 = newer Polars slower; numpy/sklearn held fixed)._
+_polarbearings median on polars 1.41.2 ÷ polars 1.0.0 (> 1.00 = newer Polars slower; numpy/sklearn held fixed)._
 
 | Metric | n | ratio |
 |---|---|---|
@@ -225,8 +225,8 @@ that "newer Polars widens the gap" did **not** survive clean measurement.
 
 ## Polars-only metrics (no scikit-learn baseline)
 
-<!-- BEGIN:polarbear-only-medians -->
-_polarbear-only metrics (no sklearn baseline): absolute median time in ms._
+<!-- BEGIN:polarbearings-only-medians -->
+_polarbearings-only metrics (no sklearn baseline): absolute median time in ms._
 
 | Metric | n | polars 1.0.0 (ms) | polars 1.41.2 (ms) |
 |---|---|---|---|
@@ -239,7 +239,7 @@ _polarbear-only metrics (no sklearn baseline): absolute median time in ms._
 | grouped_gini | 10 | 0.383 | 0.465 |
 | grouped_gini | 100 | 0.867 | 1.063 |
 | grouped_gini | 1,000 | 4.809 | 4.510 |
-<!-- END:polarbear-only-medians -->
+<!-- END:polarbearings-only-medians -->
 
 `gini_coefficient` (normalized Gini for non-negative targets) has no direct
 scikit-learn equivalent, so it is tracked as absolute throughput rather than a

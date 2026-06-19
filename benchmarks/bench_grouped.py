@@ -1,4 +1,4 @@
-"""Benchmarks for grouped metric computation — polarbear vs sklearn loop."""
+"""Benchmarks for grouped metric computation — polarbearings vs sklearn loop."""
 
 from typing import Any
 
@@ -10,11 +10,11 @@ from pytest_benchmark.fixture import BenchmarkFixture
 from sklearn.metrics import brier_score_loss, roc_auc_score
 from sklearn.metrics import log_loss as sklearn_log_loss
 
-from polarbear import brier_score, log_loss, roc_auc
+from polarbearings import brier_score, log_loss, roc_auc
 
 
 class TestGroupedPerformance:
-    """Compare polarbear group_by vs sklearn Python loop."""
+    """Compare polarbearings group_by vs sklearn Python loop."""
 
     @pytest.fixture(params=[10, 100, 1000])
     def grouped_data(
@@ -33,13 +33,13 @@ class TestGroupedPerformance:
 
         return groups, labels, probs, n_groups
 
-    def test_polarbear_grouped_all_metrics(
+    def test_polarbearings_grouped_all_metrics(
         self,
         benchmark: BenchmarkFixture,
         grouped_data: tuple[Any, Any, Any, int],
         request: pytest.FixtureRequest,
     ) -> None:
-        """Benchmark polarbear: all 3 metrics via group_by().agg()."""
+        """Benchmark polarbearings: all 3 metrics via group_by().agg()."""
         groups, labels, probs, n_groups = grouped_data
         benchmark.group = f"Grouped groups={n_groups}"
         df = pl.DataFrame({"group": groups, "label": labels, "prob": probs})

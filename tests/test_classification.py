@@ -28,7 +28,7 @@ from sklearn.metrics import (
     recall_score as sklearn_recall,
 )
 
-from polarbear import (
+from polarbearings import (
     accuracy,
     balanced_accuracy,
     cohens_kappa,

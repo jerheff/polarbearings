@@ -7,7 +7,7 @@
 
 ## Syntax Compatibility Analysis
 
-### Methods Used by Polarbear
+### Methods Used by Polarbearings
 
 Our implementation uses the following Polars expression methods:
 

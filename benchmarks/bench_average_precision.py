@@ -6,13 +6,13 @@ import polars as pl
 from pytest_benchmark.fixture import BenchmarkFixture
 from sklearn.metrics import average_precision_score
 
-from polarbear import average_precision
+from polarbearings import average_precision
 
 
 class TestAveragePrecisionPerformance:
     """Performance benchmarks for average precision (shared ``binary_scores``)."""
 
-    def test_polarbear_ap(
+    def test_polarbearings_ap(
         self, benchmark: BenchmarkFixture, binary_scores: tuple[Any, Any, int]
     ) -> None:
         labels, scores, n = binary_scores

@@ -1,14 +1,14 @@
 """Generate doc-ready Markdown comparing two pytest-benchmark runs.
 
 Reads two ``pytest-benchmark`` JSON result files — a *floor* Polars run and a
-*latest* Polars run, each containing both ``polarbear`` and ``sklearn``
+*latest* Polars run, each containing both ``polarbearings`` and ``sklearn``
 benchmarks — and emits three Markdown sections:
 
-* **speedup vs sklearn** — ``sklearn_median / polarbear_median`` (higher means
-  polarbear is faster), one column per Polars version;
-* **Polars version ratio** — ``latest_median / floor_median`` for polarbear
+* **speedup vs sklearn** — ``sklearn_median / polarbearings_median`` (higher means
+  polarbearings is faster), one column per Polars version;
+* **Polars version ratio** — ``latest_median / floor_median`` for polarbearings
   (``> 1`` means the newer Polars is slower);
-* **polarbear-only medians** — absolute median time for metrics that have no
+* **polarbearings-only medians** — absolute median time for metrics that have no
   sklearn baseline (e.g. ``gini``).
 
 Each section is wrapped in ``<!-- BEGIN:... -->`` / ``<!-- END:... -->`` markers
@@ -17,8 +17,8 @@ so it can be embedded into a docs file and refreshed in place with ``--write``.
 The computation is intentionally fixed and deterministic so numbers quoted in
 the documentation are always produced the same way:
 
-    speedup(version)      = median(test_sklearn_<m>[n]) / median(test_polarbear_<m>[n])
-    version_ratio         = median(latest test_polarbear_<m>[n]) / median(floor ...)
+    speedup(version)      = median(test_sklearn_<m>[n]) / median(test_polarbearings_<m>[n])
+    version_ratio         = median(latest test_polarbearings_<m>[n]) / median(floor ...)
 
 Usage::
 
@@ -38,9 +38,9 @@ from pathlib import Path
 # Section ids -> the marker names used in the Markdown / docs.
 SPEEDUP = "speedup-vs-sklearn"
 VERSION_RATIO = "polars-version-ratio"
-PB_ONLY = "polarbear-only-medians"
+PB_ONLY = "polarbearings-only-medians"
 
-_NAME_RE = re.compile(r"^test_(polarbear|sklearn)_(.+?)\[(\d+)\]$")
+_NAME_RE = re.compile(r"^test_(polarbearings|sklearn)_(.+?)\[(\d+)\]$")
 _VERSION_RE = re.compile(r"polars_(\d+)_(\d+)_(\d+)")
 
 
@@ -67,7 +67,7 @@ def parse_name(name: str) -> tuple[str, str, int] | None:
 
 
 def _metrics(medians: dict[str, float]) -> dict[tuple[str, int], dict[str, float]]:
-    """Index medians by ``(metric, n)`` -> ``{"polarbear": .., "sklearn": ..}``."""
+    """Index medians by ``(metric, n)`` -> ``{"polarbearings": .., "sklearn": ..}``."""
     out: dict[tuple[str, int], dict[str, float]] = {}
     for name, med in medians.items():
         parsed = parse_name(name)
@@ -99,21 +99,19 @@ def render_speedup(
     latest_label: str,
 ) -> str:
     """Section A: speedup vs sklearn, one column per Polars version."""
-    keys = sorted(k for k in floor if "sklearn" in floor[k] and "polarbear" in floor[k])
+    keys = sorted(k for k in floor if "sklearn" in floor[k] and "polarbearings" in floor[k])
     rows: list[list[str]] = []
     for metric, n in keys:
         f = floor[(metric, n)]
-        f_sp = f"{f['sklearn'] / f['polarbear']:.1f}x"
+        f_sp = f"{f['sklearn'] / f['polarbearings']:.1f}x"
         lat = latest.get((metric, n), {})
         l_sp = (
-            f"{lat['sklearn'] / lat['polarbear']:.1f}x"
-            if "sklearn" in lat and "polarbear" in lat
+            f"{lat['sklearn'] / lat['polarbearings']:.1f}x"
+            if "sklearn" in lat and "polarbearings" in lat
             else "—"
         )
         rows.append([metric, _fmt_n(n), f_sp, l_sp])
-    caption = (
-        "Speedup vs scikit-learn = sklearn median ÷ polarbear median (higher = polarbear faster)."
-    )
+    caption = "Speedup vs scikit-learn = sklearn median ÷ polarbearings median (higher = polarbearings faster)."
     return _section(SPEEDUP, caption, ["Metric", "n", floor_label, latest_label], rows)
 
 
@@ -123,14 +121,16 @@ def render_version_ratio(
     floor_label: str,
     latest_label: str,
 ) -> str:
-    """Section B: polarbear floor-vs-latest median ratio."""
-    keys = sorted(k for k in floor if "polarbear" in floor[k] and "polarbear" in latest.get(k, {}))
+    """Section B: polarbearings floor-vs-latest median ratio."""
+    keys = sorted(
+        k for k in floor if "polarbearings" in floor[k] and "polarbearings" in latest.get(k, {})
+    )
     rows: list[list[str]] = []
     for metric, n in keys:
-        ratio = latest[(metric, n)]["polarbear"] / floor[(metric, n)]["polarbear"]
+        ratio = latest[(metric, n)]["polarbearings"] / floor[(metric, n)]["polarbearings"]
         rows.append([metric, _fmt_n(n), f"{ratio:.2f}"])
     caption = (
-        f"polarbear median on {latest_label} ÷ {floor_label} "
+        f"polarbearings median on {latest_label} ÷ {floor_label} "
         "(> 1.00 = newer Polars slower; numpy/sklearn held fixed)."
     )
     return _section(VERSION_RATIO, caption, ["Metric", "n", "ratio"], rows)
@@ -143,14 +143,14 @@ def render_pb_only(
     latest_label: str,
 ) -> str:
     """Section C: absolute medians for metrics with no sklearn baseline."""
-    keys = sorted(k for k in floor if "sklearn" not in floor[k] and "polarbear" in floor[k])
+    keys = sorted(k for k in floor if "sklearn" not in floor[k] and "polarbearings" in floor[k])
     rows: list[list[str]] = []
     for metric, n in keys:
-        f_ms = f"{floor[(metric, n)]['polarbear'] * 1e3:.3f}"
+        f_ms = f"{floor[(metric, n)]['polarbearings'] * 1e3:.3f}"
         lat = latest.get((metric, n), {})
-        l_ms = f"{lat['polarbear'] * 1e3:.3f}" if "polarbear" in lat else "—"
+        l_ms = f"{lat['polarbearings'] * 1e3:.3f}" if "polarbearings" in lat else "—"
         rows.append([metric, _fmt_n(n), f_ms, l_ms])
-    caption = "polarbear-only metrics (no sklearn baseline): absolute median time in ms."
+    caption = "polarbearings-only metrics (no sklearn baseline): absolute median time in ms."
     return _section(
         PB_ONLY, caption, ["Metric", "n", f"{floor_label} (ms)", f"{latest_label} (ms)"], rows
     )

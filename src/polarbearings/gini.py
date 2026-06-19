@@ -15,7 +15,7 @@ Target values must be non-negative. Undefined cases return ``null``.
 
 import polars as pl
 
-from polarbear._common import WeightInput, weight_expr, weight_suffix
+from polarbearings._common import WeightInput, weight_expr, weight_suffix
 
 
 def gini_coefficient(target: str, score: str, weight: WeightInput = None) -> pl.Expr:

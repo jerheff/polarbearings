@@ -14,7 +14,7 @@ from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 from sklearn.metrics import confusion_matrix as sklearn_cm
 
-from polarbear import confusion_matrix, precision, recall
+from polarbearings import confusion_matrix, precision, recall
 
 
 def _cells(df: pl.DataFrame, expr: pl.Expr) -> dict:

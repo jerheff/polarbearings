@@ -16,7 +16,7 @@ from polars.testing import assert_frame_equal
 from scipy.stats import norm
 from sklearn.metrics import roc_auc_score
 
-from polarbear import (
+from polarbearings import (
     bootstrap,
     bootstrap_ci,
     ci_from_distribution,
@@ -27,11 +27,11 @@ from polarbear import (
     median_absolute_error,
     roc_auc,
 )
-from polarbear.bootstrap import _reduce_ci
+from polarbearings.bootstrap import _reduce_ci
 
 # The submodule is shadowed by the same-named function in the package namespace, so
 # reach the real module via sys.modules to monkeypatch the version feature flag.
-_BMOD = sys.modules["polarbear.bootstrap"]
+_BMOD = sys.modules["polarbearings.bootstrap"]
 
 
 def _binary_df(n=4000, seed=0):

@@ -2,7 +2,7 @@
 
 import polars as pl
 
-from polarbear._common import WeightInput, resolve_weight, weight_suffix
+from polarbearings._common import WeightInput, resolve_weight, weight_suffix
 
 
 def brier_score(

@@ -9,16 +9,16 @@ import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
 from sklearn.metrics import roc_auc_score
 
-from polarbear import roc_auc
+from polarbearings import roc_auc
 
 
 class TestROCAUCPerformance:
     """Performance benchmarks for ROC AUC (shared ``binary_scores`` fixture)."""
 
-    def test_polarbear_roc_auc(
+    def test_polarbearings_roc_auc(
         self, benchmark: BenchmarkFixture, binary_scores: tuple[Any, Any, int]
     ) -> None:
-        """Benchmark polarbear ROC AUC implementation."""
+        """Benchmark polarbearings ROC AUC implementation."""
         labels, scores, n = binary_scores
         benchmark.group = f"ROC AUC n={n}"
         df = pl.DataFrame({"label": labels, "score": scores})
@@ -58,10 +58,10 @@ class TestTiedScoresPerformance:
         scores = np.random.choice([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], n)
         return labels, scores, n
 
-    def test_polarbear_tied_scores(
+    def test_polarbearings_tied_scores(
         self, benchmark: BenchmarkFixture, tied_data: tuple[Any, Any, int]
     ) -> None:
-        """Benchmark polarbear with tied scores."""
+        """Benchmark polarbearings with tied scores."""
         labels, scores, n = tied_data
         benchmark.group = f"ROC AUC Tied n={n}"
         df = pl.DataFrame({"label": labels, "score": scores})

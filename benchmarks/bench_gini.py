@@ -1,6 +1,6 @@
 """Benchmarks for the normalized Gini coefficient.
 
-Gini has no scikit-learn equivalent, so these track polarbear's absolute
+Gini has no scikit-learn equivalent, so these track polarbearings's absolute
 throughput rather than a speedup ratio.
 """
 
@@ -11,16 +11,16 @@ import polars as pl
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
 
-from polarbear import gini_coefficient
+from polarbearings import gini_coefficient
 
 
 class TestGiniPerformance:
     """Performance benchmarks for the normalized Gini coefficient (shared ``gini_data``)."""
 
-    def test_polarbear_gini(
+    def test_polarbearings_gini(
         self, benchmark: BenchmarkFixture, gini_data: tuple[Any, Any, int]
     ) -> None:
-        """Benchmark polarbear Gini implementation."""
+        """Benchmark polarbearings Gini implementation."""
         losses, scores, n = gini_data
         benchmark.group = f"Gini n={n}"
         df = pl.DataFrame({"loss": losses, "score": scores})
@@ -47,10 +47,10 @@ class TestGiniGroupedPerformance:
         df = pl.DataFrame({"group": group_ids.astype(str), "loss": losses, "score": scores})
         return df, groups
 
-    def test_polarbear_grouped_gini(
+    def test_polarbearings_grouped_gini(
         self, benchmark: BenchmarkFixture, grouped_data: tuple[pl.DataFrame, int]
     ) -> None:
-        """Benchmark polarbear grouped Gini."""
+        """Benchmark polarbearings grouped Gini."""
         df, groups = grouped_data
         benchmark.group = f"Grouped Gini groups={groups}"
 

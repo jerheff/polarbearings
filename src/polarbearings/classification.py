@@ -4,7 +4,7 @@ from typing import Protocol
 
 import polars as pl
 
-from polarbear._common import WeightInput, resolve_weight, weight_suffix
+from polarbearings._common import WeightInput, resolve_weight, weight_suffix
 
 # A positive-class label may be any scalar value comparable to the target column
 # (e.g. 1, 100, "cancer", True). Defaults to 1 for backward compatibility.
@@ -110,7 +110,7 @@ def confusion_matrix(
 
     Examples:
         >>> import polars as pl
-        >>> from polarbear import confusion_matrix
+        >>> from polarbearings import confusion_matrix
         >>>
         >>> df = pl.DataFrame({
         ...     "label": [0, 0, 1, 1],
@@ -399,7 +399,7 @@ def threshold_sweep(
 
     Examples:
         >>> import polars as pl
-        >>> from polarbear import f1_score, threshold_sweep
+        >>> from polarbearings import f1_score, threshold_sweep
         >>>
         >>> df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
         >>> df.select(*threshold_sweep(f1_score, "label", "prob", [0.3, 0.5, 0.7]))
@@ -421,7 +421,7 @@ def percentile_thresholds(series: pl.Series, percentiles: list[float]) -> list[f
 
     Examples:
         >>> import polars as pl
-        >>> from polarbear import percentile_thresholds
+        >>> from polarbearings import percentile_thresholds
         >>>
         >>> scores = pl.Series([0.1, 0.2, 0.3, 0.5, 0.7, 0.8, 0.9])
         >>> percentile_thresholds(scores, [25, 50, 75])

@@ -1,5 +1,5 @@
 [project]
-name = "polarbear"
+name = "polarbearings"
 version = "0.1.0"
 description = "High-performance machine learning metrics for Polars DataFrames"
 readme = "README.md"
@@ -33,9 +33,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jerheff/polarbear"
-Repository = "https://github.com/jerheff/polarbear"
-Issues = "https://github.com/jerheff/polarbear/issues"
+Homepage = "https://github.com/jerheff/polarbearings"
+Repository = "https://github.com/jerheff/polarbearings"
+Issues = "https://github.com/jerheff/polarbearings/issues"
 
 [build-system]
 requires = ["uv_build>=0.11.22,<0.12.0"]
@@ -149,7 +149,7 @@ markers = ["hypothesis: property-based tests using Hypothesis (slow)"]
 filterwarnings = ["error::DeprecationWarning"]
 
 [tool.coverage.run]
-source = ["polarbear"]
+source = ["polarbearings"]
 
 [tool.coverage.report]
 omit = ["tests/*", "benchmarks/*"]
@@ -159,7 +159,7 @@ omit = ["tests/*", "benchmarks/*"]
 fail_under = 100
 
 [tool.mutmut]
-paths_to_mutate = ["src/polarbear/"]
+paths_to_mutate = ["src/polarbearings/"]
 tests_dir = ["tests/"]
 # Skip the slow property-based tests during mutation runs.
 pytest_add_cli_args = ["-m", "not hypothesis"]
@@ -175,7 +175,7 @@ pytest_add_cli_args = ["-m", "not hypothesis"]
 #
 # SOURCE OF TRUTH for whether a mutant is killed: activate it via the trampoline
 # and run pytest as a normal subprocess (no fork, no deadlock), e.g. from mutants/:
-#   MUTANT_UNDER_TEST=polarbear.<module>.<mutant> \
+#   MUTANT_UNDER_TEST=polarbearings.<module>.<mutant> \
 #     PYTHONPATH=src ../.venv/bin/python -m pytest tests/ -m 'not hypothesis'
 # Nonzero exit == killed. Use mutmut to ENUMERATE survivor candidates, then
 # confirm each with this method. See docs/guides/TESTING.md.

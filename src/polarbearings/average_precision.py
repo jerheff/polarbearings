@@ -2,7 +2,7 @@
 
 import polars as pl
 
-from polarbear._common import WeightInput, resolve_weight, weight_suffix
+from polarbearings._common import WeightInput, resolve_weight, weight_suffix
 
 
 def average_precision(
@@ -25,7 +25,7 @@ def average_precision(
 
     Examples:
         >>> import polars as pl
-        >>> from polarbear import average_precision
+        >>> from polarbearings import average_precision
         >>>
         >>> df = pl.DataFrame({
         ...     "label": [0, 0, 1, 1],

@@ -23,8 +23,8 @@ A deep look at the capabilities added to Polars across versions **1.24 through 1
 6. [GPU Acceleration](#6-gpu-acceleration)
 7. [I/O and Ecosystem](#7-io-and-ecosystem)
 8. [Breaking Changes and Deprecations](#8-breaking-changes-and-deprecations)
-9. [Implications for Polarbear](#9-implications-for-polarbear)
-10. [Improvement Plan: Metrics Leveraging New Polars Features](#10-improvement-plan-polarbear-metrics-leveraging-new-polars-features)
+9. [Implications for Polarbearings](#9-implications-for-polarbearings)
+10. [Improvement Plan: Metrics Leveraging New Polars Features](#10-improvement-plan-polarbearings-metrics-leveraging-new-polars-features)
 11. [Update: Releases 1.40–1.41 (April–May 2026)](#11-update-releases-140-141-aprilmay-2026)
 
 ---
@@ -476,15 +476,15 @@ Polars' SQL context gained: `LPAD`, `RPAD`, `QUALIFY`, `FETCH`, FROM-first SELEC
 
 ---
 
-## 9. Implications for Polarbear
+## 9. Implications for Polarbearings
 
-Polarbear currently requires `polars>=1.0.0` and tests against versions 1.0.0, 1.24.0, and 1.41.2. Many of the features below are available in the tested compatibility matrix.
+Polarbearings currently requires `polars>=1.0.0` and tests against versions 1.0.0, 1.24.0, and 1.41.2. Many of the features below are available in the tested compatibility matrix.
 
 ### Direct opportunities
 
-| Polars Feature | Polarbear Impact | How |
+| Polars Feature | Polarbearings Impact | How |
 |---------------|-----------------|-----|
-| **Streaming engine** | All lazy metric expressions get 3–7x speedups for free | Users just call `.collect(engine="streaming")` on polarbear results |
+| **Streaming engine** | All lazy metric expressions get 3–7x speedups for free | Users just call `.collect(engine="streaming")` on polarbearings results |
 | **`rolling_rank()`** | Could enable new rolling/windowed ranking metrics | Build on top of native `rolling_rank()` instead of custom implementations |
 | **`min_by` / `max_by`** | Cleaner threshold sweep implementation | Replace sort + tail pattern in `threshold_sweep()` with `max_by` |
 | **Multi-quantile** | Faster `percentile_thresholds()` | Compute all percentile thresholds in a single pass |
@@ -496,17 +496,17 @@ Polarbear currently requires `polars>=1.0.0` and tests against versions 1.0.0, 1
 
 ### Version strategy considerations
 
-- If polarbear wants to use `min_by`/`max_by` (v1.37+), `list.agg()` (v1.35+), or `rolling_rank()` (v1.35+), the minimum Polars version would need to increase, or these features would need to be gated behind version checks.
-- The categorical overhaul (v1.32) doesn't directly impact polarbear today since metrics operate on numeric columns, but it's worth noting for any future categorical metric support.
-- The `rolling` → `overlapping` rename (v1.35) could affect downstream users if polarbear ever exposes rolling window APIs.
+- If polarbearings wants to use `min_by`/`max_by` (v1.37+), `list.agg()` (v1.35+), or `rolling_rank()` (v1.35+), the minimum Polars version would need to increase, or these features would need to be gated behind version checks.
+- The categorical overhaul (v1.32) doesn't directly impact polarbearings today since metrics operate on numeric columns, but it's worth noting for any future categorical metric support.
+- The `rolling` → `overlapping` rename (v1.35) could affect downstream users if polarbearings ever exposes rolling window APIs.
 
 ### Documentation and examples
 
-With the streaming engine mature, polarbear's benchmarks and documentation should highlight the streaming path:
+With the streaming engine mature, polarbearings's benchmarks and documentation should highlight the streaming path:
 
 ```python
 import polars as pl
-import polarbear as pb
+import polarbearings as pb
 
 # Compute AUC on a billion-row dataset in streaming mode
 result = (
@@ -517,17 +517,17 @@ result = (
 )
 ```
 
-This pattern — scan, compute metric expression, stream-collect, extract scalar — is now the idiomatic way to compute metrics on large datasets with Polars + polarbear.
+This pattern — scan, compute metric expression, stream-collect, extract scalar — is now the idiomatic way to compute metrics on large datasets with Polars + polarbearings.
 
 ---
 
-## 10. Improvement Plan: Polarbear Metrics Leveraging New Polars Features
+## 10. Improvement Plan: Polarbearings Metrics Leveraging New Polars Features
 
-This section maps specific changes to each of polarbear's 18 metrics and utility functions, grouped by effort and the minimum Polars version they would require. Each improvement references the current implementation and explains exactly what would change.
+This section maps specific changes to each of polarbearings's 18 metrics and utility functions, grouped by effort and the minimum Polars version they would require. Each improvement references the current implementation and explains exactly what would change.
 
 ### Version constraint summary
 
-| Minimum Polars | Features unlocked | Impact on polarbear |
+| Minimum Polars | Features unlocked | Impact on polarbearings |
 |---------------|-------------------|---------------------|
 | **1.0.0** (current) | Everything that exists today works | No changes needed |
 | **1.30.0** | `list.filter()`, `.over()` without partition_by | Enables list-based metric patterns, simpler window expressions |
@@ -586,7 +586,7 @@ results = pl.collect_all([
 
 ### Tier 2 — Moderate version bump (polars >= 1.35.0)
 
-These changes require raising the minimum Polars version from 1.0.0 to 1.35.0. This is the sweet spot: v1.35 is 9+ months old, covers the most impactful new features, and is close to what polarbear already tests against (1.41.2).
+These changes require raising the minimum Polars version from 1.0.0 to 1.35.0. This is the sweet spot: v1.35 is 9+ months old, covers the most impactful new features, and is close to what polarbearings already tests against (1.41.2).
 
 #### 2.1 Rewrite `percentile_thresholds()` to be lazy-native
 
@@ -762,7 +762,7 @@ These changes require raising the minimum to 1.37.0 or later. This drops support
 
 **What:** A new function that returns a confusion matrix as a DataFrame, using lazy `pivot()` (v1.36) for streaming support.
 
-**Why:** Confusion matrices are fundamental to classification evaluation. Currently polarbear only exposes the scalar metrics derived from the confusion matrix (precision, recall, etc.), not the matrix itself. Users who want the raw TP/FP/FN/TN counts must compute them manually.
+**Why:** Confusion matrices are fundamental to classification evaluation. Currently polarbearings only exposes the scalar metrics derived from the confusion matrix (precision, recall, etc.), not the matrix itself. Users who want the raw TP/FP/FN/TN counts must compute them manually.
 
 **Proposed implementation:**
 ```python
@@ -788,7 +788,7 @@ def confusion_matrix(
 
 **Minimum Polars:** 1.36.0 (for `LazyFrame.pivot()`).
 
-**Design constraint:** Unlike other polarbear functions that return `pl.Expr`, this would return a `pl.LazyFrame` — a different API shape. It needs the source data as input (a LazyFrame, not just column names), which breaks the current pattern of returning expressions that users plug into `.select()`. Two options:
+**Design constraint:** Unlike other polarbearings functions that return `pl.Expr`, this would return a `pl.LazyFrame` — a different API shape. It needs the source data as input (a LazyFrame, not just column names), which breaks the current pattern of returning expressions that users plug into `.select()`. Two options:
 1. Accept a `LazyFrame` argument and return a `LazyFrame` (different API pattern).
 2. Return a struct expression with fields `tp`, `fp`, `fn`, `tn` (consistent with existing pattern, but not a traditional matrix layout).
 
@@ -796,7 +796,7 @@ def confusion_matrix(
 
 **What:** Enable computing metrics partitioned by a grouping column (e.g., AUC per model version, precision per demographic group).
 
-**Why:** Fairness auditing, A/B testing, and model comparison all require computing the same metric across subgroups. Today users must filter/group manually and call polarbear on each subset.
+**Why:** Fairness auditing, A/B testing, and model comparison all require computing the same metric across subgroups. Today users must filter/group manually and call polarbearings on each subset.
 
 **Proposed API:**
 ```python
@@ -811,7 +811,7 @@ df.select(
 )
 ```
 
-**Challenge:** Polarbear's metrics are scalar aggregations (they reduce a column to a single value via `.sum()`, `.mean()`, etc.). The `.over()` modifier turns an aggregation into a window function that repeats the aggregated value for each row in the partition. This works naturally for simple aggregations like `sum().over("group")`, but polarbear metrics use complex multi-expression compositions (e.g., ROC AUC uses `rank()`, `sort_by()`, `cum_sum()` in sequence).
+**Challenge:** Polarbearings's metrics are scalar aggregations (they reduce a column to a single value via `.sum()`, `.mean()`, etc.). The `.over()` modifier turns an aggregation into a window function that repeats the aggregated value for each row in the partition. This works naturally for simple aggregations like `sum().over("group")`, but polarbearings metrics use complex multi-expression compositions (e.g., ROC AUC uses `rank()`, `sort_by()`, `cum_sum()` in sequence).
 
 **Implementation strategy:**
 - For simple metrics (MAE, MSE, RMSE, Brier score) that are just `mean()` or `sum()` of per-row values: `.over()` works directly. These can be supported immediately.
@@ -926,7 +926,7 @@ Given the improvements above, here is the tradeoff:
 Extending the analysis past the original 1.39 cutoff to the latest release at
 the time of writing, **polars 1.41.2** (May 29, 2026). Both releases are
 dominated by streaming-engine work, so most gains are **transparent** — the same
-polarbear expression runs faster on a newer polars with no code change (measured
+polarbearings expression runs faster on a newer polars with no code change (measured
 in this repo's benchmarks: e.g. Log Loss @100k went 4.7x → 7.9x vs scikit-learn
 from polars 1.0.0 → 1.41).
 
@@ -949,7 +949,7 @@ Metrics-relevant changes:
 - `is_unique` on list/array dtypes (#27290); `pl.merge_sorted` over multiple
   frames (#27014).
 
-Deprecation (does **not** affect polarbear): the DataFrame interchange protocol.
+Deprecation (does **not** affect polarbearings): the DataFrame interchange protocol.
 
 ### Polars 1.41.0 (May 22, 2026)
 
@@ -961,7 +961,7 @@ Metrics-relevant changes:
   to document the `.collect(engine="streaming")` path: it is now the blessed way
   to compute metrics on larger-than-memory data.
 - **`float16` stabilized** (#27607) — fp16 prediction columns are first-class.
-  polarbear casts inputs to Float64 internally, so fp16 inputs are accepted
+  polarbearings casts inputs to Float64 internally, so fp16 inputs are accepted
   without friction (relevant to GPU / mixed-precision pipelines).
 - **Nested common subplan elimination (CSE)** (#27340) — repeated sub-expressions
   in a plan are computed once. Relevant to expression-heavy metrics that
@@ -970,12 +970,12 @@ Metrics-relevant changes:
   applied to `cohens_kappa`.
 - `LazyFrame.gather` (#27501), `Expr.is_empty` (#27583) — minor building blocks.
 
-Deprecation (does **not** affect polarbear): the global `StringCache`.
+Deprecation (does **not** affect polarbearings): the global `StringCache`.
 
 ### Net effect on the version strategy
 
 Nothing in 1.40–1.41 changes the earlier recommendation. Both deprecations are in
-areas polarbear doesn't touch — confirmed: the suite passes against 1.41.2 with
+areas polarbearings doesn't touch — confirmed: the suite passes against 1.41.2 with
 `filterwarnings = ["error::DeprecationWarning"]`. The headline is that the
 streaming engine — already the most impactful "free" win — is now **stable** as
 of 1.41, further strengthening the case to document the streaming path rather

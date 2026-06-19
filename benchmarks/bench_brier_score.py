@@ -6,16 +6,16 @@ import polars as pl
 from pytest_benchmark.fixture import BenchmarkFixture
 from sklearn.metrics import brier_score_loss
 
-from polarbear import brier_score
+from polarbearings import brier_score
 
 
 class TestBrierScorePerformance:
     """Performance benchmarks for Brier score (shared ``binary_probs``)."""
 
-    def test_polarbear_brier_score(
+    def test_polarbearings_brier_score(
         self, benchmark: BenchmarkFixture, binary_probs: tuple[Any, Any, int]
     ) -> None:
-        """Benchmark polarbear Brier score."""
+        """Benchmark polarbearings Brier score."""
         labels, probs, n = binary_probs
         benchmark.group = f"Brier Score n={n}"
         df = pl.DataFrame({"label": labels, "prob": probs})

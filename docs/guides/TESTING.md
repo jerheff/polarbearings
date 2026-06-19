@@ -28,7 +28,7 @@ uv run pytest tests/ -v
 
 ### Run with coverage
 ```bash
-uv run pytest --cov=src/polarbear --cov-report=term-missing tests/
+uv run pytest --cov=src/polarbearings --cov-report=term-missing tests/
 ```
 
 ## Testing Multiple Polars Versions Locally
@@ -127,7 +127,7 @@ When adding new tests:
        # Your test data
        df = pl.DataFrame({"label": [...], "score": [...]})
 
-       # Test polarbear
+       # Test polarbearings
        result = df.select(metric("label", "score")).to_series()[0]
 
        # Compare with sklearn
@@ -185,11 +185,11 @@ truth for whether a mutant is killed:
 # From the generated mutants/ directory, activate one mutant and run the suite.
 # Nonzero exit == the mutant is killed.
 cd mutants
-MUTANT_UNDER_TEST=polarbear.<module>.<mutant_name> \
+MUTANT_UNDER_TEST=polarbearings.<module>.<mutant_name> \
   PYTHONPATH=src ../.venv/bin/python -m pytest tests/ -m 'not hypothesis' -q
 ```
 
 Find a mutant's name/diff with `uv run mutmut show <id>`. Mutant verdicts are
-also stored per source file in `mutants/src/polarbear/<file>.py.meta` under
+also stored per source file in `mutants/src/polarbearings/<file>.py.meta` under
 `exit_code_by_key` (1 = killed, 0 = survived, -24/24/36/152/255 = timeout,
 null = not run).

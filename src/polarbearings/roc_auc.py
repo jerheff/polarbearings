@@ -2,7 +2,7 @@
 
 import polars as pl
 
-from polarbear._common import WeightInput, weight_expr, weight_suffix
+from polarbearings._common import WeightInput, weight_expr, weight_suffix
 
 # A positive-class label may be any scalar value comparable to the target column.
 _PosLabel = int | float | str | bool
@@ -28,7 +28,7 @@ def roc_auc(
 
     Examples:
         >>> import polars as pl
-        >>> from polarbear import roc_auc
+        >>> from polarbearings import roc_auc
         >>>
         >>> df = pl.DataFrame({
         ...     "label": [0, 0, 1, 1],

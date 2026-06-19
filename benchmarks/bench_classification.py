@@ -11,13 +11,13 @@ from sklearn.metrics import f1_score as sklearn_f1
 from sklearn.metrics import matthews_corrcoef as sklearn_mcc
 from sklearn.metrics import precision_score as sklearn_precision
 
-from polarbear import f1_score, matthews_corrcoef, precision, threshold_sweep
+from polarbearings import f1_score, matthews_corrcoef, precision, threshold_sweep
 
 
 class TestPrecisionPerformance:
     """Precision vs sklearn (shared ``binary_scores``)."""
 
-    def test_polarbear_precision(
+    def test_polarbearings_precision(
         self, benchmark: BenchmarkFixture, binary_scores: tuple[Any, Any, int]
     ) -> None:
         labels, probs, n = binary_scores
@@ -45,7 +45,7 @@ class TestPrecisionPerformance:
 class TestF1Performance:
     """F1 vs sklearn (shared ``binary_scores``)."""
 
-    def test_polarbear_f1(
+    def test_polarbearings_f1(
         self, benchmark: BenchmarkFixture, binary_scores: tuple[Any, Any, int]
     ) -> None:
         labels, probs, n = binary_scores
@@ -73,7 +73,7 @@ class TestF1Performance:
 class TestMCCPerformance:
     """Matthews correlation coefficient vs sklearn (distinct aggregation shape)."""
 
-    def test_polarbear_mcc(
+    def test_polarbearings_mcc(
         self, benchmark: BenchmarkFixture, binary_scores: tuple[Any, Any, int]
     ) -> None:
         labels, probs, n = binary_scores
@@ -115,7 +115,9 @@ class TestThresholdSweepPerformance:
         probs = labels * 0.6 + np.random.randn(n) * 0.3
         return labels, probs, n
 
-    def test_polarbear_sweep(self, benchmark: BenchmarkFixture, data: tuple[Any, Any, int]) -> None:
+    def test_polarbearings_sweep(
+        self, benchmark: BenchmarkFixture, data: tuple[Any, Any, int]
+    ) -> None:
         labels, probs, n = data
         benchmark.group = f"Threshold Sweep (10 thresholds) n={n}"
         df = pl.DataFrame({"label": labels, "prob": probs})

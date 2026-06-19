@@ -9,7 +9,7 @@ from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 from sklearn.metrics import average_precision_score
 
-from polarbear import average_precision
+from polarbearings import average_precision
 
 
 class TestAveragePrecision:

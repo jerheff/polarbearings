@@ -13,7 +13,7 @@ import functools
 import polars as pl
 import pytest
 
-from polarbear import (
+from polarbearings import (
     accuracy,
     average_precision,
     balanced_accuracy,

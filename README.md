@@ -1,4 +1,4 @@
-# Polarbear =;D
+# Polarbearings =;D
 
 High-performance machine learning metrics implemented as native Polars expressions.
 
@@ -16,20 +16,20 @@ High-performance machine learning metrics implemented as native Polars expressio
 > **Note:** Not yet published to PyPI. Install from source until the first release.
 
 ```bash
-pip install git+https://github.com/jerheff/polarbear.git
+pip install git+https://github.com/jerheff/polarbearings.git
 ```
 
 Or, once published:
 
 ```bash
-pip install polarbear   # or: uv add polarbear
+pip install polarbearings   # or: uv add polarbearings
 ```
 
 ## Quick Start
 
 ```python
 import polars as pl
-from polarbear import roc_auc
+from polarbearings import roc_auc
 
 # Create your data
 df = pl.DataFrame({
@@ -50,9 +50,9 @@ print(result)
 # └──────────────────────────────────┘
 ```
 
-## Where Polarbear Excels
+## Where Polarbearings Excels
 
-Every metric is a *pure Polars expression*. That design gives polarbear
+Every metric is a *pure Polars expression*. That design gives polarbearings
 strengths a scikit-learn wrapper or a compiled plugin can't easily match:
 
 - **Group-wise metrics at scale** — metrics drop straight into `group_by().agg()`
@@ -85,7 +85,7 @@ applied across metrics instead of groups):
 
 ```python
 import polars as pl
-from polarbear import (
+from polarbearings import (
     precision, recall, f1_score, specificity, accuracy, balanced_accuracy,
     matthews_corrcoef, cohens_kappa, confusion_matrix,
     roc_auc, average_precision, log_loss, brier_score,
@@ -114,8 +114,8 @@ Measured on **10M rows** (best of 5, this machine):
 
 | Approach | Time | vs scikit-learn |
 | --- | --- | --- |
-| polarbear — 13 metrics in **one `select`** | **~1.05 s** | **5.8x** |
-| polarbear — same metrics as 13 separate `select`s | ~1.50 s | 4.1x |
+| polarbearings — 13 metrics in **one `select`** | **~1.05 s** | **5.8x** |
+| polarbearings — same metrics as 13 separate `select`s | ~1.50 s | 4.1x |
 | scikit-learn — 12 metric calls in sequence | ~6.1 s | 1.0x |
 
 The single-`select` form is the fast path: it's ~1.4x quicker than running the
@@ -133,7 +133,7 @@ across sizes from 100 to 1M rows.
 Receiver Operating Characteristic Area Under the Curve for binary classification.
 
 ```python
-from polarbear import roc_auc
+from polarbearings import roc_auc
 
 df = pl.DataFrame({"label": [0, 0, 1, 1], "score": [0.1, 0.2, 0.8, 0.9]})
 df.select(roc_auc("label", "score"))  # Returns: 1.0
@@ -147,7 +147,7 @@ df.select(roc_auc("label", "score"))  # Returns: 1.0
 Non-interpolated average precision score for binary classification.
 
 ```python
-from polarbear import average_precision
+from polarbearings import average_precision
 
 df = pl.DataFrame({"label": [0, 0, 1, 1], "score": [0.1, 0.4, 0.35, 0.8]})
 df.select(average_precision("label", "score"))
@@ -161,7 +161,7 @@ df.select(average_precision("label", "score"))
 Normalized Gini coefficient for ranking non-negative targets (e.g. fraud losses).
 
 ```python
-from polarbear import gini_coefficient
+from polarbearings import gini_coefficient
 
 df = pl.DataFrame({"loss": [1.0, 2.0, 3.0, 4.0], "score": [1.0, 2.0, 3.0, 4.0]})
 df.select(gini_coefficient("loss", "score"))  # Returns: 1.0 for perfect ordering
@@ -177,7 +177,7 @@ df.select(gini_coefficient("loss", "score"))  # Returns: 1.0 for perfect orderin
 #### Log Loss (Binary Cross-Entropy)
 
 ```python
-from polarbear import log_loss
+from polarbearings import log_loss
 
 df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.2, 0.8, 0.9]})
 df.select(log_loss("label", "prob"))
@@ -186,7 +186,7 @@ df.select(log_loss("label", "prob"))
 #### Brier Score
 
 ```python
-from polarbear import brier_score
+from polarbearings import brier_score
 
 df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.2, 0.8, 0.9]})
 df.select(brier_score("label", "prob"))
@@ -197,8 +197,8 @@ df.select(brier_score("label", "prob"))
 All classification metrics accept an optional `threshold` parameter (default 0.5).
 
 ```python
-from polarbear import precision, recall, f1_score, fbeta_score, specificity
-from polarbear import accuracy, balanced_accuracy, matthews_corrcoef, cohens_kappa
+from polarbearings import precision, recall, f1_score, fbeta_score, specificity
+from polarbearings import accuracy, balanced_accuracy, matthews_corrcoef, cohens_kappa
 
 df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
 
@@ -244,7 +244,7 @@ The fields are `Int64` counts (or `Float64` summed weights when `weight` is give
 and it honours `weight` and `pos_label` like every other metric:
 
 ```python
-from polarbear import confusion_matrix
+from polarbearings import confusion_matrix
 
 df = pl.DataFrame({"label": [0, 0, 1, 1], "score": [0.2, 0.8, 0.6, 0.9]})
 
@@ -264,7 +264,7 @@ df.group_by("segment").agg(confusion_matrix("label", "score").alias("cm")).unnes
 Compute any classification metric across multiple thresholds in a single pass:
 
 ```python
-from polarbear import f1_score, threshold_sweep
+from polarbearings import f1_score, threshold_sweep
 
 df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
 df.select(*threshold_sweep(f1_score, "label", "prob", [0.3, 0.5, 0.7]))
@@ -275,7 +275,7 @@ df.select(*threshold_sweep(f1_score, "label", "prob", [0.3, 0.5, 0.7]))
 Compute threshold values from percentiles of the score distribution, useful for selecting thresholds relative to model output ranges rather than absolute values:
 
 ```python
-from polarbear import f1_score, percentile_thresholds, threshold_sweep
+from polarbearings import f1_score, percentile_thresholds, threshold_sweep
 
 scores = df["prob"]
 thresholds = percentile_thresholds(scores, [10, 25, 50, 75, 90])
@@ -285,7 +285,7 @@ df.select(*threshold_sweep(f1_score, "label", "prob", thresholds))
 ### Regression Metrics
 
 ```python
-from polarbear import (
+from polarbearings import (
     explained_variance_score,
     huber_loss,
     log_cosh_loss,
@@ -376,7 +376,7 @@ they don't have `pos_label`.
 
 ## Use Cases
 
-Polarbear is perfect for:
+Polarbearings is perfect for:
 
 1. **Large-scale model evaluation**: Evaluate millions of predictions efficiently
 2. **Real-time metrics**: Calculate metrics in streaming pipelines
@@ -387,7 +387,7 @@ Polarbear is perfect for:
 
 ```python
 import polars as pl
-from polarbear import roc_auc
+from polarbearings import roc_auc
 
 # Calculate ROC AUC per customer segment
 df = pl.DataFrame({
@@ -447,7 +447,7 @@ uv run ruff format src/ tests/
 
 ## Testing
 
-Polarbear uses a comprehensive testing strategy:
+Polarbearings uses a comprehensive testing strategy:
 
 - **Unit tests**: Basic functionality and edge cases
 - **Property-based tests**: Random data generation with Hypothesis
@@ -466,12 +466,12 @@ just bench
 
 ## Performance
 
-Polarbear runs every metric as a native Polars expression. The advantage is
+Polarbearings runs every metric as a native Polars expression. The advantage is
 **large and real where there's work to parallelize, and honest where there
 isn't.** Numbers below are speedup vs scikit-learn (scikit-learn time ÷
-polarbear time; higher = faster), median of clean benchmark runs.
+polarbearings time; higher = faster), median of clean benchmark runs.
 
-**Where polarbear wins big** — grouped metrics and probabilistic/ranking metrics:
+**Where polarbearings wins big** — grouped metrics and probabilistic/ranking metrics:
 
 | Metric | 100k rows | 10M rows |
 |--------|:---:|:---:|
@@ -487,7 +487,7 @@ scikit-learn loops in Python.
 **Where it's at parity or slower** — trivial reductions (MAE, MSE, MAPE, R²) are
 roughly even with scikit-learn at small-to-mid sizes and *slower* on a single
 very large array, where NumPy's tight single-threaded loop beats one Polars
-expression. Reach for polarbear on grouped/composed pipelines and the
+expression. Reach for polarbearings on grouped/composed pipelines and the
 probabilistic metrics; for a one-off MAE over a giant array, NumPy is fine.
 
 See [docs/technical/PERFORMANCE.md](docs/technical/PERFORMANCE.md) for the full

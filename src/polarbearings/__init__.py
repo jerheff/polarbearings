@@ -1,13 +1,13 @@
-"""Polarbear: High-performance metrics for Polars DataFrames.
+"""Polarbearings: High-performance metrics for Polars DataFrames.
 
 A library providing efficient implementations of machine learning metrics
 as native Polars expressions.
 """
 
-from polarbear.average_precision import average_precision
-from polarbear.bootstrap import bootstrap, bootstrap_ci, ci_from_distribution
-from polarbear.brier_score import brier_score
-from polarbear.classification import (
+from polarbearings.average_precision import average_precision
+from polarbearings.bootstrap import bootstrap, bootstrap_ci, ci_from_distribution
+from polarbearings.brier_score import brier_score
+from polarbearings.classification import (
     accuracy,
     balanced_accuracy,
     cohens_kappa,
@@ -21,9 +21,9 @@ from polarbear.classification import (
     specificity,
     threshold_sweep,
 )
-from polarbear.gini import gini_coefficient
-from polarbear.log_loss import log_loss
-from polarbear.regression import (
+from polarbearings.gini import gini_coefficient
+from polarbearings.log_loss import log_loss
+from polarbearings.regression import (
     explained_variance_score,
     huber_loss,
     log_cosh_loss,
@@ -39,7 +39,7 @@ from polarbear.regression import (
     root_mean_squared_log_error,
     smape,
 )
-from polarbear.roc_auc import roc_auc
+from polarbearings.roc_auc import roc_auc
 
 __all__: list[str] = [
     # Ranking / probabilistic

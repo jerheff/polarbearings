@@ -1,6 +1,6 @@
 """Bootstrap confidence intervals for any metric.
 
-A bootstrap replicate reweights the rows; because every polarbear metric accepts
+A bootstrap replicate reweights the rows; because every polarbearings metric accepts
 a ``weight`` expression, B replicates are just the metric evaluated against B
 random weight vectors. This module uses the **Bayesian bootstrap**: each row's
 weight is an ``Exp(1)`` draw (``-log(u)``), generated *in-engine* from a per-row
@@ -34,7 +34,7 @@ from typing import overload
 
 import polars as pl
 
-from polarbear._common import WeightInput, resolve_weight
+from polarbearings._common import WeightInput, resolve_weight
 
 
 @functools.cache
@@ -129,7 +129,7 @@ def bootstrap(
     replicates use identical resamples, which is what enables paired comparisons.
 
     Args:
-        metric: A polarbear metric function (or ``functools.partial`` of one) that
+        metric: A polarbearings metric function (or ``functools.partial`` of one) that
             accepts column names, a ``weight`` argument, and any extra params.
         *cols: Column names forwarded positionally to ``metric``.
         weight: Optional existing sample weights (column name or expression),
@@ -152,7 +152,7 @@ def bootstrap(
 
     Examples:
         >>> import polars as pl
-        >>> from polarbear import bootstrap, roc_auc
+        >>> from polarbearings import bootstrap, roc_auc
         >>>
         >>> df = pl.DataFrame({"y": [0, 0, 1, 1], "p": [0.1, 0.4, 0.6, 0.9]})
         >>> dist = df.select(bootstrap(roc_auc, "y", "p", n_resamples=100))
@@ -324,7 +324,7 @@ def bootstrap_ci(
 
     Args:
         data: The DataFrame or LazyFrame to bootstrap over.
-        metric: A polarbear metric function (or ``functools.partial`` of one).
+        metric: A polarbearings metric function (or ``functools.partial`` of one).
         *cols: Column names forwarded positionally to ``metric``.
         weight: Optional existing sample weights, folded in multiplicatively.
         n_resamples: Number of bootstrap replicates (B).
@@ -349,7 +349,7 @@ def bootstrap_ci(
 
     Examples:
         >>> import polars as pl
-        >>> from polarbear import bootstrap_ci, roc_auc
+        >>> from polarbearings import bootstrap_ci, roc_auc
         >>>
         >>> df = pl.DataFrame({"y": [0, 0, 1, 1], "p": [0.1, 0.4, 0.6, 0.9]})
         >>> ci = bootstrap_ci(df, roc_auc, "y", "p", n_resamples=200, method="bc")

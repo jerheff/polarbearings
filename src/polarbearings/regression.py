@@ -4,7 +4,7 @@ import math
 
 import polars as pl
 
-from polarbear._common import WeightInput, resolve_weight, weight_suffix
+from polarbearings._common import WeightInput, resolve_weight, weight_suffix
 
 
 def _regression_alias(name: str, target: str, pred: str, weight: WeightInput) -> str:
@@ -143,7 +143,7 @@ def mean_squared_log_error(target: str, pred: str, weight: WeightInput = None) -
 
     Example:
         >>> import polars as pl
-        >>> from polarbear import mean_squared_log_error
+        >>> from polarbearings import mean_squared_log_error
         >>> df = pl.DataFrame({"y": [3.0, 5.0, 2.5], "pred": [2.5, 5.0, 4.0]})
         >>> df.select(mean_squared_log_error("y", "pred")).to_series()[0]  # doctest: +SKIP
         0.039...
@@ -174,7 +174,7 @@ def root_mean_squared_log_error(target: str, pred: str, weight: WeightInput = No
 
     Example:
         >>> import polars as pl
-        >>> from polarbear import root_mean_squared_log_error
+        >>> from polarbearings import root_mean_squared_log_error
         >>> df = pl.DataFrame({"y": [3.0, 5.0, 2.5], "pred": [2.5, 5.0, 4.0]})
         >>> df.select(root_mean_squared_log_error("y", "pred")).to_series()[0]  # doctest: +SKIP
         0.198...
@@ -208,7 +208,7 @@ def max_error(target: str, pred: str) -> pl.Expr:
 
     Example:
         >>> import polars as pl
-        >>> from polarbear import max_error
+        >>> from polarbearings import max_error
         >>> df = pl.DataFrame({"y": [1.0, 2.0, 3.0], "pred": [1.0, 2.5, 5.0]})
         >>> df.select(max_error("y", "pred")).to_series()[0]
         2.0
@@ -236,7 +236,7 @@ def median_absolute_error(target: str, pred: str) -> pl.Expr:
 
     Example:
         >>> import polars as pl
-        >>> from polarbear import median_absolute_error
+        >>> from polarbearings import median_absolute_error
         >>> df = pl.DataFrame({"y": [1.0, 2.0, 3.0, 4.0], "pred": [1.0, 2.0, 3.0, 7.0]})
         >>> df.select(median_absolute_error("y", "pred")).to_series()[0]
         0.5
@@ -260,7 +260,7 @@ def explained_variance_score(target: str, pred: str, weight: WeightInput = None)
 
     Example:
         >>> import polars as pl
-        >>> from polarbear import explained_variance_score
+        >>> from polarbearings import explained_variance_score
         >>> df = pl.DataFrame({"y": [3.0, -0.5, 2.0, 7.0], "pred": [2.5, 0.0, 2.0, 8.0]})
         >>> df.select(explained_variance_score("y", "pred")).to_series()[0]  # doctest: +SKIP
         0.957...
@@ -304,7 +304,7 @@ def mean_pinball_loss(
 
     Example:
         >>> import polars as pl
-        >>> from polarbear import mean_pinball_loss
+        >>> from polarbearings import mean_pinball_loss
         >>> df = pl.DataFrame({"y": [1.0, 2.0, 3.0], "pred": [1.5, 1.5, 3.5]})
         >>> df.select(mean_pinball_loss("y", "pred", alpha=0.5)).to_series()[0]
         0.25
@@ -335,7 +335,7 @@ def smape(target: str, pred: str, weight: WeightInput = None) -> pl.Expr:
 
     Example:
         >>> import polars as pl
-        >>> from polarbear import smape
+        >>> from polarbearings import smape
         >>> df = pl.DataFrame({"y": [100.0, 0.0], "pred": [110.0, 0.0]})
         >>> df.select(smape("y", "pred")).to_series()[0]  # doctest: +SKIP
         0.0476...
@@ -367,7 +367,7 @@ def huber_loss(target: str, pred: str, delta: float = 1.0, weight: WeightInput =
 
     Example:
         >>> import polars as pl
-        >>> from polarbear import huber_loss
+        >>> from polarbearings import huber_loss
         >>> df = pl.DataFrame({"y": [0.0, 0.0], "pred": [0.5, 3.0]})
         >>> df.select(huber_loss("y", "pred", delta=1.0)).to_series()[0]
         1.3125
@@ -401,7 +401,7 @@ def log_cosh_loss(target: str, pred: str, weight: WeightInput = None) -> pl.Expr
 
     Example:
         >>> import polars as pl
-        >>> from polarbear import log_cosh_loss
+        >>> from polarbearings import log_cosh_loss
         >>> df = pl.DataFrame({"y": [1.0, 2.0, 3.0], "pred": [1.0, 2.0, 3.0]})
         >>> df.select(log_cosh_loss("y", "pred")).to_series()[0]
         0.0
