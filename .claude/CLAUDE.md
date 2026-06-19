@@ -76,7 +76,7 @@ All metrics are implemented as Polars expressions that:
 - Unit tests for basic functionality
 - Property-based tests with Hypothesis for random data
 - Compatibility tests against scikit-learn
-- Multi-version Polars compatibility tests (1.0.0, 1.24.0, 1.38.1)
+- Multi-version Polars compatibility tests (1.0.0, 1.24.0, 1.41.2)
 
 ## Important Files
 

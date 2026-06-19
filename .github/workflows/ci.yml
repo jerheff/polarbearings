@@ -28,16 +28,16 @@ jobs:
         # Dev deps resolve to their floors (lowest-direct, the repo default).
         # Polars is then pinned across its supported range: floor, ~1yr old, recent.
         python-version: ["3.11", "3.14"]
-        polars-version: ["1.0.0", "1.24.0", "1.38.1"]
+        polars-version: ["1.0.0", "1.24.0", "1.41.2"]
         include:
           - python-version: "3.12"
             polars-version: "1.0.0"
           - python-version: "3.12"
-            polars-version: "1.38.1"
+            polars-version: "1.41.2"
           - python-version: "3.13"
             polars-version: "1.0.0"
           - python-version: "3.13"
-            polars-version: "1.38.1"
+            polars-version: "1.41.2"
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

@@ -37,7 +37,7 @@ test-polars version:
 test-compat:
     just test-polars 1.0.0
     just test-polars 1.24.0
-    just test-polars 1.38.1
+    just test-polars 1.41.2
 
 # Test the UPPER bound: newest compatible deps (the dev default is the floor).
 # Mirrors the test-highest CI job; leaves the committed lock untouched.

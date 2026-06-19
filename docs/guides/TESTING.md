@@ -46,14 +46,14 @@ just test-polars 1.0.0
 ### Supported Polars Versions
 
 - **Minimum**: 1.0.0
-- **CI tested**: 1.0.0, 1.24.0, 1.38.1
+- **CI tested**: 1.0.0, 1.24.0, 1.41.2
 
 ## Continuous Integration
 
 CI automatically tests against multiple Polars versions on every push and PR:
 
 - **Python versions**: 3.11, 3.12, 3.13, 3.14
-- **Polars versions**: 1.0.0, 1.24.0, 1.38.1
+- **Polars versions**: 1.0.0, 1.24.0, 1.41.2
 
 See `.github/workflows/ci.yml` for the full matrix.
 

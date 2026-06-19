@@ -478,7 +478,7 @@ Polars' SQL context gained: `LPAD`, `RPAD`, `QUALIFY`, `FETCH`, FROM-first SELEC
 
 ## 9. Implications for Polarbear
 
-Polarbear currently requires `polars>=1.0.0` and tests against versions 1.0.0, 1.24.0, and 1.38.1. Many of the features below are available in the tested compatibility matrix.
+Polarbear currently requires `polars>=1.0.0` and tests against versions 1.0.0, 1.24.0, and 1.41.2. Many of the features below are available in the tested compatibility matrix.
 
 ### Direct opportunities
 
@@ -586,7 +586,7 @@ results = pl.collect_all([
 
 ### Tier 2 — Moderate version bump (polars >= 1.35.0)
 
-These changes require raising the minimum Polars version from 1.0.0 to 1.35.0. This is the sweet spot: v1.35 is 9+ months old, covers the most impactful new features, and is close to what polarbear already tests against (1.38.1).
+These changes require raising the minimum Polars version from 1.0.0 to 1.35.0. This is the sweet spot: v1.35 is 9+ months old, covers the most impactful new features, and is close to what polarbear already tests against (1.41.2).
 
 #### 2.1 Rewrite `percentile_thresholds()` to be lazy-native
 
