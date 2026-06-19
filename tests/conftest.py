@@ -1,6 +1,11 @@
 """Shared test configuration."""
 
 import pytest
+from hypothesis import settings
+
+# Deeper fuzzing for CI's dedicated property-test run; invoke with
+# `pytest -m hypothesis --hypothesis-profile=thorough`. Dev/default stays fast.
+settings.register_profile("thorough", max_examples=500)
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:

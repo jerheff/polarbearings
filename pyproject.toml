@@ -153,6 +153,10 @@ source = ["polarbear"]
 
 [tool.coverage.report]
 omit = ["tests/*", "benchmarks/*"]
+# Single source of truth for the coverage gate: CI and `just test-cov` both fail
+# below 100%. Version-gated branches carry `# pragma: no cover` (see bootstrap.py),
+# so 100% is genuinely reachable on every Polars version in the matrix.
+fail_under = 100
 
 [tool.mutmut]
 paths_to_mutate = ["src/polarbear/"]
