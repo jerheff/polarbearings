@@ -32,20 +32,27 @@ def _confusion_components(
     The positive class is any row where ``target == pos_label``; every other
     value is treated as negative (one-vs-rest).
     """
-    is_pos = (pl.col(target) == pos_label).cast(pl.Float64)
-    predicted = (pl.col(prob) >= threshold).cast(pl.Float64)
+    # Keep the masks boolean and count them, rather than casting to Float64 and
+    # summing four full-length products. Counting bitmasks touches far less
+    # memory and skips a float multiply per row, so the confusion cells (which
+    # feed every threshold metric) are several times faster at scale — without
+    # changing the result (verified to exact / float-rounding equivalence).
+    is_pos = pl.col(target) == pos_label
+    predicted = pl.col(prob) >= threshold
 
     if weight is not None:
         w = pl.col(weight).cast(pl.Float64)
-        tp = (is_pos * predicted * w).sum()
-        fp = ((1 - is_pos) * predicted * w).sum()
-        fn = (is_pos * (1 - predicted) * w).sum()
-        tn = ((1 - is_pos) * (1 - predicted) * w).sum()
+        # filter().sum() over an empty selection returns 0.0 (not null), which
+        # matches the all-one-class degenerate semantics of the product form.
+        tp = w.filter(is_pos & predicted).sum()
+        fp = w.filter(~is_pos & predicted).sum()
+        fn = w.filter(is_pos & ~predicted).sum()
+        tn = w.filter(~is_pos & ~predicted).sum()
     else:
-        tp = (is_pos * predicted).sum()
-        fp = ((1 - is_pos) * predicted).sum()
-        fn = (is_pos * (1 - predicted)).sum()
-        tn = ((1 - is_pos) * (1 - predicted)).sum()
+        tp = (is_pos & predicted).sum().cast(pl.Float64)
+        fp = (~is_pos & predicted).sum().cast(pl.Float64)
+        fn = (is_pos & ~predicted).sum().cast(pl.Float64)
+        tn = (~is_pos & ~predicted).sum().cast(pl.Float64)
 
     return tp, fp, fn, tn
 
@@ -69,6 +76,60 @@ def _alias(
     if pos_label != 1:
         alias += f"_pos{pos_label}"
     return alias
+
+
+def confusion_matrix(
+    target: str,
+    prob: str,
+    threshold: float = 0.5,
+    weight: str | None = None,
+    pos_label: _PosLabel = 1,
+) -> pl.Expr:
+    """Compute the binary confusion matrix at a decision threshold as a struct.
+
+    Returns a single struct value with fields ``tp``, ``fp``, ``fn``, ``tn`` —
+    the building block every other threshold metric is derived from. Exposing it
+    directly lets you read all four cells (or compute custom rates) in one pass,
+    and it composes inside ``group_by().agg(...)`` for a per-segment confusion
+    matrix. Unlike fixed-label implementations, the cells honour both sample
+    weights and an arbitrary positive class.
+
+    The struct fields are ``Int64`` counts for unweighted data and ``Float64``
+    summed weights when ``weight`` is given.
+
+    Args:
+        target: Column with class labels.
+        prob: Column with predicted probabilities (or scores).
+        threshold: Decision threshold (predict positive if prob >= threshold).
+        weight: Optional column with sample weights.
+        pos_label: Value in ``target`` treated as the positive class (default 1).
+
+    Returns:
+        A Polars expression yielding a struct ``{tp, fp, fn, tn}``.
+
+    Examples:
+        >>> import polars as pl
+        >>> from polarbear import confusion_matrix
+        >>>
+        >>> df = pl.DataFrame({
+        ...     "label": [0, 0, 1, 1],
+        ...     "score": [0.2, 0.8, 0.6, 0.9],
+        ... })
+        >>> df.select(confusion_matrix("label", "score")).unnest("confusion_matrix_label_score_0.5")
+        shape: (1, 4)
+        ┌─────┬─────┬─────┬─────┐
+        │ tp  ┆ fp  ┆ fn  ┆ tn  │
+        │ --- ┆ --- ┆ --- ┆ --- │
+        │ i64 ┆ i64 ┆ i64 ┆ i64 │
+        ╞═════╪═════╪═════╪═════╡
+        │ 2   ┆ 1   ┆ 0   ┆ 1   │
+        └─────┴─────┴─────┴─────┘
+    """
+    tp, fp, fn, tn = _confusion_components(target, prob, threshold, weight, pos_label)
+    if weight is None:
+        tp, fp, fn, tn = (cell.cast(pl.Int64) for cell in (tp, fp, fn, tn))
+    cells = pl.struct(tp.alias("tp"), fp.alias("fp"), fn.alias("fn"), tn.alias("tn"))
+    return cells.alias(_alias("confusion_matrix", target, prob, threshold, weight, pos_label))
 
 
 def precision(

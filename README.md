@@ -58,7 +58,7 @@ strengths a scikit-learn wrapper or a compiled plugin can't easily match:
 - **Group-wise metrics at scale** — metrics drop straight into `group_by().agg()`
   and Polars parallelizes across groups (15–65x faster than a Python loop calling
   scikit-learn per segment).
-- **Sample weights almost everywhere** — nearly all 27 metrics accept an optional
+- **Sample weights almost everywhere** — nearly all 28 metrics accept an optional
   `weight` column, including ROC AUC, log loss, MCC, and Cohen's kappa. (The two
   exceptions are `max_error` and `median_absolute_error`, where a weighted form is
   undefined or not cleanly expressible — see the regression section.)
@@ -182,6 +182,29 @@ df.select(precision("label", "prob", threshold=0.7))
 | `cohens_kappa` | (p_o − p_e) / (1 − p_e) | All predictions one class |
 
 > `fbeta_score` takes `beta` as a required positional argument before `threshold`. `balanced_accuracy` and `matthews_corrcoef` are more robust to class imbalance than `accuracy`.
+
+#### Confusion Matrix
+
+`confusion_matrix` returns the four cells every threshold metric is built from as
+a single struct — read them all in one pass, or derive any custom rate yourself.
+The fields are `Int64` counts (or `Float64` summed weights when `weight` is given),
+and it honours `weight` and `pos_label` like every other metric:
+
+```python
+from polarbear import confusion_matrix
+
+df = pl.DataFrame({"label": [0, 0, 1, 1], "score": [0.2, 0.8, 0.6, 0.9]})
+
+# One struct column {tp, fp, fn, tn}; unnest to spread into columns.
+df.select(confusion_matrix("label", "score")).unnest("confusion_matrix_label_score_0.5")
+# ┌─────┬─────┬─────┬─────┐
+# │ tp  ┆ fp  ┆ fn  ┆ tn  │
+# │  2  ┆  1  ┆  0  ┆  1  │
+# └─────┴─────┴─────┴─────┘
+
+# Composes inside group_by for a per-segment confusion matrix in one pass:
+df.group_by("segment").agg(confusion_matrix("label", "score").alias("cm")).unnest("cm")
+```
 
 #### Threshold Sweep
 

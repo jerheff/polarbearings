@@ -10,6 +10,7 @@ from polarbear.classification import (
     accuracy,
     balanced_accuracy,
     cohens_kappa,
+    confusion_matrix,
     f1_score,
     fbeta_score,
     matthews_corrcoef,
@@ -47,6 +48,7 @@ __all__: list[str] = [
     "brier_score",
     "gini_coefficient",
     # Classification (threshold-based)
+    "confusion_matrix",
     "precision",
     "recall",
     "f1_score",
