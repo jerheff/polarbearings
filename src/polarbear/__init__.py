@@ -21,7 +21,22 @@ from polarbear.classification import (
 )
 from polarbear.gini import gini_coefficient
 from polarbear.log_loss import log_loss
-from polarbear.regression import mae, mape, mse, r2_score, rmse
+from polarbear.regression import (
+    explained_variance_score,
+    huber_loss,
+    log_cosh_loss,
+    mae,
+    mape,
+    max_error,
+    mean_pinball_loss,
+    mean_squared_log_error,
+    median_absolute_error,
+    mse,
+    r2_score,
+    rmse,
+    root_mean_squared_log_error,
+    smape,
+)
 from polarbear.roc_auc import roc_auc
 
 __all__: list[str] = [
@@ -50,4 +65,13 @@ __all__: list[str] = [
     "rmse",
     "r2_score",
     "mape",
+    "mean_squared_log_error",
+    "root_mean_squared_log_error",
+    "max_error",
+    "median_absolute_error",
+    "explained_variance_score",
+    "mean_pinball_loss",
+    "smape",
+    "huber_loss",
+    "log_cosh_loss",
 ]

@@ -58,8 +58,10 @@ strengths a scikit-learn wrapper or a compiled plugin can't easily match:
 - **Group-wise metrics at scale** — metrics drop straight into `group_by().agg()`
   and Polars parallelizes across groups (15–65x faster than a Python loop calling
   scikit-learn per segment).
-- **Sample weights on every metric** — all 18 metrics accept an optional `weight`
-  column, including ROC AUC, log loss, MCC, and Cohen's kappa.
+- **Sample weights almost everywhere** — nearly all 27 metrics accept an optional
+  `weight` column, including ROC AUC, log loss, MCC, and Cohen's kappa. (The two
+  exceptions are `max_error` and `median_absolute_error`, where a weighted form is
+  undefined or not cleanly expressible — see the regression section.)
 - **Any positive class** — `pos_label` accepts `1`, `100`, `"cancer"`, `True`, …
   no remapping your labels to 0/1.
 - **scikit-learn-faithful** — names and edge-case semantics mirror scikit-learn
@@ -207,7 +209,22 @@ df.select(*threshold_sweep(f1_score, "label", "prob", thresholds))
 ### Regression Metrics
 
 ```python
-from polarbear import mae, mse, rmse, r2_score, mape
+from polarbear import (
+    explained_variance_score,
+    huber_loss,
+    log_cosh_loss,
+    mae,
+    mape,
+    max_error,
+    mean_pinball_loss,
+    mean_squared_log_error,
+    median_absolute_error,
+    mse,
+    r2_score,
+    rmse,
+    root_mean_squared_log_error,
+    smape,
+)
 
 df = pl.DataFrame({"y": [1.0, 2.0, 3.0, 4.0], "pred": [1.1, 2.2, 2.8, 4.5]})
 
@@ -217,10 +234,38 @@ df.select(
     rmse("y", "pred"),
     r2_score("y", "pred"),
     mape("y", "pred"),
+    mean_squared_log_error("y", "pred"),       # MSLE (inputs must be >= 0)
+    root_mean_squared_log_error("y", "pred"),  # RMSLE
+    max_error("y", "pred"),                     # worst-case |residual|
+    median_absolute_error("y", "pred"),         # robust central error
+    explained_variance_score("y", "pred"),
+    mean_pinball_loss("y", "pred", alpha=0.5),  # quantile loss
+    smape("y", "pred"),                          # symmetric MAPE
+    huber_loss("y", "pred", delta=1.0),          # robust, MSE/MAE hybrid
+    log_cosh_loss("y", "pred"),                  # smooth, numerically stable
 )
 ```
 
+The full regression set, and which accept an optional `weight`:
+
+| Metric | sklearn analog | Weighted? |
+| --- | --- | --- |
+| `mae`, `mse`, `rmse`, `r2_score`, `mape` | yes | yes |
+| `mean_squared_log_error` (MSLE) | `mean_squared_log_error` | yes |
+| `root_mean_squared_log_error` (RMSLE) | `root_mean_squared_log_error` | yes |
+| `explained_variance_score` | `explained_variance_score` | yes |
+| `mean_pinball_loss` (quantile loss, `alpha`) | `mean_pinball_loss` | yes |
+| `smape` (symmetric MAPE) | — | yes |
+| `huber_loss` (`delta`) | — | yes |
+| `log_cosh_loss` | — | yes |
+| `max_error` | `max_error` | **no** — scaling samples doesn't change the single worst residual, so weighting is undefined (sklearn's `max_error` also takes no `sample_weight`). |
+| `median_absolute_error` | `median_absolute_error` | **no** — sklearn's weighted form is a *weighted percentile*, which can't be expressed correctly as one pure Polars expression; shipping a wrong weighted median was avoided. |
+
 > **MAPE note:** Rows where `target == 0` are **excluded** (the percentage error is undefined there). This differs from scikit-learn's `mean_absolute_percentage_error`, which keeps those rows using an epsilon floor and can return very large values. All other metrics match scikit-learn.
+>
+> **MSLE / RMSLE note:** inputs must be non-negative (the log is otherwise undefined). Negative inputs yield NaN rather than raising, mirroring (but not re-raising) scikit-learn's domain error.
+>
+> **sMAPE note:** uses the `mean(2·|y−p| / (|y|+|p|))` form (range `[0, 2]`); the `0/0` case (both `y` and `p` zero) contributes `0` to avoid division-by-zero blow-up.
 
 ### Sample Weights
 

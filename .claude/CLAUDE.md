@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Polarbear is a high-performance machine learning metrics library implemented as native Polars expressions. It provides 2-4x faster metric computation compared to scikit-learn for large datasets.
 
 **Key Features:**
-- 18 metrics (+2 utilities): ranking, probabilistic, classification, and regression
+- 27 metrics (+2 utilities): ranking, probabilistic, classification, and regression
 - Thoroughly tested against scikit-learn with property-based testing
 - Full type hints, checked with ty
 - Supports Polars 1.0.0+
