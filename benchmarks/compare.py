@@ -168,16 +168,24 @@ def build_snippets(floor_path: Path, latest_path: Path) -> dict[str, str]:
     }
 
 
+def _version_key(path: str) -> tuple[int, int, int]:
+    """Parse the polars version from a saved-run filename into a sortable tuple."""
+    m = _VERSION_RE.search(Path(path).stem)
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else (0, 0, 0)
+
+
 def default_runs() -> tuple[Path, Path]:
     """Discover the floor/latest run JSONs saved by ``just bench-compare``."""
-    found = sorted(glob.glob(".benchmarks/**/0*_polars_*.json", recursive=True))
+    found = glob.glob(".benchmarks/**/0*_polars_*.json", recursive=True)
     if len(found) < 2:
         sys.exit(
             "error: could not find two saved runs under .benchmarks/. "
             "Run `just bench-compare` first, or pass FLOOR and LATEST paths."
         )
-    # Saved in order: floor (lowest NNNN prefix) then latest.
-    return Path(found[0]), Path(found[-1])
+    # Identify floor/latest by parsed version, not save order — bench-compare runs
+    # the newer version first (while the machine is coolest), so save order varies.
+    by_version = sorted(found, key=_version_key)
+    return Path(by_version[0]), Path(by_version[-1])
 
 
 def write_into(doc: Path, snippets: dict[str, str]) -> None:
