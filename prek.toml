@@ -1,6 +1,6 @@
 [[repos]]
 repo = "https://github.com/astral-sh/ruff-pre-commit"
-rev = "3b3f7c3f57fe9925356faf5fe6230835138be230" # frozen: v0.15.17
+rev = "77039ccbba72c8aede339c5f8ae29b42aced0a2e"  # frozen: v0.15.18
 hooks = [
   { id = "ruff-check", args = ["--fix"] },
   { id = "ruff-format" },
@@ -8,14 +8,14 @@ hooks = [
 
 [[repos]]
 repo = "https://github.com/astral-sh/ty-pre-commit"
-rev = "d69b804e5f355d9ec0d5b3c9bcfb4e694dc3d412" # frozen: v0.0.49
+rev = "7497ec26e8331cf0bc6afbdaa94b6a14127ab8f2"  # frozen: v0.0.51
 hooks = [
   { id = "ty" },
 ]
 
 [[repos]]
 repo = "https://github.com/astral-sh/uv-pre-commit"
-rev = "fe063293315003e95dff96d43c4928f8799a5c62" # frozen: 0.11.21
+rev = "6745231e78ec1a8495af44560a6dba91f05bf56e"  # frozen: 0.11.22
 hooks = [
   # Fail if uv.lock is out of sync with pyproject.toml (we commit the lock).
   { id = "uv-lock" },

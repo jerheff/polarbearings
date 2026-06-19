@@ -45,33 +45,25 @@ build-backend = "hatchling.build"
 packages = ["src/polarbear"]
 
 [tool.hatch.build.targets.sdist]
-# Scope the source distribution explicitly so it can't vacuum up working-tree
-# junk (.claude/, .github/, caches, dev configs). pyproject.toml + PKG-INFO are
-# always included by the backend.
 only-include = ["src", "tests", "README.md", "LICENSE"]
 
 [dependency-groups]
 dev = [
-    # Tooling — floors kept current so the `lowest-direct` dev resolution
-    # (see [tool.uv]) still gives modern tools, not stale ones.
-    "ty>=0.0.49",
-    "ruff>=0.15.17",
+    # Floors kept current so the `lowest-direct` dev resolution
+    # still gives modern tools, not stale ones.
+    "ty>=0.0.51",
+    "ruff>=0.15.18",
     "pytest>=9.1",
     "pytest-cov>=7.1",
-    "pytest-benchmark>=5.2",
+    "pytest-benchmark>=5.2.3",
     "pytest-timeout>=2.4",
-    "hypothesis[numpy]>=6.155",
+    "hypothesis[numpy]>=6.155.5",
     "mutmut>=3.6",
-    # Compatibility targets — floors kept LOW on purpose. We verify behavior
-    # at their minimum supported version, so `lowest-direct` should pin these
-    # to the floor.
-    "numpy>=2.4",
-    "scikit-learn>=1.8",
+    "numpy>=2.4.6",
+    "scikit-learn>=1.9",
 ]
 
 [tool.uv]
-# Require a recent uv so the committed lock format and resolution behavior stay
-# consistent across contributors and CI (the version contract for the tool).
 required-version = ">=0.11"
 
 # Resolve (and lock) direct dependencies to their LOWEST allowed versions, so

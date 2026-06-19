@@ -87,6 +87,30 @@ mutant:
 # Run all CI checks locally (quality + tests)
 ci: quality test
 
+# Report available updates: pyproject deps, prek hooks, and pinned GitHub Actions
+outdated:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    echo "── pyproject.toml dependencies (vs current venv) ─────────"
+    echo "   note: polars/numpy/scikit-learn floors are pinned LOW on purpose"
+    uv pip list --outdated || true
+    echo
+    echo "── prek hooks (prek.toml) ────────────────────────────────"
+    prek autoupdate --dry-run || true
+    echo
+    echo "── GitHub Actions (.github/workflows) ────────────────────"
+    grep -rhoE 'uses: [^ ]+@[a-f0-9]{40} # \S+' .github/workflows/ \
+      | sed 's/.*uses: //' | sort -u \
+      | while read -r ref _ pinned; do
+          repo="${ref%@*}"
+          latest=$(gh api "repos/$repo/releases/latest" --jq .tag_name 2>/dev/null || echo "?")
+          if [ "$latest" = "$pinned" ] || [ "$latest" = "?" ]; then
+            printf '   %-26s %s\n' "$repo" "$pinned"
+          else
+            printf '   %-26s %s → %s\n' "$repo" "$pinned" "$latest"
+          fi
+        done
+
 # Clean up cache files and artifacts
 clean:
     find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
