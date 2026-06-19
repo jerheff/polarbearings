@@ -2,6 +2,13 @@
 # Install just: https://github.com/casey/just
 # Documentation: docs/guides/TESTING.md
 
+# Shared benchmark flags. Median/IQR (robust for skewed microbenchmark
+# distributions), warmup on (polars compiles query plans on first call),
+# GC disabled, and >=20 rounds for stable medians.
+bench_flags := "--benchmark-only --benchmark-warmup=on --benchmark-disable-gc " + \
+    "--benchmark-min-rounds=20 --benchmark-calibration-precision=10 " + \
+    "--benchmark-columns=median,iqr,ops,rounds --benchmark-sort=name --benchmark-group-by=group"
+
 # List all available commands
 default:
     @just --list
@@ -56,9 +63,27 @@ test-wheel:
 test-cov:
     uv run pytest --cov=src/polarbear --cov-report=term-missing tests/
 
-# Run performance benchmarks
+# Cap the size sweep with BENCH_MAX_N (e.g. `BENCH_MAX_N=100000 just bench`).
+# Run performance benchmarks against the current/dev env
 bench:
-    uv run pytest benchmarks/ -v --benchmark-only --benchmark-min-rounds=3 --benchmark-group-by=group --benchmark-columns=mean,stddev
+    uv run pytest benchmarks/ {{ bench_flags }}
+
+# Holds numpy/scikit-learn FIXED (unlike `--resolution highest`), so the result
+# is a true ceteris-paribus comparison. Saves the run under .benchmarks/.
+# Benchmark against a specific Polars version
+bench-polars version:
+    uv run --with polars=={{version}} pytest benchmarks/ {{ bench_flags }} \
+        --benchmark-save=polars_{{ replace(version, ".", "_") }}
+
+# Runs floor vs latest with ONLY polars changing, then diffs the two runs.
+# Compare Polars performance across versions, attributable to polars alone
+bench-compare:
+    rm -rf .benchmarks
+    just bench-polars 1.0.0
+    just bench-polars 1.41.2
+    uv run pytest-benchmark compare --group-by=name --sort=name --columns=median,iqr
+    # Doc-ready Markdown (speedup vs sklearn, version ratios) from the two saved runs.
+    uv run python benchmarks/compare.py
 
 # Check code style with ruff (whole project)
 lint:

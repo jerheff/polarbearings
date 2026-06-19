@@ -174,5 +174,14 @@ jobs:
       - name: Install dependencies (highest)
         run: uv sync --upgrade --resolution highest
 
+      # Cap the size sweep so CI stays fast (the 1M/10M cases are for local
+      # runs); keep the rigorous flags in sync with `bench_flags` in the justfile.
       - name: Run benchmarks
-        run: uv run pytest benchmarks/ -v --benchmark-only --benchmark-min-rounds=3 --benchmark-group-by=group --benchmark-columns=mean,stddev
+        env:
+          BENCH_MAX_N: "100000"
+        run: >
+          uv run pytest benchmarks/
+          --benchmark-only --benchmark-warmup=on --benchmark-disable-gc
+          --benchmark-min-rounds=20 --benchmark-calibration-precision=10
+          --benchmark-columns=median,iqr,ops,rounds --benchmark-sort=name
+          --benchmark-group-by=group

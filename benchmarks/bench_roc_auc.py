@@ -13,24 +13,13 @@ from polarbear import roc_auc
 
 
 class TestROCAUCPerformance:
-    """Performance benchmarks for ROC AUC."""
-
-    @pytest.fixture(params=[100, 1000, 10000, 100000])
-    def data(
-        self, request: pytest.FixtureRequest
-    ) -> tuple[npt.NDArray[np.int_], npt.NDArray[np.float64], int]:
-        """Generate test data of various sizes."""
-        n: int = request.param
-        np.random.seed(42)
-        labels = np.random.randint(0, 2, n)
-        scores = labels * 0.6 + np.random.randn(n) * 0.3
-        return labels, scores, n
+    """Performance benchmarks for ROC AUC (shared ``binary_scores`` fixture)."""
 
     def test_polarbear_roc_auc(
-        self, benchmark: BenchmarkFixture, data: tuple[Any, Any, int]
+        self, benchmark: BenchmarkFixture, binary_scores: tuple[Any, Any, int]
     ) -> None:
         """Benchmark polarbear ROC AUC implementation."""
-        labels, scores, n = data
+        labels, scores, n = binary_scores
         benchmark.group = f"ROC AUC n={n}"
         df = pl.DataFrame({"label": labels, "score": scores})
 
@@ -40,9 +29,11 @@ class TestROCAUCPerformance:
         result = benchmark(compute_auc)
         assert 0.0 <= result <= 1.0
 
-    def test_sklearn_roc_auc(self, benchmark: BenchmarkFixture, data: tuple[Any, Any, int]) -> None:
+    def test_sklearn_roc_auc(
+        self, benchmark: BenchmarkFixture, binary_scores: tuple[Any, Any, int]
+    ) -> None:
         """Benchmark sklearn ROC AUC for comparison."""
-        labels, scores, n = data
+        labels, scores, n = binary_scores
         benchmark.group = f"ROC AUC n={n}"
 
         def compute_auc() -> Any:
@@ -53,7 +44,7 @@ class TestROCAUCPerformance:
 
 
 class TestTiedScoresPerformance:
-    """Benchmarks for datasets with many tied scores."""
+    """Benchmarks for datasets with many tied scores (ROC-specific data)."""
 
     @pytest.fixture(params=[1000, 10000])
     def tied_data(
