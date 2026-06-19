@@ -3,10 +3,12 @@
 # Documentation: docs/guides/TESTING.md
 
 # Shared benchmark flags. Median/IQR (robust for skewed microbenchmark
-# distributions), warmup on (polars compiles query plans on first call),
-# GC disabled, and >=20 rounds for stable medians.
+# distributions), warmup on (polars compiles query plans on first call), GC
+# disabled. min-rounds=10: the slow large-n cases are big deterministic
+# computations with low round-to-round variance, so 10 gives the same median as
+# 20 in half the time/heat (small-n still runs more, driven by min-time).
 bench_flags := "--benchmark-only --benchmark-warmup=on --benchmark-disable-gc " + \
-    "--benchmark-min-rounds=20 --benchmark-calibration-precision=10 " + \
+    "--benchmark-min-rounds=10 --benchmark-calibration-precision=10 " + \
     "--benchmark-columns=median,iqr,ops,rounds --benchmark-sort=name --benchmark-group-by=group"
 
 # List all available commands
@@ -96,10 +98,15 @@ bench-polars version:
         --benchmark-save=polars_{{ replace(version, ".", "_") }}
 
 # Runs floor vs latest with ONLY polars changing, then diffs the two runs.
+# A thermal cooldown between the runs (see benchmarks/cooldown.py) keeps the
+# second run from starting hot — otherwise throttling, not Polars, inflates it.
+# Run on a cool, idle machine for the cross-version ratio to mean anything.
 # Compare Polars performance across versions, attributable to polars alone
 bench-compare:
     rm -rf .benchmarks
+    uv run python benchmarks/cooldown.py baseline
     just bench-polars 1.0.0
+    uv run python benchmarks/cooldown.py wait
     just bench-polars 1.41.2
     uv run pytest-benchmark compare --group-by=name --sort=name --columns=median,iqr
     # Doc-ready Markdown (speedup vs sklearn, version ratios) from the two saved runs.
