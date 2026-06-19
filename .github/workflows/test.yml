@@ -110,3 +110,20 @@ jobs:
       # [tool.coverage.report] fail_under, so local `just test-cov` matches).
       - name: Tests with coverage gate
         run: uv run pytest -m 'not hypothesis' --cov=polarbearings --cov-report=term-missing -q
+
+  # Single rollup of every job above (incl. all matrix legs) — make THIS the
+  # required check in branch protection. Its name is stable, so the matrix and
+  # job names underneath can change without touching the protection rule.
+  tests-passed:
+    name: All tests passed
+    if: always()
+    needs: [test, test-highest, coverage]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all required jobs succeeded
+        run: |
+          if ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}; then
+            echo "::error::a required test job did not succeed"
+            exit 1
+          fi
+          echo "All test jobs succeeded."

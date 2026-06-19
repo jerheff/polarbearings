@@ -46,3 +46,18 @@ jobs:
 
       - name: Test against the installed wheel
         run: .venv-wheel/bin/python -m pytest tests/ -q
+
+  # Stable rollup to require in branch protection (decouples it from job names).
+  build-passed:
+    name: Build passed
+    if: always()
+    needs: [package]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify the build job succeeded
+        run: |
+          if ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}; then
+            echo "::error::build did not succeed"
+            exit 1
+          fi
+          echo "Build passed."
