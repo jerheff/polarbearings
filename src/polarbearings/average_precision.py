@@ -46,7 +46,6 @@ def average_precision(
     # arithmetic on sorted expressions (e.g. `1 - sorted_target`) because
     # Polars does not propagate sort_by through arithmetic in group_by context.
     sorted_target = target_float.sort_by(score_col, descending=True)
-    sorted_neg_target = (1 - target_float).sort_by(score_col, descending=True)
     sorted_score = score_col.sort(descending=True)
 
     weight_col = resolve_weight(weight)
@@ -60,8 +59,10 @@ def average_precision(
     else:
         total_pos = target_float.sum()
         cum_tp = sorted_target.cum_sum()
-        cum_fp = sorted_neg_target.cum_sum()
-        cum_total = cum_tp + cum_fp
+        # cum_tp + cum_fp is just the running row count (every row is positive or
+        # negative), so derive it directly instead of a second sort + cum_sum of
+        # (1 - target).
+        cum_total = pl.int_range(1, pl.len() + 1).cast(pl.Float64)
         delta_recall = sorted_target / total_pos
 
     no_positives = total_pos == 0
