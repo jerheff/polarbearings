@@ -3,7 +3,9 @@
 import polars as pl
 
 
-def average_precision(target: str, score: str, weight: str | None = None) -> pl.Expr:
+def average_precision(
+    target: str, score: str, weight: str | None = None, pos_label: int | float | str | bool = 1
+) -> pl.Expr:
     """Compute average precision (non-interpolated) for binary classification.
 
     Uses the non-interpolated formula: AP = Σ (Rₙ - Rₙ₋₁) × Pₙ, matching
@@ -11,9 +13,10 @@ def average_precision(target: str, score: str, weight: str | None = None) -> pl.
     which uses linear interpolation and can be too optimistic.
 
     Args:
-        target: Name of the column containing binary labels (0 or 1).
+        target: Name of the column containing class labels.
         score: Name of the column containing prediction scores (higher = more likely positive).
         weight: Optional name of the column containing sample weights.
+        pos_label: Value in ``target`` treated as the positive class (default 1).
 
     Returns:
         A Polars expression that computes the average precision score.
@@ -33,7 +36,7 @@ def average_precision(target: str, score: str, weight: str | None = None) -> pl.
         - Handles tied scores correctly by grouping them at the same threshold.
         - Higher is better (1.0 is perfect).
     """
-    target_float = pl.col(target).cast(pl.Float64)
+    target_float = (pl.col(target) == pos_label).cast(pl.Float64)
     score_col = pl.col(score)
 
     # Sort by score descending
@@ -81,5 +84,7 @@ def average_precision(target: str, score: str, weight: str | None = None) -> pl.
     alias = f"average_precision_{target}_{score}"
     if weight is not None:
         alias += f"_{weight}"
+    if pos_label != 1:
+        alias += f"_pos{pos_label}"
 
     return pl.when(no_positives).then(None).otherwise(ap).alias(alias)

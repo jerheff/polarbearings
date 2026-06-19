@@ -2,8 +2,13 @@
 
 import polars as pl
 
+# A positive-class label may be any scalar value comparable to the target column.
+_PosLabel = int | float | str | bool
 
-def roc_auc(target: str, score: str, weight: str | None = None) -> pl.Expr:
+
+def roc_auc(
+    target: str, score: str, weight: str | None = None, pos_label: _PosLabel = 1
+) -> pl.Expr:
     """Compute ROC AUC score for binary classification as a Polars expression.
 
     Uses the Mann-Whitney U statistic for unweighted data (fast, exact).
@@ -11,9 +16,10 @@ def roc_auc(target: str, score: str, weight: str | None = None) -> pl.Expr:
     are provided.
 
     Args:
-        target: Name of the column containing binary labels (0 or 1).
+        target: Name of the column containing class labels.
         score: Name of the column containing prediction scores (higher = more likely positive).
         weight: Optional name of the column containing sample weights.
+        pos_label: Value in ``target`` treated as the positive class (default 1).
 
     Returns:
         A Polars expression that computes the ROC AUC score.
@@ -44,28 +50,30 @@ def roc_auc(target: str, score: str, weight: str | None = None) -> pl.Expr:
     alias = f"roc_auc_{target}_{score}"
     if weight is not None:
         alias += f"_{weight}"
+    if pos_label != 1:
+        alias += f"_pos{pos_label}"
 
     if weight is not None:
-        return _roc_auc_weighted(target, score, weight, alias)
-    return _roc_auc_unweighted(target, score, alias)
+        return _roc_auc_weighted(target, score, weight, pos_label, alias)
+    return _roc_auc_unweighted(target, score, pos_label, alias)
 
 
-def _roc_auc_unweighted(target: str, score: str, alias: str) -> pl.Expr:
+def _roc_auc_unweighted(target: str, score: str, pos_label: _PosLabel, alias: str) -> pl.Expr:
     """Mann-Whitney U statistic approach (fast, no weights)."""
-    target_float = pl.col(target).cast(pl.Float64)
+    is_pos = pl.col(target) == pos_label
 
-    # Widen counts to UInt64 before any multiplication: `sum()` of a boolean
-    # returns UInt32, and the products below (``total_pos * total_neg`` and
+    # Cast counts to UInt64 before any multiplication: a boolean `sum()` returns
+    # UInt32, and the products below (``total_pos * total_neg`` and
     # ``total_pos * (total_pos + 1)``) overflow UInt32 once total_pos exceeds
     # ~65k rows (i.e. n > ~131k), silently corrupting the AUC.
-    total_pos = (target_float == 1).sum().cast(pl.UInt64)
-    total_neg = target_float.len() - total_pos
+    total_pos = is_pos.sum().cast(pl.UInt64)
+    total_neg = pl.col(target).len() - total_pos
     single_class = (total_pos == 0) | (total_neg == 0)
 
     tie_cond = pl.col(score).var() == 0
 
     ranks = pl.col(score).rank(method="average")
-    pos_rank_sum = (ranks * (target_float == 1)).sum()
+    pos_rank_sum = (ranks * is_pos).sum()
     min_pos_rank_sum = total_pos * (total_pos + 1) / 2
     u_statistic = pos_rank_sum - min_pos_rank_sum
     auc = u_statistic / (total_pos * total_neg)
@@ -80,15 +88,17 @@ def _roc_auc_unweighted(target: str, score: str, alias: str) -> pl.Expr:
     )
 
 
-def _roc_auc_weighted(target: str, score: str, weight: str, alias: str) -> pl.Expr:
+def _roc_auc_weighted(
+    target: str, score: str, weight: str, pos_label: _PosLabel, alias: str
+) -> pl.Expr:
     """Trapezoidal rule on weighted ROC curve."""
-    target_float = pl.col(target).cast(pl.Float64)
-    neg_target_float = 1 - target_float
+    is_pos = (pl.col(target) == pos_label).cast(pl.Float64)
+    neg_indicator = 1 - is_pos
     score_col = pl.col(score)
     weight_col = pl.col(weight).cast(pl.Float64)
 
-    total_wt_pos = (target_float * weight_col).sum()
-    total_wt_neg = (neg_target_float * weight_col).sum()
+    total_wt_pos = (is_pos * weight_col).sum()
+    total_wt_neg = (neg_indicator * weight_col).sum()
     single_class = (total_wt_pos == 0) | (total_wt_neg == 0)
 
     # Sort by score descending
@@ -98,8 +108,8 @@ def _roc_auc_weighted(target: str, score: str, weight: str, alias: str) -> pl.Ex
     sorted_score = score_col.sort(descending=True)
 
     # Weighted cumulative TP and FP
-    cum_wt_tp = (target_float * weight_col).sort_by(score_col, descending=True).cum_sum()
-    cum_wt_fp = (neg_target_float * weight_col).sort_by(score_col, descending=True).cum_sum()
+    cum_wt_tp = (is_pos * weight_col).sort_by(score_col, descending=True).cum_sum()
+    cum_wt_fp = (neg_indicator * weight_col).sort_by(score_col, descending=True).cum_sum()
 
     tpr = cum_wt_tp / total_wt_pos
     fpr = cum_wt_fp / total_wt_neg
