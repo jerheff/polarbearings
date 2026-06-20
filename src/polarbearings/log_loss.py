@@ -2,12 +2,20 @@
 
 import polars as pl
 
-from polarbearings._common import WeightInput, resolve_weight, weight_suffix
+from polarbearings._common import (
+    IntoExpr,
+    WeightInput,
+    col_expr,
+    col_name,
+    guarded,
+    resolve_weight,
+    weight_suffix,
+)
 
 
 def log_loss(
-    target: str,
-    prob: str,
+    target: IntoExpr,
+    prob: IntoExpr,
     eps: float = 1e-15,
     weight: WeightInput = None,
     pos_label: int | float | str | bool = 1,
@@ -15,8 +23,8 @@ def log_loss(
     """Compute log loss (binary cross-entropy) for binary classification.
 
     Args:
-        target: Name of the column containing class labels.
-        prob: Name of the column containing predicted probabilities [0, 1].
+        target: Column name or expression containing class labels.
+        prob: Column name or expression containing predicted probabilities [0, 1].
         eps: Small constant to clip probabilities for numerical stability.
         weight: Optional name of the column containing sample weights.
         pos_label: Value in ``target`` treated as the positive class (default 1).
@@ -29,9 +37,9 @@ def log_loss(
         - Heavily penalizes confident wrong predictions.
         - Probabilities are clipped to [eps, 1-eps] for numerical stability.
     """
-    target_float = (pl.col(target) == pos_label).cast(pl.Float64)
+    target_float = (col_expr(target) == pos_label).cast(pl.Float64)
 
-    prob_clipped = pl.col(prob).clip(eps, 1 - eps)
+    prob_clipped = col_expr(prob).clip(eps, 1 - eps)
     log_prob = prob_clipped.log()
     log_1_minus_prob = (1 - prob_clipped).log()
 
@@ -40,8 +48,8 @@ def log_loss(
     w = resolve_weight(weight)
     loss = (per_sample * w).sum() / w.sum() if w is not None else per_sample.mean()
 
-    alias = f"log_loss_{target}_{prob}"
+    alias = f"log_loss_{col_name(target)}_{col_name(prob)}"
     alias += weight_suffix(weight)
     if pos_label != 1:
         alias += f"_pos{pos_label}"
-    return loss.alias(alias)
+    return guarded(loss, values=[prob], labels=[target], weight=weight).alias(alias)

@@ -248,3 +248,18 @@ def test_multiple_auc_calculations():
     assert result["roc_auc_label_score2"][0] == pytest.approx(
         roc_auc_score([0, 0, 1, 1], [0.3, 0.3, 0.7, 0.7])
     )
+
+
+def test_expression_column_inputs_match_string_form():
+    """Passing pl.Expr column references should match the string-column form."""
+    df = pl.DataFrame({"label": [0, 0, 1, 1], "score": [0.1, 0.2, 0.8, 0.9]})
+
+    string_result = df.select(roc_auc("label", "score")).to_series()[0]
+
+    # Bare pl.col expressions for both columns.
+    expr_result = df.select(roc_auc(pl.col("label"), pl.col("score"))).to_series()[0]
+    assert expr_result == pytest.approx(string_result)
+
+    # A derived score expression: scaling by 2 is monotonic, so ROC AUC is unchanged.
+    derived_result = df.select(roc_auc("label", pl.col("score") * 2)).to_series()[0]
+    assert derived_result == pytest.approx(string_result)

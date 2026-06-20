@@ -1,0 +1,172 @@
+"""Calibration curve (reliability-diagram) data as a tidy Polars frame.
+
+A calibration curve bins predictions by their predicted probability and compares,
+per bin, the mean predicted probability against the observed positive fraction. A
+well-calibrated model sits on the diagonal. The returned frame is plot-ready: feed
+``prob_pred`` (x) and ``prob_true`` (y) straight to Plotly/matplotlib, with
+``count`` for bin weighting and ``bin_lower``/``bin_upper`` for tooltips.
+
+Mirrors scikit-learn's ``calibration_curve`` for the ``"uniform"`` and
+``"quantile"`` strategies, and additionally accepts explicit bin edges — useful
+for fixed, comparable bins across models or for domain-specific score bands.
+
+It accepts a ``DataFrame`` or ``LazyFrame`` and **always returns a LazyFrame**
+(call ``.collect()`` to materialize). The only step that is not deferred is
+computing ``"quantile"`` bin edges, which needs concrete edge values to build the
+binning expression and so triggers a scoped collect of those quantiles (the
+``"uniform"`` and explicit-``bins`` strategies add no collect of their own).
+"""
+
+from typing import Literal
+
+import polars as pl
+
+from polarbearings._common import (
+    IntoExpr,
+    PosLabel,
+    WeightInput,
+    col_expr,
+    resolve_weight,
+    row_has_missing,
+)
+
+BinStrategy = Literal["uniform", "quantile"]
+
+
+def _bin_edges(
+    lf: pl.LazyFrame,
+    prob: IntoExpr,
+    n_bins: int,
+    strategy: BinStrategy,
+    bins: list[float] | None,
+) -> list[float]:
+    """Resolve the monotonic bin edges (length ``n_bins + 1``)."""
+    if bins is not None:
+        edges = sorted(float(b) for b in bins)
+        if len(edges) < 2:
+            raise ValueError("`bins` must contain at least two edges.")
+        return edges
+    if n_bins < 1:
+        raise ValueError("`n_bins` must be >= 1.")
+    if strategy == "uniform":
+        return [i / n_bins for i in range(n_bins + 1)]
+    if strategy == "quantile":
+        qs = [i / n_bins for i in range(n_bins + 1)]
+        prob_f = col_expr(prob).cast(pl.Float64)
+        row = (
+            lf.select(
+                [prob_f.quantile(q, interpolation="linear").alias(str(i)) for i, q in enumerate(qs)]
+            )
+            .collect()
+            .row(0)
+        )
+        if any(v is None for v in row):
+            raise ValueError("Cannot compute quantile bins on an empty column.")
+        return [float(v) for v in row]
+    raise ValueError(f"Unknown strategy {strategy!r}; use 'uniform' or 'quantile'.")
+
+
+def calibration_curve(
+    frame: pl.DataFrame | pl.LazyFrame,
+    target: IntoExpr,
+    prob: IntoExpr,
+    *,
+    n_bins: int = 5,
+    strategy: BinStrategy = "uniform",
+    bins: list[float] | None = None,
+    weight: WeightInput = None,
+    pos_label: PosLabel = 1,
+) -> pl.LazyFrame:
+    """Compute calibration-curve data, one row per non-empty bin.
+
+    Predictions are assigned to bins by ``prob`` (using the same left-edge
+    convention as scikit-learn), then each bin reports its mean predicted
+    probability and observed positive fraction. Rows with a missing (null/NaN)
+    ``prob``, ``target``, or ``weight`` are dropped and the curve is computed on
+    the complete cases — unlike the scalar metrics, which null on any missing.
+
+    Args:
+        frame: ``DataFrame`` or ``LazyFrame`` holding the columns.
+        target: Column with class labels.
+        prob: Column with predicted probabilities in ``[0, 1]``.
+        n_bins: Number of bins (ignored when ``bins`` is given). Defaults to 5.
+        strategy: ``"uniform"`` for equal-width bins over ``[0, 1]`` or
+            ``"quantile"`` for equal-frequency bins. Ignored when ``bins`` is given.
+        bins: Explicit, monotonic bin edges (length ``k + 1`` for ``k`` bins).
+            Overrides ``n_bins``/``strategy`` — has no scikit-learn equivalent.
+        weight: Optional column with sample weights. When given, ``count`` is the
+            summed weight per bin and the means are weighted.
+        pos_label: Value in ``target`` treated as the positive class (default 1).
+
+    Returns:
+        A ``LazyFrame`` with columns ``bin`` (0-indexed), ``bin_lower``,
+        ``bin_upper``, ``count``, ``prob_pred`` (mean predicted probability) and
+        ``prob_true`` (observed positive fraction), sorted by ``bin``. Empty bins
+        are omitted. Call ``.collect()`` to materialize.
+
+    Examples:
+        >>> import polars as pl
+        >>> from polarbearings import calibration_curve
+        >>> df = pl.DataFrame({
+        ...     "y": [0, 0, 1, 0, 1, 1, 1, 1],
+        ...     "p": [0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9],
+        ... })
+        >>> calibration_curve(df, "y", "p", n_bins=2).collect().columns
+        ['bin', 'bin_lower', 'bin_upper', 'count', 'prob_pred', 'prob_true']
+    """
+    # Drop rows with a missing prob/target/weight, then bin the complete cases
+    # (so quantile edges are computed on clean data). Differs from the scalar
+    # metrics, which null the whole result on any missing input.
+    lf = frame.lazy().filter(~row_has_missing(values=[prob], labels=[target], weight=weight))
+    edges = _bin_edges(lf, prob, n_bins, strategy, bins)
+    n = len(edges) - 1
+    interior = edges[1:-1]
+
+    prob_f = col_expr(prob).cast(pl.Float64)
+    # bin id = number of interior edges strictly below the prediction; this
+    # reproduces numpy's ``searchsorted(edges[1:-1], p, side="left")`` exactly.
+    binid: pl.Expr = pl.lit(0, dtype=pl.Int64)
+    for e in interior:
+        binid = binid + (prob_f > e).cast(pl.Int64)
+    is_pos = (col_expr(target) == pos_label).cast(pl.Float64)
+
+    w = resolve_weight(weight)
+    if w is None:
+        agg = (
+            lf.select(binid.alias("bin"), prob_f.alias("p"), is_pos.alias("t"))
+            .group_by("bin")
+            .agg(
+                pl.len().alias("count"),
+                pl.col("p").mean().alias("prob_pred"),
+                pl.col("t").mean().alias("prob_true"),
+            )
+        )
+    else:
+        agg = (
+            lf.select(binid.alias("bin"), prob_f.alias("p"), is_pos.alias("t"), w.alias("w"))
+            .group_by("bin")
+            .agg(
+                pl.col("w").sum().alias("count"),
+                (pl.col("p") * pl.col("w")).sum().alias("ps"),
+                (pl.col("t") * pl.col("w")).sum().alias("ts"),
+            )
+            .with_columns(
+                (pl.col("ps") / pl.col("count")).alias("prob_pred"),
+                (pl.col("ts") / pl.col("count")).alias("prob_true"),
+            )
+            .drop("ps", "ts")
+        )
+
+    edge_df = pl.LazyFrame(
+        {
+            "bin": list(range(n)),
+            "bin_lower": edges[:-1],
+            "bin_upper": edges[1:],
+        },
+        schema={"bin": pl.Int64, "bin_lower": pl.Float64, "bin_upper": pl.Float64},
+    )
+    return (
+        agg.join(edge_df, on="bin", how="left")
+        .sort("bin")
+        .select("bin", "bin_lower", "bin_upper", "count", "prob_pred", "prob_true")
+    )

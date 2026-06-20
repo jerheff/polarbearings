@@ -24,6 +24,13 @@ class TestLogLoss:
         result = df.select(log_loss("label", "prob")).to_series()[0]
         assert result > 10
 
+    def test_expr_columns_match_string_columns(self):
+        df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.3, 0.6, 0.9]})
+        from_str = df.select(log_loss("label", "prob"))
+        from_expr = df.select(log_loss(pl.col("label"), pl.col("prob")))
+        assert from_expr.to_series()[0] == pytest.approx(from_str.to_series()[0])
+        assert from_expr.columns == from_str.columns
+
     def test_random_predictions(self):
         df = pl.DataFrame({"label": [0, 1, 0, 1], "prob": [0.5, 0.5, 0.5, 0.5]})
         result = df.select(log_loss("label", "prob")).to_series()[0]

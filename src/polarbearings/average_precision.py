@@ -2,11 +2,22 @@
 
 import polars as pl
 
-from polarbearings._common import WeightInput, resolve_weight, weight_suffix
+from polarbearings._common import (
+    IntoExpr,
+    WeightInput,
+    col_expr,
+    col_name,
+    guarded,
+    resolve_weight,
+    weight_suffix,
+)
 
 
 def average_precision(
-    target: str, score: str, weight: WeightInput = None, pos_label: int | float | str | bool = 1
+    target: IntoExpr,
+    score: IntoExpr,
+    weight: WeightInput = None,
+    pos_label: int | float | str | bool = 1,
 ) -> pl.Expr:
     """Compute average precision (non-interpolated) for binary classification.
 
@@ -15,8 +26,8 @@ def average_precision(
     which uses linear interpolation and can be too optimistic.
 
     Args:
-        target: Name of the column containing class labels.
-        score: Name of the column containing prediction scores (higher = more likely positive).
+        target: Column name or expression containing class labels.
+        score: Column name or expression containing prediction scores (higher = more likely positive).
         weight: Optional name of the column containing sample weights.
         pos_label: Value in ``target`` treated as the positive class (default 1).
 
@@ -38,8 +49,8 @@ def average_precision(
         - Handles tied scores correctly by grouping them at the same threshold.
         - Higher is better (1.0 is perfect).
     """
-    target_float = (pl.col(target) == pos_label).cast(pl.Float64)
-    score_col = pl.col(score)
+    target_float = (col_expr(target) == pos_label).cast(pl.Float64)
+    score_col = col_expr(score)
 
     # Sort by score descending
     # NOTE: use explicit sort_by on each derived column rather than
@@ -84,9 +95,10 @@ def average_precision(
     # weights each threshold's precision by the recall gained there.
     ap = (prec * delta_recall).sum()
 
-    alias = f"average_precision_{target}_{score}"
+    alias = f"average_precision_{col_name(target)}_{col_name(score)}"
     alias += weight_suffix(weight)
     if pos_label != 1:
         alias += f"_pos{pos_label}"
 
-    return pl.when(no_positives).then(None).otherwise(ap).alias(alias)
+    result = pl.when(no_positives).then(None).otherwise(ap)
+    return guarded(result, values=[score], labels=[target], weight=weight).alias(alias)

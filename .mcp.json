@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "polars": {
+      "type": "http",
+      "url": "https://mcp.pola.rs/mcp"
+    }
+  }
+}

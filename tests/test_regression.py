@@ -53,6 +53,23 @@ from polarbearings import (
 )
 
 
+class TestExpressionColumns:
+    """Column-reference params accept ``pl.Expr``, equivalent to the string form."""
+
+    def test_expr_columns_match_string_columns(self):
+        df = pl.DataFrame({"y": [3.0, -0.5, 2.0, 7.0], "pred": [2.5, 0.0, 2.0, 8.0]})
+
+        # Plain expression columns equal the string-column call.
+        expr_mae = df.select(mae(pl.col("y"), pl.col("pred"))).to_series()[0]
+        str_mae = df.select(mae("y", "pred")).to_series()[0]
+        assert expr_mae == pytest.approx(str_mae)
+
+        # A derived (identity) target expression equals the string-column call.
+        expr_r2 = df.select(r2_score(pl.col("y") + 0.0, "pred")).to_series()[0]
+        str_r2 = df.select(r2_score("y", "pred")).to_series()[0]
+        assert expr_r2 == pytest.approx(str_r2)
+
+
 class TestMAE:
     def test_perfect_predictions(self):
         df = pl.DataFrame({"y": [1.0, 2.0, 3.0], "pred": [1.0, 2.0, 3.0]})
@@ -1114,3 +1131,46 @@ class TestLogCoshLoss:
         df = pl.DataFrame({"y": y.tolist(), "pred": pred.tolist()})
         result = df.select(log_cosh_loss("y", "pred")).to_series()[0]
         assert result == pytest.approx(_np_log_cosh(y, pred), rel=1e-7, abs=1e-9)
+
+
+class TestMissing:
+    """Missing-value guard: null/NaN inputs null the result, scoped to frame or group."""
+
+    def test_null_in_target(self):
+        df = pl.DataFrame({"y": [1.0, 2.0, None], "pred": [1.1, 2.2, 3.3]})
+        assert df.select(mae("y", "pred")).to_series()[0] is None
+        assert df.select(r2_score("y", "pred")).to_series()[0] is None
+
+    def test_nan_in_pred(self):
+        df = pl.DataFrame({"y": [1.0, 2.0, 3.0], "pred": [1.1, float("nan"), 3.3]})
+        assert df.select(mae("y", "pred")).to_series()[0] is None
+        assert df.select(r2_score("y", "pred")).to_series()[0] is None
+
+    def test_null_in_weight(self):
+        df = pl.DataFrame({"y": [1.0, 2.0, 3.0], "pred": [1.1, 2.2, 3.3], "w": [1.0, None, 2.0]})
+        assert df.select(mae("y", "pred", weight="w")).to_series()[0] is None
+        assert df.select(r2_score("y", "pred", weight="w")).to_series()[0] is None
+
+    def test_group_by_scopes_missing(self):
+        df = pl.DataFrame(
+            {
+                "group": ["A", "A", "B", "B"],
+                "y": [1.0, None, 3.0, 4.0],
+                "pred": [1.1, 2.2, 2.8, 4.5],
+            }
+        )
+        result = df.group_by("group").agg(mae("y", "pred")).sort("group")
+        # Group A has a null -> result is None; group B is clean -> computes.
+        assert result["mae_y_pred"][0] is None
+        assert result["mae_y_pred"][1] == pytest.approx(
+            mean_absolute_error(np.array([3.0, 4.0]), np.array([2.8, 4.5]))
+        )
+
+    def test_clean_data_unchanged(self):
+        df = pl.DataFrame({"y": [3.0, -0.5, 2.0, 7.0], "pred": [2.5, 0.0, 2.0, 8.0]})
+        y = np.array([3.0, -0.5, 2.0, 7.0])
+        pred = np.array([2.5, 0.0, 2.0, 8.0])
+        assert df.select(mae("y", "pred")).to_series()[0] == pytest.approx(
+            mean_absolute_error(y, pred)
+        )
+        assert df.select(r2_score("y", "pred")).to_series()[0] == pytest.approx(sklearn_r2(y, pred))

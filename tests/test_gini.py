@@ -89,6 +89,12 @@ class TestGiniUnweighted:
         result = df.select(gini_coefficient("y", "score")).to_series()[0]
         assert result == pytest.approx(-1.0)
 
+    def test_expression_columns_match_string_columns(self):
+        df = pl.DataFrame({"y": [1.0, 2.0, 3.0, 4.0], "score": [1.0, 3.0, 2.0, 4.0]})
+        from_str = df.select(gini_coefficient("y", "score")).to_series()[0]
+        from_expr = df.select(gini_coefficient(pl.col("y"), pl.col("score"))).to_series()[0]
+        assert from_expr == pytest.approx(from_str)
+
     def test_random_ranking_is_near_zero(self):
         rng = np.random.default_rng(42)
         y = rng.exponential(scale=1.0, size=2000)

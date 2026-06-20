@@ -65,7 +65,7 @@ strengths a scikit-learn wrapper or a compiled plugin can't easily match:
   independent outputs, so it beats both N separate calls and scikit-learn. (13
   metrics on 10M rows: **~1.05 s vs scikit-learn's ~6.1 s — 5.8x**, and ~1.4x
   faster than the same metrics as separate selects — see below.)
-- **Sample weights almost everywhere** — nearly all 28 metrics accept an optional
+- **Sample weights almost everywhere** — nearly all 37 metrics accept an optional
   `weight` column, including ROC AUC, log loss, MCC, and Cohen's kappa. (The two
   exceptions are `max_error` and `median_absolute_error`, where a weighted form is
   undefined or not cleanly expressible — see the regression section.)
@@ -108,7 +108,7 @@ report = df.select(
     average_precision("label", "prob"),
     log_loss("label", "prob"),
     brier_score("label", "prob"),
-    confusion_matrix("label", "prob"),   # struct {tp, fp, fn, tn}
+    confusion_matrix("label", "prob"),   # struct {threshold, tp, fp, fn, tn}
 )
 ```
 
@@ -167,12 +167,42 @@ from polarbearings import gini_coefficient
 
 df = pl.DataFrame({"loss": [1.0, 2.0, 3.0, 4.0], "score": [1.0, 2.0, 3.0, 4.0]})
 df.select(gini_coefficient("loss", "score"))  # Returns: 1.0 for perfect ordering
+
+# Binary target via pos_label -> 2*AUC - 1; works for string/categorical labels too:
+df2 = pl.DataFrame({"y": ["fraud", "ok", "fraud", "ok"], "score": [0.9, 0.1, 0.8, 0.2]})
+df2.select(gini_coefficient("y", "score", pos_label="fraud"))
 ```
 
 - Returns values between ``-1.0`` and ``1.0``.
 - ``1.0`` means the score ordering is optimal for the observed target distribution.
 - ``0.0`` means the score is no better than random.
 - Supports optional sample weights.
+- ``pos_label`` (default ``None``) maps a class label (``target == pos_label``) to a
+  0/1 indicator before computing Gini, for binary/string labels; with ``None`` the
+  target is used directly as a numeric magnitude (continuous or already 0/1).
+
+#### NDCG / DCG
+
+Ranking quality for graded relevance, on **long-format** data: one row per
+(query, document). Evaluate one ranking over the whole frame, or many at once with
+`group_by(query).agg(...)`.
+
+```python
+from polarbearings import dcg_score, ndcg_score
+
+df = pl.DataFrame({"relevance": [3, 2, 3, 0, 1], "score": [3.0, 2.2, 3.5, 0.1, 1.0]})
+df.select(ndcg_score("relevance", "score"))          # normalized, in [0, 1]
+df.select(dcg_score("relevance", "score", k=3))      # raw DCG, top-3 only
+
+# One NDCG per query in a single pass:
+events.group_by("query_id").agg(ndcg_score("relevance", "score"))
+```
+
+- `gain / log_base(rank + 2)` discounting; `k` truncates to the top-k, `log_base`
+  defaults to 2.
+- Matches scikit-learn's `dcg_score` / `ndcg_score` with `ignore_ties=True` (ties
+  in `score` are broken by order, not gain-averaged).
+- `ndcg_score` returns `null` when every document is irrelevant (ideal DCG is 0).
 
 ### Probabilistic Metrics
 
@@ -201,6 +231,7 @@ All classification metrics accept an optional `threshold` parameter (default 0.5
 ```python
 from polarbearings import precision, recall, f1_score, fbeta_score, specificity
 from polarbearings import accuracy, balanced_accuracy, matthews_corrcoef, cohens_kappa
+from polarbearings import jaccard_score
 
 df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
 
@@ -213,6 +244,7 @@ df.select(
     balanced_accuracy("label", "prob"),
     matthews_corrcoef("label", "prob"),
     cohens_kappa("label", "prob"),
+    jaccard_score("label", "prob"),
 )
 
 # F-beta with custom beta (0.5 weights precision higher, 2.0 weights recall higher)
@@ -235,6 +267,7 @@ df.select(precision("label", "prob", threshold=0.7))
 | `balanced_accuracy` | (TPR + TNR) / 2 | Either class absent |
 | `matthews_corrcoef` | (TP·TN − FP·FN) / √(...) | Any marginal total is zero |
 | `cohens_kappa` | (p_o − p_e) / (1 − p_e) | All predictions one class |
+| `jaccard_score` | TP / (TP + FP + FN) | Empty union (no positives predicted or actual) |
 
 > `fbeta_score` takes `beta` as a required positional argument before `threshold`. `balanced_accuracy` and `matthews_corrcoef` are more robust to class imbalance than `accuracy`.
 
@@ -242,39 +275,92 @@ df.select(precision("label", "prob", threshold=0.7))
 
 `confusion_matrix` returns the four cells every threshold metric is built from as
 a single struct — read them all in one pass, or derive any custom rate yourself.
-The fields are `Int64` counts (or `Float64` summed weights when `weight` is given),
-and it honours `weight` and `pos_label` like every other metric:
+The cell fields are `Int64` counts (or `Float64` summed weights when `weight` is
+given); a leading `threshold` field (`Float64`) records the decision threshold the
+cells were computed at. It honours `weight` and `pos_label` like every other metric:
 
 ```python
 from polarbearings import confusion_matrix
 
 df = pl.DataFrame({"label": [0, 0, 1, 1], "score": [0.2, 0.8, 0.6, 0.9]})
 
-# One struct column {tp, fp, fn, tn}; unnest to spread into columns.
+# One struct column {threshold, tp, fp, fn, tn}; unnest to spread into columns.
 df.select(confusion_matrix("label", "score")).unnest("confusion_matrix_label_score_0.5")
-# ┌─────┬─────┬─────┬─────┐
-# │ tp  ┆ fp  ┆ fn  ┆ tn  │
-# │  2  ┆  1  ┆  0  ┆  1  │
-# └─────┴─────┴─────┴─────┘
+# ┌───────────┬─────┬─────┬─────┬─────┐
+# │ threshold ┆ tp  ┆ fp  ┆ fn  ┆ tn  │
+# │    0.5    ┆  2  ┆  1  ┆  0  ┆  1  │
+# └───────────┴─────┴─────┴─────┴─────┘
 
 # Composes inside group_by for a per-segment confusion matrix in one pass:
 df.group_by("segment").agg(confusion_matrix("label", "score").alias("cm")).unnest("cm")
 ```
 
-#### Threshold Sweep
-
-Compute any classification metric across multiple thresholds in a single pass:
+Because each struct carries its own `threshold`, sweeping it across thresholds and
+reshaping to a tidy frame is one pass — every row is self-describing:
 
 ```python
-from polarbearings import f1_score, threshold_sweep
+from polarbearings import threshold_sweep, quantiles
+
+# wide (1 row, one struct column per threshold) -> tidy (one row per threshold)
+df.select(pl.concat_list(threshold_sweep(confusion_matrix, "label", "score", quantiles(100))).alias("cm")) \
+  .explode("cm").unnest("cm")
+# -> columns: threshold, tp, fp, fn, tn  (then tpr/fpr/precision/recall are column math)
+```
+
+#### Exact ROC / PR curves
+
+`confusion_curve` gives the confusion cells at **every distinct score** in one
+sorted pass (`O(n log n)`) — the exact step function behind ROC and
+precision-recall, where `threshold_sweep` samples a fixed grid. It returns the
+**same `threshold, tp, fp, fn, tn` schema**, so it's a drop-in:
+
+```python
+from polarbearings import confusion_curve
+
+confusion_curve(df, "label", "score").collect()                 # one row per distinct score
+confusion_curve(df, "label", "score", by="segment").collect()   # a separate exact curve per segment
+# -> threshold, tp, fp, fn, tn   (then fpr = fp/(fp+tn), tpr = tp/(tp+fn), ... are column math)
+```
+
+- Takes a `DataFrame` **or** `LazyFrame` and returns a `LazyFrame` — `.collect()` to
+  materialize, or compose it in a larger lazy query.
+- Matches scikit-learn's `roc_curve`, and scales to millions of rows where a
+  per-threshold sweep cannot.
+- `endpoints=True` (default) prepends a `threshold = +inf` row so a derived curve
+  starts at the origin; `weight` and `pos_label` behave like every other metric.
+
+Use the grid (`threshold_sweep` + a spec) for a fixed, comparable set of operating
+points; use `confusion_curve` for the exact, all-thresholds curve.
+
+#### Threshold Sweep
+
+Compute any classification metric across many thresholds in a **single pass**.
+`thresholds` accepts a fixed list, or a **threshold spec** — `quantiles(n)`,
+`equal_width(n)`, or `linspace(n)` — resolved *inside the query graph*: quantile
+and equal-width cut points are computed in-engine, so under `group_by` each group
+is swept at **its own** thresholds. The default is `quantiles(100)`.
+
+```python
+from polarbearings import f1_score, threshold_sweep, quantiles
 
 df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
-df.select(*threshold_sweep(f1_score, "label", "prob", [0.3, 0.5, 0.7]))
+
+df.select(*threshold_sweep(f1_score, "label", "prob", [0.3, 0.5, 0.7]))  # fixed values
+df.select(*threshold_sweep(f1_score, "label", "prob", quantiles(10)))     # 10 quantile cuts
+df.select(*threshold_sweep(f1_score, "label", "prob"))                    # default quantiles(100)
+
+# Per-segment thresholds in one pass — each group uses its own score quantiles:
+df.group_by("segment").agg(*threshold_sweep(f1_score, "label", "prob", quantiles(20)))
 ```
+
+Metrics also accept a Polars **expression** as the threshold directly, e.g.
+`precision("label", "prob", threshold=pl.col("prob").quantile(0.9))`.
 
 #### Percentile Thresholds
 
-Compute threshold values from percentiles of the score distribution, useful for selecting thresholds relative to model output ranges rather than absolute values:
+`percentile_thresholds` materializes concrete threshold values from a score
+series (eager) — complements the in-graph `quantiles` spec when you need the
+numbers themselves:
 
 ```python
 from polarbearings import f1_score, percentile_thresholds, threshold_sweep
@@ -288,14 +374,20 @@ df.select(*threshold_sweep(f1_score, "label", "prob", thresholds))
 
 ```python
 from polarbearings import (
+    d2_absolute_error_score,
+    d2_pinball_score,
+    d2_tweedie_score,
     explained_variance_score,
     huber_loss,
     log_cosh_loss,
     mae,
     mape,
     max_error,
+    mean_gamma_deviance,
     mean_pinball_loss,
+    mean_poisson_deviance,
     mean_squared_log_error,
+    mean_tweedie_deviance,
     median_absolute_error,
     mse,
     r2_score,
@@ -321,6 +413,12 @@ df.select(
     smape("y", "pred"),                          # symmetric MAPE
     huber_loss("y", "pred", delta=1.0),          # robust, MSE/MAE hybrid
     log_cosh_loss("y", "pred"),                  # smooth, numerically stable
+    mean_poisson_deviance("y", "pred"),          # Tweedie power=1 (counts)
+    mean_gamma_deviance("y", "pred"),            # Tweedie power=2 (positive, skewed)
+    mean_tweedie_deviance("y", "pred", power=1.5),
+    d2_tweedie_score("y", "pred", power=1),      # "explained deviance" (R²-like)
+    d2_absolute_error_score("y", "pred"),        # D² around the median
+    d2_pinball_score("y", "pred", alpha=0.5),    # D² around a quantile
 )
 ```
 
@@ -336,14 +434,60 @@ The full regression set, and which accept an optional `weight`:
 | `smape` (symmetric MAPE) | — | yes |
 | `huber_loss` (`delta`) | — | yes |
 | `log_cosh_loss` | — | yes |
+| `mean_tweedie_deviance` (`power`) | `mean_tweedie_deviance` | yes |
+| `mean_poisson_deviance` | `mean_poisson_deviance` | yes |
+| `mean_gamma_deviance` | `mean_gamma_deviance` | yes |
+| `d2_tweedie_score` (`power`) | `d2_tweedie_score` | yes |
 | `max_error` | `max_error` | **no** — scaling samples doesn't change the single worst residual, so weighting is undefined (sklearn's `max_error` also takes no `sample_weight`). |
 | `median_absolute_error` | `median_absolute_error` | **no** — sklearn's weighted form is a *weighted percentile*, which can't be expressed correctly as one pure Polars expression; shipping a wrong weighted median was avoided. |
+| `d2_absolute_error_score` | `d2_absolute_error_score` | **no** — its baseline is the median (a weighted percentile), same constraint as `median_absolute_error`. |
+| `d2_pinball_score` (`alpha`) | `d2_pinball_score` | **no** — baseline is the `alpha`-quantile (weighted percentile). |
 
 > **MAPE note:** Rows where `target == 0` are **excluded** (the percentage error is undefined there). This differs from scikit-learn's `mean_absolute_percentage_error`, which keeps those rows using an epsilon floor and can return very large values. All other metrics match scikit-learn.
 >
 > **MSLE / RMSLE note:** inputs must be non-negative (the log is otherwise undefined). Negative inputs yield NaN rather than raising, mirroring (but not re-raising) scikit-learn's domain error.
 >
 > **sMAPE note:** uses the `mean(2·|y−p| / (|y|+|p|))` form (range `[0, 2]`); the `0/0` case (both `y` and `p` zero) contributes `0` to avoid division-by-zero blow-up.
+
+### Calibration
+
+`calibration_curve` returns plot-ready reliability-diagram data — one row per
+non-empty bin with the mean predicted probability vs. the observed positive
+fraction. It mirrors scikit-learn's `calibration_curve` for the `"uniform"` and
+`"quantile"` strategies, and additionally accepts **explicit bin edges** (handy
+for fixed, comparable score bands across models).
+
+```python
+from polarbearings import calibration_curve
+
+calibration_curve(df, "label", "prob", n_bins=10, strategy="quantile").collect()
+calibration_curve(df, "label", "prob", bins=[0.0, 0.25, 0.5, 0.75, 1.0]).collect()  # custom edges
+# -> columns: bin, bin_lower, bin_upper, count, prob_pred, prob_true
+```
+
+Like `confusion_curve`, it accepts a `DataFrame` or `LazyFrame` and returns a
+`LazyFrame` (call `.collect()` to materialize).
+
+### Class Weights
+
+`balanced_sample_weight` produces per-row weights inversely proportional to class
+frequency (`n_samples / (n_classes · count)`), matching
+`sklearn.utils.class_weight.compute_sample_weight("balanced", y)` — feed them
+straight into any weighted metric. `balanced_class_weights(series)` returns the
+per-class `{label: weight}` mapping (mirrors `compute_class_weight`).
+
+```python
+from polarbearings import balanced_sample_weight, roc_auc
+
+weighted = df.with_columns(balanced_sample_weight("label").alias("w"))
+weighted.select(roc_auc("label", "score", weight="w"))
+```
+
+### Diagnostic Plots
+
+`notebooks/diagnostics.ipynb` shows how to build plot-ready data for ROC, PR, cost,
+and calibration curves and hand it to Plotly — run it with
+`uv run --group notebooks jupyter lab notebooks/diagnostics.ipynb`.
 
 ### Sample Weights
 
@@ -373,8 +517,31 @@ df.select(f1_score("flag", "p", pos_label=True))     # boolean labels
 
 Supported by the classification and binary metrics (ROC AUC, average precision,
 log loss, Brier score, precision/recall/F1/F-beta, accuracy, balanced accuracy,
-specificity, MCC, Cohen's kappa). Regression metrics take continuous targets, so
-they don't have `pos_label`.
+specificity, MCC, Cohen's kappa). `gini_coefficient` also takes an optional
+`pos_label` (to treat its target as a binary label instead of a magnitude).
+Regression metrics take continuous targets, so they don't have `pos_label`.
+
+### Missing values
+
+Missing data is treated **loudly**: if any `target`, score, or `weight` value is
+`null` **or** `NaN`, a metric returns `null` rather than silently dropping rows or
+miscounting. Detection happens on the raw columns (before any `pos_label`/threshold
+comparison), and is **scoped to the evaluation context** — the whole frame in a
+`select`, or just the affected group under `group_by().agg()`:
+
+```python
+df = pl.DataFrame({"y": [0, 1, 1], "p": [0.2, None, 0.8]})
+df.select(precision("y", "p"))            # -> null (one missing score)
+
+g.group_by("seg").agg(roc_auc("y", "s"))  # only segments with a missing value are null
+```
+
+`null` and `NaN` are treated identically (both "missing"), matching what scikit-learn
+does the moment a Polars column with nulls crosses into NumPy. For **complete-case**
+behavior instead, drop missing rows yourself first — `df.drop_nulls([...])` (and
+`drop_nans` for float columns). The **curve helpers are the one exception**:
+`confusion_curve` and `calibration_curve` *drop* incomplete rows and compute on the
+rest, since a curve is a set of operating points rather than one number.
 
 ## Use Cases
 

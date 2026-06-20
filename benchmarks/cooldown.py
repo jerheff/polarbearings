@@ -53,19 +53,25 @@ def baseline() -> None:
     print(f"cool baseline: {best * 1000:.0f} ms all-core canary")
 
 
-def wait(tol: float = 0.05, step: int = 15, max_wait: int = 300) -> None:
-    """Block until the canary is within ``tol`` of the baseline, or ``max_wait`` s."""
+def wait(tol: float = 0.05, step: int = 15, max_wait: int = 300, min_sleep: int = 60) -> None:
+    """Block until the canary recovers AND a minimum cooldown has elapsed.
+
+    The memory-bound sort canary under-reports the throttle that compute-heavy
+    metrics suffer (it recovers ~10% while they swing ~2x), so requiring at least
+    ``min_sleep`` seconds guarantees real cooling even when the canary says it's
+    fine. Returns early at ``max_wait`` to bound the worst case.
+    """
     base = float(_REF.read_text()) if _REF.exists() else min(_canary() for _ in range(3))
     waited = 0
     while True:
         ratio = min(_canary() for _ in range(2)) / base
-        if ratio <= 1 + tol:
+        if ratio <= 1 + tol and waited >= min_sleep:
             print(f"recovered: canary {ratio:.2f}x baseline after {waited}s")
             return
         if waited >= max_wait:
-            print(f"cooldown cap {max_wait}s hit (canary still {ratio:.2f}x baseline)")
+            print(f"cooldown cap {max_wait}s hit (canary {ratio:.2f}x baseline)")
             return
-        print(f"  hot: canary {ratio:.2f}x baseline; sleeping {step}s")
+        print(f"  canary {ratio:.2f}x baseline; waited {waited}s; sleeping {step}s")
         time.sleep(step)
         waited += step
 

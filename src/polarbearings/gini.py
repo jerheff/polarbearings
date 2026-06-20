@@ -15,35 +15,79 @@ Target values must be non-negative. Undefined cases return ``null``.
 
 import polars as pl
 
-from polarbearings._common import WeightInput, weight_expr, weight_suffix
+from polarbearings._common import (
+    IntoExpr,
+    PosLabel,
+    WeightInput,
+    col_expr,
+    col_name,
+    guarded,
+    weight_expr,
+    weight_suffix,
+)
 
 
-def gini_coefficient(target: str, score: str, weight: WeightInput = None) -> pl.Expr:
+def _gini_target(target: IntoExpr, pos_label: PosLabel | None) -> pl.Expr:
+    """Resolve the target to the non-negative Float64 magnitude Gini ranks by.
+
+    With ``pos_label=None`` the target is used directly (a continuous value, or an
+    already-numeric 0/1 indicator). Otherwise it is mapped to a 0/1 indicator via
+    ``== pos_label``, so a string/categorical/non-1 binary class label works too.
+    """
+    if pos_label is None:
+        return col_expr(target).cast(pl.Float64)
+    return (col_expr(target) == pos_label).cast(pl.Float64)
+
+
+def gini_coefficient(
+    target: IntoExpr,
+    score: IntoExpr,
+    weight: WeightInput = None,
+    pos_label: PosLabel | None = None,
+) -> pl.Expr:
     """Compute the normalized Gini coefficient as a Polars expression.
 
     Args:
-        target: Column name with the target values (e.g. fraud losses). Values
-            must be non-negative.
-        score: Column name with the score used to rank observations. Higher
-            scores should correspond to larger target values.
+        target: Column name or expression with the target. Either a non-negative
+            magnitude (continuous, e.g. fraud losses) used directly, or a class
+            label resolved with ``pos_label``.
+        score: Column name or expression with the score used to rank
+            observations. Higher scores should correspond to larger target
+            values.
         weight: Optional column name with sample weights. If provided, the
             Lorenz curve uses cumulative weight on the x-axis.
+        pos_label: When given, map ``target == pos_label`` to a 0/1 indicator
+            before computing Gini (= ``2·AUC − 1``); needed for string/categorical
+            or non-1 binary labels. When ``None`` (default), the target is used as
+            a numeric magnitude directly.
 
     Returns:
         A Polars expression evaluating to the normalized Gini coefficient.
     """
-    alias = f"gini_{target}_{score}"
+    alias = f"gini_{col_name(target)}_{col_name(score)}"
     alias += weight_suffix(weight)
+    if pos_label is not None:
+        alias += f"_pos{pos_label}"
 
     if weight is not None:
-        return _gini_weighted(target, score, weight, alias)
-    return _gini_unweighted(target, score, alias)
+        result = _gini_weighted(target, score, weight, pos_label, alias)
+    else:
+        result = _gini_unweighted(target, score, pos_label, alias)
+    # With pos_label the target is a class label (compared via ==), so check it for
+    # nulls only; with pos_label=None it is a numeric magnitude, so check NaN too.
+    if pos_label is None:
+        guard = guarded(result, values=[target, score], weight=weight)
+    else:
+        guard = guarded(result, values=[score], labels=[target], weight=weight)
+    return guard.alias(alias)
 
 
-def _gini_unweighted(target: str, score: str, alias: str) -> pl.Expr:
+def _gini_unweighted(
+    target: IntoExpr, score: IntoExpr, pos_label: PosLabel | None, alias: str
+) -> pl.Expr:
     """Rank-based normalized Gini for the unweighted case."""
-    target_float = pl.col(target).cast(pl.Float64)
-    score_col = pl.col(score)
+    target_float = _gini_target(target, pos_label)
+    score_col = col_expr(score)
 
     n = score_col.len().cast(pl.Float64)
     total = target_float.sum()
@@ -61,11 +105,17 @@ def _gini_unweighted(target: str, score: str, alias: str) -> pl.Expr:
     return pl.when(undefined).then(None).otherwise(raw / perfect).alias(alias)
 
 
-def _gini_weighted(target: str, score: str, weight: str | pl.Expr, alias: str) -> pl.Expr:
+def _gini_weighted(
+    target: IntoExpr,
+    score: IntoExpr,
+    weight: str | pl.Expr,
+    pos_label: PosLabel | None,
+    alias: str,
+) -> pl.Expr:
     """Weighted normalized Gini via Lorenz curve areas."""
-    target_float = pl.col(target).cast(pl.Float64)
+    target_float = _gini_target(target, pos_label)
     weight_float = weight_expr(weight)
-    score_col = pl.col(score).cast(pl.Float64)
+    score_col = col_expr(score).cast(pl.Float64)
 
     n = score_col.len().cast(pl.Float64)
     total_target = target_float.sum()

@@ -4,24 +4,49 @@ from typing import Protocol
 
 import polars as pl
 
-from polarbearings._common import PosLabel, WeightInput, resolve_weight, weight_suffix
+from polarbearings._common import (
+    IntoExpr,
+    PosLabel,
+    WeightInput,
+    any_missing,
+    col_expr,
+    col_name,
+    resolve_weight,
+    weight_suffix,
+)
+from polarbearings.thresholds import ThresholdsLike, quantiles, resolve_thresholds
 
 
 class _MetricFn(Protocol):
     def __call__(
         self,
-        target: str,
-        prob: str,
-        threshold: float = ...,
+        target: IntoExpr,
+        prob: IntoExpr,
+        threshold: float | pl.Expr = ...,
         weight: WeightInput = ...,
         pos_label: PosLabel = ...,
     ) -> pl.Expr: ...
 
 
+def _threshold_token(threshold: float | pl.Expr) -> str:
+    """Alias token for a threshold — its value for floats, a placeholder for exprs.
+
+    Expression thresholds (e.g. a data-derived quantile) have no static value, so
+    they get a fixed token; ``threshold_sweep`` overrides the alias with the spec's
+    own label.
+    """
+    return "expr" if isinstance(threshold, pl.Expr) else f"{threshold:g}"
+
+
+def _pos_suffix(pos_label: PosLabel) -> str:
+    """Alias suffix for a non-default positive class (empty for the default 1)."""
+    return f"_pos{pos_label}" if pos_label != 1 else ""
+
+
 def _confusion_components(
-    target: str,
-    prob: str,
-    threshold: float,
+    target: IntoExpr,
+    prob: IntoExpr,
+    threshold: float | pl.Expr,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> tuple[pl.Expr, pl.Expr, pl.Expr, pl.Expr]:
@@ -35,8 +60,8 @@ def _confusion_components(
     # memory and skips a float multiply per row, so the confusion cells (which
     # feed every threshold metric) are several times faster at scale — without
     # changing the result (verified to exact / float-rounding equivalence).
-    is_pos = pl.col(target) == pos_label
-    predicted = pl.col(prob) >= threshold
+    is_pos = col_expr(target) == pos_label
+    predicted = col_expr(prob) >= threshold
 
     w = resolve_weight(weight)
     if w is not None:
@@ -52,14 +77,19 @@ def _confusion_components(
         fn = (is_pos & ~predicted).sum().cast(pl.Float64)
         tn = (~is_pos & ~predicted).sum().cast(pl.Float64)
 
+    # Null every cell — so every derived metric is null — when any input is missing
+    # in the current context (frame or group). Detected on the raw prob/target/weight
+    # before the >= / == comparisons can launder a NaN into a real prediction/class.
+    miss = any_missing(values=[prob], labels=[target], weight=weight)
+    tp, fp, fn, tn = (pl.when(miss).then(None).otherwise(c) for c in (tp, fp, fn, tn))
     return tp, fp, fn, tn
 
 
 def _alias(
     name: str,
-    target: str,
-    prob: str,
-    threshold: float,
+    target: IntoExpr,
+    prob: IntoExpr,
+    threshold: float | pl.Expr,
     weight: WeightInput,
     pos_label: PosLabel = 1,
 ) -> str:
@@ -68,31 +98,35 @@ def _alias(
     A ``_pos{pos_label}`` suffix is appended only when ``pos_label`` is not the
     default ``1``, so existing alias strings are unchanged for the common case.
     """
-    alias = f"{name}_{target}_{prob}_{threshold:g}"
-    alias += weight_suffix(weight)
-    if pos_label != 1:
-        alias += f"_pos{pos_label}"
-    return alias
+    token = _threshold_token(threshold)
+    tname, pname = col_name(target), col_name(prob)
+    return f"{name}_{tname}_{pname}_{token}{weight_suffix(weight)}{_pos_suffix(pos_label)}"
 
 
 def confusion_matrix(
-    target: str,
-    prob: str,
-    threshold: float = 0.5,
+    target: IntoExpr,
+    prob: IntoExpr,
+    threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute the binary confusion matrix at a decision threshold as a struct.
 
-    Returns a single struct value with fields ``tp``, ``fp``, ``fn``, ``tn`` —
-    the building block every other threshold metric is derived from. Exposing it
-    directly lets you read all four cells (or compute custom rates) in one pass,
-    and it composes inside ``group_by().agg(...)`` for a per-segment confusion
-    matrix. Unlike fixed-label implementations, the cells honour both sample
-    weights and an arbitrary positive class.
+    Returns a single struct value with fields ``threshold``, ``tp``, ``fp``,
+    ``fn``, ``tn`` — the building block every other threshold metric is derived
+    from. Exposing it directly lets you read all four cells (or compute custom
+    rates) in one pass, and it composes inside ``group_by().agg(...)`` for a
+    per-segment confusion matrix. Unlike fixed-label implementations, the cells
+    honour both sample weights and an arbitrary positive class.
 
-    The struct fields are ``Int64`` counts for unweighted data and ``Float64``
-    summed weights when ``weight`` is given.
+    The leading ``threshold`` field is the decision threshold the cells were
+    computed at (its actual value, even when ``threshold`` is a data-derived
+    expression such as a quantile). It makes a swept set of structs
+    self-describing: ``pl.concat_list(...).explode(...).unnest(...)`` yields a tidy
+    frame with the threshold already attached to each row (see ``threshold_sweep``).
+
+    The cell fields are ``Int64`` counts for unweighted data and ``Float64`` summed
+    weights when ``weight`` is given; ``threshold`` is always ``Float64``.
 
     Args:
         target: Column with class labels.
@@ -102,7 +136,7 @@ def confusion_matrix(
         pos_label: Value in ``target`` treated as the positive class (default 1).
 
     Returns:
-        A Polars expression yielding a struct ``{tp, fp, fn, tn}``.
+        A Polars expression yielding a struct ``{threshold, tp, fp, fn, tn}``.
 
     Examples:
         >>> import polars as pl
@@ -113,26 +147,37 @@ def confusion_matrix(
         ...     "score": [0.2, 0.8, 0.6, 0.9],
         ... })
         >>> df.select(confusion_matrix("label", "score")).unnest("confusion_matrix_label_score_0.5")
-        shape: (1, 4)
-        ┌─────┬─────┬─────┬─────┐
-        │ tp  ┆ fp  ┆ fn  ┆ tn  │
-        │ --- ┆ --- ┆ --- ┆ --- │
-        │ i64 ┆ i64 ┆ i64 ┆ i64 │
-        ╞═════╪═════╪═════╪═════╡
-        │ 2   ┆ 1   ┆ 0   ┆ 1   │
-        └─────┴─────┴─────┴─────┘
+        shape: (1, 5)
+        ┌───────────┬─────┬─────┬─────┬─────┐
+        │ threshold ┆ tp  ┆ fp  ┆ fn  ┆ tn  │
+        │ ---       ┆ --- ┆ --- ┆ --- ┆ --- │
+        │ f64       ┆ i64 ┆ i64 ┆ i64 ┆ i64 │
+        ╞═══════════╪═════╪═════╪═════╪═════╡
+        │ 0.5       ┆ 2   ┆ 1   ┆ 0   ┆ 1   │
+        └───────────┴─────┴─────┴─────┴─────┘
     """
     tp, fp, fn, tn = _confusion_components(target, prob, threshold, weight, pos_label)
     if weight is None:
         tp, fp, fn, tn = (cell.cast(pl.Int64) for cell in (tp, fp, fn, tn))
-    cells = pl.struct(tp.alias("tp"), fp.alias("fp"), fn.alias("fn"), tn.alias("tn"))
+    # Carry the decision threshold (its actual value, even when it's a data-derived
+    # expression such as a quantile) as the struct's first field, so a swept set of
+    # structs is self-describing: concat_list(...).explode().unnest() yields a tidy
+    # frame with the threshold already attached to each row.
+    thr = (threshold if isinstance(threshold, pl.Expr) else pl.lit(threshold)).cast(pl.Float64)
+    cells = pl.struct(
+        thr.alias("threshold"),
+        tp.alias("tp"),
+        fp.alias("fp"),
+        fn.alias("fn"),
+        tn.alias("tn"),
+    )
     return cells.alias(_alias("confusion_matrix", target, prob, threshold, weight, pos_label))
 
 
 def precision(
-    target: str,
-    prob: str,
-    threshold: float = 0.5,
+    target: IntoExpr,
+    prob: IntoExpr,
+    threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -154,9 +199,9 @@ def precision(
 
 
 def recall(
-    target: str,
-    prob: str,
-    threshold: float = 0.5,
+    target: IntoExpr,
+    prob: IntoExpr,
+    threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -178,9 +223,9 @@ def recall(
 
 
 def f1_score(
-    target: str,
-    prob: str,
-    threshold: float = 0.5,
+    target: IntoExpr,
+    prob: IntoExpr,
+    threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -201,10 +246,41 @@ def f1_score(
     return result.alias(_alias("f1_score", target, prob, threshold, weight, pos_label))
 
 
+def jaccard_score(
+    target: IntoExpr,
+    prob: IntoExpr,
+    threshold: float | pl.Expr = 0.5,
+    weight: WeightInput = None,
+    pos_label: PosLabel = 1,
+) -> pl.Expr:
+    """Compute the Jaccard index (intersection over union) at a decision threshold.
+
+    Jaccard = TP / (TP + FP + FN), the size of the intersection of predicted and
+    actual positives over the size of their union. Returns null in the degenerate
+    case where TP + FP + FN == 0 (no sample is predicted or labelled positive).
+
+    Note:
+        This null convention follows this package's precision/recall behaviour and
+        diverges from ``sklearn.metrics.jaccard_score``, which returns ``0.0`` (and
+        emits an ``UndefinedMetricWarning``) for that degenerate case.
+
+    Args:
+        target: Column with class labels.
+        prob: Column with predicted probabilities.
+        threshold: Decision threshold (predict positive if prob >= threshold).
+        weight: Optional column with sample weights.
+        pos_label: Value in ``target`` treated as the positive class (default 1).
+    """
+    tp, fp, fn, _tn = _confusion_components(target, prob, threshold, weight, pos_label)
+    denom = tp + fp + fn
+    result = pl.when(denom == 0).then(None).otherwise(tp / denom)
+    return result.alias(_alias("jaccard", target, prob, threshold, weight, pos_label))
+
+
 def accuracy(
-    target: str,
-    prob: str,
-    threshold: float = 0.5,
+    target: IntoExpr,
+    prob: IntoExpr,
+    threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -226,9 +302,9 @@ def accuracy(
 
 
 def balanced_accuracy(
-    target: str,
-    prob: str,
-    threshold: float = 0.5,
+    target: IntoExpr,
+    prob: IntoExpr,
+    threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -255,9 +331,9 @@ def balanced_accuracy(
 
 
 def specificity(
-    target: str,
-    prob: str,
-    threshold: float = 0.5,
+    target: IntoExpr,
+    prob: IntoExpr,
+    threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -279,10 +355,10 @@ def specificity(
 
 
 def fbeta_score(
-    target: str,
-    prob: str,
+    target: IntoExpr,
+    prob: IntoExpr,
     beta: float,
-    threshold: float = 0.5,
+    threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -304,17 +380,13 @@ def fbeta_score(
     beta_sq = beta**2
     denom = (1 + beta_sq) * tp + beta_sq * fn + fp
     result = pl.when(denom == 0).then(None).otherwise((1 + beta_sq) * tp / denom)
-    alias = f"fbeta_{beta:g}_{target}_{prob}_{threshold:g}"
-    alias += weight_suffix(weight)
-    if pos_label != 1:
-        alias += f"_pos{pos_label}"
-    return result.alias(alias)
+    return result.alias(_alias(f"fbeta_{beta:g}", target, prob, threshold, weight, pos_label))
 
 
 def matthews_corrcoef(
-    target: str,
-    prob: str,
-    threshold: float = 0.5,
+    target: IntoExpr,
+    prob: IntoExpr,
+    threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -339,9 +411,9 @@ def matthews_corrcoef(
 
 
 def cohens_kappa(
-    target: str,
-    prob: str,
-    threshold: float = 0.5,
+    target: IntoExpr,
+    prob: IntoExpr,
+    threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -369,40 +441,68 @@ def cohens_kappa(
     return result.alias(_alias("cohens_kappa", target, prob, threshold, weight, pos_label))
 
 
+# Probe threshold used only to learn a metric's alias shape; never emitted.
+_ALIAS_PROBE = 0.123457
+
+
 def threshold_sweep(
     metric_fn: _MetricFn,
-    target: str,
-    prob: str,
-    thresholds: list[float],
+    target: IntoExpr,
+    prob: IntoExpr,
+    thresholds: ThresholdsLike | None = None,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> list[pl.Expr]:
-    """Generate metric expressions across multiple thresholds.
+    """Generate metric expressions across many thresholds in a single pass.
 
-    Convenience function for sweeping a metric across thresholds.
-    Each threshold produces a separate expression with a unique alias.
+    ``thresholds`` is either a list of fixed values or a *threshold spec* such as
+    :func:`~polarbearings.thresholds.quantiles` or
+    :func:`~polarbearings.thresholds.equal_width`. A spec resolves against the
+    ``prob`` column inside the query graph, so quantile / equal-width thresholds
+    are computed in-engine — and under ``group_by().agg(...)`` each group is swept
+    at its own thresholds. A plain ``list[float]`` keeps the original column names.
 
     Args:
-        metric_fn: One of precision, recall, f1_score, accuracy, balanced_accuracy.
+        metric_fn: A threshold metric — precision, recall, f1_score, accuracy,
+            balanced_accuracy, specificity, matthews_corrcoef, cohens_kappa,
+            jaccard_score, or confusion_matrix.
         target: Column with class labels.
         prob: Column with predicted probabilities.
-        thresholds: List of decision thresholds to evaluate.
+        thresholds: Fixed thresholds or a spec. Defaults to ``quantiles(100)``.
         weight: Optional column with sample weights.
         pos_label: Value in ``target`` treated as the positive class (default 1).
 
     Returns:
-        List of Polars expressions, one per threshold.
+        List of Polars expressions, one per threshold, each uniquely aliased.
 
     Examples:
         >>> import polars as pl
         >>> from polarbearings import f1_score, threshold_sweep
+        >>> from polarbearings.thresholds import quantiles
         >>>
         >>> df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
         >>> df.select(*threshold_sweep(f1_score, "label", "prob", [0.3, 0.5, 0.7]))
+        >>> df.select(*threshold_sweep(f1_score, "label", "prob", quantiles(10)))
     """
-    return [
-        metric_fn(target, prob, threshold=t, weight=weight, pos_label=pos_label) for t in thresholds
-    ]
+    spec: ThresholdsLike = quantiles(100) if thresholds is None else thresholds
+    resolved = resolve_thresholds(spec, prob)
+
+    # Learn this metric's alias shape from a probe call so every threshold gets a
+    # unique, metric-named column even when its value is an expression (which has no
+    # static token). The stripped tail is exactly what _alias appends after the
+    # "{name}_{target}_{prob}" prefix, so the float path reproduces the old names.
+    suffix = weight_suffix(weight) + _pos_suffix(pos_label)
+    tail = f"_{_threshold_token(_ALIAS_PROBE)}{suffix}"
+    probe_name = metric_fn(
+        target, prob, threshold=_ALIAS_PROBE, weight=weight, pos_label=pos_label
+    ).meta.output_name()
+    prefix = probe_name.removesuffix(tail)
+
+    exprs: list[pl.Expr] = []
+    for label, value in resolved:
+        expr = metric_fn(target, prob, threshold=value, weight=weight, pos_label=pos_label)
+        exprs.append(expr.alias(f"{prefix}_{label}{suffix}"))
+    return exprs
 
 
 def percentile_thresholds(series: pl.Series, percentiles: list[float]) -> list[float]:

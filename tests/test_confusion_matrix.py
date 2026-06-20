@@ -6,6 +6,8 @@ which returns ``[[tn, fp], [fn, tp]]`` for ``labels=[0, 1]``; we also check that
 metrics derived from the struct agree with the dedicated metric functions.
 """
 
+from typing import cast
+
 import numpy as np
 import polars as pl
 import pytest
@@ -14,12 +16,17 @@ from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 from sklearn.metrics import confusion_matrix as sklearn_cm
 
-from polarbearings import confusion_matrix, precision, recall
+from polarbearings import confusion_matrix, precision, quantiles, recall, threshold_sweep
 
 
 def _cells(df: pl.DataFrame, expr: pl.Expr) -> dict:
-    """Materialise the struct expression to a plain {tp, fp, fn, tn} dict."""
-    return df.select(expr.alias("cm")).unnest("cm").row(0, named=True)
+    """Materialise the struct expression to a plain {tp, fp, fn, tn} dict.
+
+    Drops the struct's ``threshold`` field so the cell assertions stay focused on
+    the counts (the threshold field is covered by ``TestThresholdField``).
+    """
+    row = df.select(expr.alias("cm")).unnest("cm").row(0, named=True)
+    return {k: row[k] for k in ("tp", "fp", "fn", "tn")}
 
 
 class TestConfusionMatrix:
@@ -114,8 +121,22 @@ class TestConfusionMatrix:
         )
         # group a: pred [0,1] vs [0,1] -> tp1 fp0 fn0 tn1
         # group b: pred [1,0] vs [0,1] -> tp0 fp1 fn1 tn0
-        assert out.row(0, named=True) == {"g": "a", "tp": 1, "fp": 0, "fn": 0, "tn": 1}
-        assert out.row(1, named=True) == {"g": "b", "tp": 0, "fp": 1, "fn": 1, "tn": 0}
+        assert out.row(0, named=True) == {
+            "g": "a",
+            "threshold": 0.5,
+            "tp": 1,
+            "fp": 0,
+            "fn": 0,
+            "tn": 1,
+        }
+        assert out.row(1, named=True) == {
+            "g": "b",
+            "threshold": 0.5,
+            "tp": 0,
+            "fp": 1,
+            "fn": 1,
+            "tn": 0,
+        }
 
     def test_derived_metrics_match_dedicated(self):
         rng = np.random.default_rng(2)
@@ -159,3 +180,62 @@ class TestConfusionMatrix:
         preds = (scores >= threshold).astype(int)
         tn, fp, fn, tp = sklearn_cm(labels, preds, labels=[0, 1]).ravel()
         assert (cm["tp"], cm["fp"], cm["fn"], cm["tn"]) == (tp, fp, fn, tn)
+
+
+class TestThresholdField:
+    def test_carries_float_threshold(self):
+        df = pl.DataFrame({"label": [0, 1], "score": [0.1, 0.9]})
+        out = df.select(confusion_matrix("label", "score", threshold=0.3).alias("cm")).unnest("cm")
+        assert out.schema["threshold"] == pl.Float64
+        assert out["threshold"][0] == pytest.approx(0.3)
+
+    def test_default_threshold_is_half(self):
+        df = pl.DataFrame({"label": [0, 1], "score": [0.1, 0.9]})
+        out = df.select(confusion_matrix("label", "score").alias("cm")).unnest("cm")
+        assert out["threshold"][0] == pytest.approx(0.5)
+
+    def test_carries_expression_cut_point(self):
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"label": rng.integers(0, 2, 500), "score": rng.random(500)})
+        cut = pl.col("score").quantile(0.9)
+        out = df.select(confusion_matrix("label", "score", threshold=cut).alias("cm")).unnest("cm")
+        assert out["threshold"][0] == pytest.approx(cast("float", df["score"].quantile(0.9)))
+
+    def test_sweep_reshape_is_tidy(self):
+        rng = np.random.default_rng(1)
+        df = pl.DataFrame({"label": rng.integers(0, 2, 2000), "score": rng.random(2000)})
+        exprs = threshold_sweep(confusion_matrix, "label", "score", quantiles(10))
+        tidy = df.select(pl.concat_list(exprs).alias("cm")).explode("cm").unnest("cm")
+        assert tidy.columns == ["threshold", "tp", "fp", "fn", "tn"]
+        assert tidy.height == 10
+        # The threshold column holds the real quantile cut-points, in order.
+        assert tidy["threshold"][0] == pytest.approx(cast("float", df["score"].quantile(1 / 11)))
+        assert tidy["threshold"].is_sorted()
+        # Cells still sum to n on every row.
+        assert (
+            (tidy.select(pl.col("tp") + pl.col("fp") + pl.col("fn") + pl.col("tn")) == 2000)
+            .to_series()
+            .all()
+        )
+
+    def test_sweep_reshape_per_group(self):
+        rng = np.random.default_rng(2)
+        df = pl.DataFrame(
+            {
+                "g": rng.integers(0, 3, 3000),
+                "label": rng.integers(0, 2, 3000),
+                "score": rng.random(3000),
+            }
+        )
+        exprs = threshold_sweep(confusion_matrix, "label", "score", quantiles(5))
+        tidy = (
+            df.group_by("g")
+            .agg(pl.concat_list(exprs).alias("cm"))
+            .explode("cm")
+            .unnest("cm")
+            .sort("g")
+        )
+        assert set(tidy.columns) == {"g", "threshold", "tp", "fp", "fn", "tn"}
+        sub0 = df.filter(pl.col("g") == 0)
+        first = tidy.filter(pl.col("g") == 0)["threshold"][0]
+        assert first == pytest.approx(cast("float", sub0["score"].quantile(1 / 6)))

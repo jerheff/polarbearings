@@ -56,6 +56,14 @@ dev = [
     "numpy>=2.4.6",
     "scikit-learn>=1.9",
 ]
+# Tooling for the docs/diagnostics notebooks (plot-ready data + Plotly figures).
+# Dev-only; never shipped with the published package.
+notebooks = [
+    "plotly>=5.20",
+    "nbformat>=5.10",
+    "nbconvert>=7.16",
+    "ipykernel>=6.29",
+]
 
 [tool.uv]
 required-version = ">=0.11"
@@ -86,6 +94,9 @@ explicit = true
 
 [tool.ruff]
 line-length = 100
+# Notebooks are narrative docs with embedded outputs, not shipped code; linting
+# generated .ipynb JSON is high-noise/low-value (see also the ty src.exclude).
+extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 select = [
@@ -130,6 +141,11 @@ convention = "google"
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.ty.src]
+# Notebooks are narrative docs, not part of the typed package (mirrors the ruff
+# extend-exclude).
+exclude = ["notebooks"]
 
 [tool.ty.environment]
 python-version = "3.11"
