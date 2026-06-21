@@ -43,6 +43,23 @@ After reviewing Polars 1.0 breaking changes, **none affect our implementation**:
 - No DataFrame constructor orientation issues
 - No `cut`/`qcut` usage
 
+### Version-gated fast paths (feature-detected)
+
+Everything works on `polars>=1.0.0`. A few hot paths additionally detect a newer
+Polars capability at runtime and switch to a faster implementation when present,
+falling back to the floor-compatible form otherwise. Detection is by probing the
+operation (not by parsing the version), so dev builds behave correctly. Both
+branches are exercised by the CI matrix (the floor/mid legs hit the fallback, the
+latest leg hits the fast path).
+
+| Capability | Added in | Fallback (< version) | Fast path (>= version) |
+|---|---|---|---|
+| `_supports_list_agg` — reduce a list built from aggregations in one pass (pola-rs/polars#22249) | 1.28.0 | materialization boundary between building and reducing the bootstrap distribution | single fused lazy plan |
+| `_supports_over_in_agg` — elementwise `Expr.over` inside `group_by().agg()` (pola-rs/polars#25402) | 1.36.0 | ECE/MCE per-bin `filter` aggregations, `O(n · n_bins)` | ECE/MCE windowed bin means, single `O(n)` pass (≈4.5x at `n_bins=10`, ≈40x at `n_bins=50`) |
+
+ECE/MCE remain composable inside `group_by().agg()` on every supported version —
+only the internal implementation differs.
+
 ## Version Support Strategy
 
 We support `polars>=1.0.0` because:

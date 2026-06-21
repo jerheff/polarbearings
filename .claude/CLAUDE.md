@@ -7,7 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Polarbearings is a high-performance machine learning metrics library implemented as native Polars expressions. It provides 2-4x faster metric computation compared to scikit-learn for large datasets.
 
 **Key Features:**
-- 28 metrics (+2 utilities): ranking, probabilistic, classification, and regression
+- ~40 metrics across ranking, probabilistic, classification, calibration, and
+  regression families, plus curve generators (ROC/PR/DET/calibration), bootstrap
+  CIs, deterministic data splitting, and threshold/class-weight utilities
 - Thoroughly tested against scikit-learn with property-based testing
 - Full type hints, checked with ty
 - Supports Polars 1.0.0+
@@ -62,8 +64,17 @@ just bench                  # Run benchmarks against scikit-learn
 - `src/polarbearings/average_precision.py` - Average precision score
 - `src/polarbearings/log_loss.py` - Log loss / binary cross-entropy
 - `src/polarbearings/brier_score.py` - Brier score
-- `src/polarbearings/classification.py` - Threshold-based classification metrics (precision, recall, F1, fbeta, specificity, accuracy, balanced accuracy, MCC, Cohen's kappa, threshold sweep, percentile thresholds)
-- `src/polarbearings/regression.py` - Regression metrics (MAE, MSE, RMSE, R², MAPE)
+- `src/polarbearings/gini.py` - Normalized Gini coefficient
+- `src/polarbearings/ranking.py` - Ranking quality (DCG / NDCG)
+- `src/polarbearings/classification.py` - Threshold-based classification metrics (precision, recall, F1, fbeta, specificity, accuracy, balanced accuracy, MCC, Cohen's kappa, jaccard, confusion matrix, threshold sweep, percentile thresholds)
+- `src/polarbearings/regression.py` - Regression metrics (MAE, MSE, RMSE, R², MAPE, MSLE/RMSLE, pinball, smape, huber, log-cosh, tweedie/poisson/gamma deviance, d2 scores, max/median error)
+- `src/polarbearings/calibration.py` - Calibration curve + ECE / MCE
+- `src/polarbearings/curves.py` - Diagnostic curves (ROC, PR, DET, expected cost)
+- `src/polarbearings/confusion_curve.py` - Confusion-cell curve primitive
+- `src/polarbearings/thresholds.py` - Threshold specs (quantiles, equal_width, linspace, resolve)
+- `src/polarbearings/class_weight.py` - Balanced sample/class weights
+- `src/polarbearings/bootstrap.py` - Bootstrap confidence intervals + replicate weights
+- `src/polarbearings/split.py` - Deterministic id-keyed data splitting
 
 **Metric Implementation Pattern:**
 All metrics are implemented as Polars expressions that:

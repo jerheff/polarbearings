@@ -55,21 +55,36 @@ CI automatically tests against multiple Polars versions on every push and PR:
 - **Python versions**: 3.11, 3.12, 3.13, 3.14
 - **Polars versions**: 1.0.0, 1.24.0, 1.41.2
 
-See `.github/workflows/ci.yml` for the full matrix.
+See `.github/workflows/test.yml` for the full matrix.
 
 ## Test Organization
 
 ```
 tests/
-├── test_aoc.py                    # ROC AUC tests with property-based testing
-├── test_additional_metrics.py     # Log loss and Brier score tests
-├── test_average_precision.py      # Average precision tests
-├── test_classification.py         # Precision, recall, F1, accuracy, balanced accuracy
-├── test_new_classification.py     # Specificity, fbeta, MCC, Cohen's kappa
-├── test_regression.py             # MAE, MSE, RMSE tests
-├── test_new_regression.py         # R², MAPE tests
+├── conftest.py                    # Hypothesis profiles + shared fixtures
+├── test_roc_auc.py                # ROC AUC (property-based + sklearn parity)
+├── test_average_precision.py      # Average precision
+├── test_log_loss.py               # Log loss / binary cross-entropy
+├── test_brier_score.py            # Brier score
+├── test_gini.py                   # Normalized Gini coefficient
+├── test_ndcg.py                   # DCG / NDCG ranking metrics
+├── test_classification.py         # Precision, recall, F1, accuracy, balanced accuracy, etc.
+├── test_jaccard.py                # Jaccard score
+├── test_confusion_matrix.py       # Confusion-matrix struct
+├── test_confusion_curve.py        # Confusion-cell curve primitive
+├── test_curves.py                 # ROC / PR / DET / expected-cost curves
+├── test_calibration.py            # Calibration curve + ECE / MCE
+├── test_regression.py             # MAE, MSE, RMSE, R², MAPE, MSLE, huber, etc.
+├── test_d2_scores.py              # D² scores (tweedie / absolute-error / pinball)
+├── test_tweedie_deviance.py       # Tweedie / poisson / gamma deviance
+├── test_thresholds.py             # Threshold specs (quantiles, equal_width, linspace)
+├── test_class_weight.py           # Balanced sample / class weights
+├── test_bootstrap.py              # Bootstrap confidence intervals
+├── test_weight_expression.py      # bootstrap_weight replicate weights
+├── test_split.py                  # Deterministic id-keyed data splitting
+├── test_pos_label.py              # Custom positive-class handling
 ├── test_weights.py                # Weighted metric tests
-├── test_edge_cases.py             # Edge case tests for all metrics
+├── test_missing_values.py         # Null / NaN policy
 └── test_degenerate_inputs.py      # Degenerate input tests
 ```
 

@@ -5,7 +5,7 @@ High-performance machine learning metrics implemented as native Polars expressio
 ## Features
 
 - **Fast where it counts**: Native Polars expressions — large wins on grouped and probabilistic metrics (see [Performance](#performance))
-- **Weighted**: Sample weights on *every* metric
+- **Weighted**: Optional sample weights on nearly every metric
 - **Flexible labels**: Any positive class — `1`, `100`, `"cancer"`, `True` — via `pos_label`
 - **Correct**: scikit-learn-faithful, verified with property-based testing
 - **Composable**: Plain Polars expressions — drop into `group_by`, `over`, and lazy pipelines
@@ -65,10 +65,12 @@ strengths a scikit-learn wrapper or a compiled plugin can't easily match:
   independent outputs, so it beats both N separate calls and scikit-learn. (13
   metrics on 10M rows: **~1.05 s vs scikit-learn's ~6.1 s — 5.8x**, and ~1.4x
   faster than the same metrics as separate selects — see below.)
-- **Sample weights almost everywhere** — nearly all 37 metrics accept an optional
-  `weight` column, including ROC AUC, log loss, MCC, and Cohen's kappa. (The two
-  exceptions are `max_error` and `median_absolute_error`, where a weighted form is
-  undefined or not cleanly expressible — see the regression section.)
+- **Sample weights almost everywhere** — nearly every metric accepts an optional
+  `weight` column, including ROC AUC, log loss, MCC, and Cohen's kappa. (Six metrics
+  omit it — `dcg_score`, `ndcg_score`, `max_error`, `median_absolute_error`,
+  `d2_absolute_error_score`, and `d2_pinball_score` — where a weighted form is
+  undefined, non-standard, or not cleanly expressible as one Polars expression; see
+  the ranking and regression sections.)
 - **Any positive class** — `pos_label` accepts `1`, `100`, `"cancer"`, `True`, …
   no remapping your labels to 0/1.
 - **scikit-learn-faithful** — names and edge-case semantics mirror scikit-learn
@@ -200,8 +202,10 @@ events.group_by("query_id").agg(ndcg_score("relevance", "score"))
 
 - `gain / log_base(rank + 2)` discounting; `k` truncates to the top-k, `log_base`
   defaults to 2.
-- Matches scikit-learn's `dcg_score` / `ndcg_score` with `ignore_ties=True` (ties
-  in `score` are broken by order, not gain-averaged).
+- Matches scikit-learn's `dcg_score` / `ndcg_score` with `ignore_ties=True` **for
+  distinct scores**. Under *tied* scores, ties are broken by row order (not
+  gain-averaged), so the result is order-dependent and diverges from scikit-learn;
+  sort or break ties upstream if you need reproducibility under ties.
 - `ndcg_score` returns `null` when every document is irrelevant (ideal DCG is 0).
 
 ### Probabilistic Metrics
@@ -269,7 +273,7 @@ df.select(precision("label", "prob", threshold=0.7))
 | `cohens_kappa` | (p_o − p_e) / (1 − p_e) | All predictions one class |
 | `jaccard_score` | TP / (TP + FP + FN) | Empty union (no positives predicted or actual) |
 
-> `fbeta_score` takes `beta` as a required positional argument before `threshold`. `balanced_accuracy` and `matthews_corrcoef` are more robust to class imbalance than `accuracy`.
+> `fbeta_score` takes `beta` as a required keyword argument (e.g. `fbeta_score("label", "prob", beta=2.0)`). `balanced_accuracy` and `matthews_corrcoef` are more robust to class imbalance than `accuracy`.
 
 #### Confusion Matrix
 
@@ -524,7 +528,7 @@ weighted.select(roc_auc("label", "score", weight="w"))
 
 ### Confidence intervals (bootstrap)
 
-Because every metric accepts a `weight`, a bootstrap replicate is just the metric
+Because nearly every metric accepts a `weight`, a bootstrap replicate is just the metric
 under random weights — `polarbearings` uses the **Bayesian bootstrap**, generated
 in-engine (no Python resampling loop). `bootstrap_ci` returns `{estimate, low,
 high}` for the whole frame, or one row per group with `by=`:
@@ -599,9 +603,11 @@ helpers above and hands them to Plotly — run it with
 
 ### Sample Weights
 
-*Every* metric supports optional sample weights via a `weight` column — including
-ones that are awkward or unsupported elsewhere, like ROC AUC, log loss, MCC, and
-Cohen's kappa:
+*Nearly every* metric supports optional sample weights via a `weight` column —
+including ones that are awkward or unsupported elsewhere, like ROC AUC, log loss,
+MCC, and Cohen's kappa. (The six exceptions — `dcg_score`, `ndcg_score`,
+`max_error`, `median_absolute_error`, `d2_absolute_error_score`, and
+`d2_pinball_score` — are noted where each is documented.)
 
 ```python
 df.select(roc_auc("label", "score", weight="sample_weight"))
@@ -785,7 +791,7 @@ version comparison.
 - [x] Precision, Recall, F1 Score, Accuracy, Balanced Accuracy
 - [x] Specificity, F-beta Score, Matthews Correlation Coefficient, Cohen's Kappa
 - [x] R-squared, MAPE
-- [x] Weighted variants for all metrics
+- [x] Weighted variants for nearly all metrics
 - [x] Custom positive class label (`pos_label`: int, string, or bool)
 - [x] Multi-version Polars support (1.0.0+)
 - [x] Gini coefficient (normalized for non-negative targets)
