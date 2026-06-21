@@ -7,9 +7,12 @@ Polars **expression** (e.g. a data-derived quantile), so a spec like
 materialized series — and inside ``group_by().agg(...)`` each group gets its own
 thresholds in a single pass.
 
-``threshold_sweep`` accepts either a spec or a plain ``list[float]`` (resolved to
+``threshold_sweep`` accepts a spec, a plain ``list[float]`` (resolved to
 fixed-value thresholds with their numeric labels, preserving the original column
-names).
+names), or a plain ``int`` ``N`` — shorthand for ``quantiles(N)``, i.e. ``N``
+data-driven thresholds at evenly spaced score quantiles (per group under
+``group_by``). The int form is the smart default: it adapts to the score
+distribution rather than assuming a fixed ``[0, 1]`` grid.
 
 Factories evenly space their thresholds on the *interior* of the range
 (``i / (n + 1)`` for ``i`` in ``1..n``), avoiding the degenerate endpoints where
@@ -28,8 +31,9 @@ from polarbearings._common import IntoExpr, col_expr
 ResolvedThreshold = tuple[str, float | pl.Expr]
 # A spec maps the score column reference (name or expression) to its thresholds.
 ThresholdSpec = Callable[[IntoExpr], list[ResolvedThreshold]]
-# What ``threshold_sweep`` accepts for its ``thresholds`` argument.
-ThresholdsLike = list[float] | ThresholdSpec
+# What ``threshold_sweep`` accepts for its ``thresholds`` argument. A bare ``int``
+# ``N`` is shorthand for ``quantiles(N)``.
+ThresholdsLike = int | list[float] | ThresholdSpec
 
 
 def _interior_fractions(n: int) -> list[float]:
@@ -106,18 +110,28 @@ def linspace(n: int, lo: float = 0.0, hi: float = 1.0) -> ThresholdSpec:
 
 
 def resolve_thresholds(thresholds: ThresholdsLike, score: IntoExpr) -> list[ResolvedThreshold]:
-    """Resolve a spec or a plain ``list[float]`` to ``(label, threshold)`` pairs.
+    """Resolve an int, a spec, or a plain ``list[float]`` to ``(label, threshold)`` pairs.
 
-    A ``list[float]`` becomes fixed-value thresholds labeled by their value, so the
-    resulting column names match the pre-spec behavior exactly.
+    An ``int`` ``N`` is shorthand for ``quantiles(N)`` — ``N`` data-driven score
+    quantiles. A ``list[float]`` becomes fixed-value thresholds labeled by their
+    value, so the resulting column names match the pre-spec behavior exactly.
 
     Args:
-        thresholds: A threshold spec, or a list of fixed thresholds.
+        thresholds: A count ``N`` (``quantiles(N)``), a threshold spec, or a list of
+            fixed thresholds.
         score: Score/probability column (name or expression) the spec resolves against.
 
     Returns:
         The resolved ``(label, threshold)`` pairs.
+
+    Raises:
+        TypeError: If ``thresholds`` is a ``bool`` (an ``int`` subclass, but not a
+            valid threshold count).
     """
+    if isinstance(thresholds, bool):
+        raise TypeError("`thresholds` must be an int, a list of floats, or a spec, not a bool.")
+    if isinstance(thresholds, int):
+        return quantiles(thresholds)(score)
     if isinstance(thresholds, list):
         return [(f"{v:g}", v) for v in (float(t) for t in cast("list[float]", thresholds))]
     return thresholds(score)

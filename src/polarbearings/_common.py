@@ -47,6 +47,26 @@ def col_name(col: IntoExpr) -> str:
     return col if isinstance(col, str) else col.meta.output_name()
 
 
+def by_columns(by: IntoExpr | Sequence[IntoExpr] | None) -> list[IntoExpr]:
+    """Normalize a ``by=`` grouping argument to a list of column references.
+
+    A single column reference (name or expression) is wrapped in a one-element
+    list; ``None`` becomes the empty list; any other sequence is materialized as a
+    list. Used by the curve helpers so ``by`` accepts a scalar, a list, or nothing.
+
+    Args:
+        by: ``None``, a single column reference, or a sequence of references.
+
+    Returns:
+        A list of column references (possibly empty).
+    """
+    if by is None:
+        return []
+    if isinstance(by, str | pl.Expr):
+        return [by]
+    return list(by)
+
+
 def weight_expr(weight: IntoExpr) -> pl.Expr:
     """Resolve a (non-None) weight to a Float64 expression.
 

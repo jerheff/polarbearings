@@ -22,11 +22,14 @@ from polarbearings._common import (
     IntoExpr,
     PosLabel,
     WeightInput,
+    by_columns,
     col_expr,
     col_name,
     resolve_weight,
     row_has_missing,
 )
+from polarbearings.classification import _confusion_components
+from polarbearings.thresholds import ThresholdsLike, resolve_thresholds
 
 
 def confusion_curve(
@@ -34,16 +37,21 @@ def confusion_curve(
     target: IntoExpr,
     score: IntoExpr,
     *,
+    thresholds: ThresholdsLike | None = None,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
     by: IntoExpr | list[IntoExpr] | None = None,
     endpoints: bool = True,
 ) -> pl.LazyFrame:
-    """Confusion-matrix cells at every distinct score threshold.
+    """Confusion-matrix cells across score thresholds.
 
-    For each distinct value ``t`` of ``score``, reports the cells obtained by
-    predicting positive when ``score >= t`` — identical to ``confusion_matrix`` at
-    ``threshold=t``, but computed for all thresholds at once.
+    By default (``thresholds=None``) reports the cells at **every distinct value**
+    ``t`` of ``score`` — the exact step function, via a single sorted cumulative
+    pass. Pass a fixed ``thresholds`` grid (a ``list[float]`` or a spec such as
+    :func:`~polarbearings.thresholds.quantiles`) to instead evaluate the cells at
+    exactly those operating points, one aggregation per threshold. Either way each
+    row is the confusion matrix obtained by predicting positive when
+    ``score >= t`` — identical to ``confusion_matrix`` at ``threshold=t``.
 
     Rows with a missing (null/NaN) ``score``, ``target``, or ``weight`` are dropped
     and the curve is computed on the complete cases — unlike the scalar metrics,
@@ -52,8 +60,14 @@ def confusion_curve(
     Args:
         frame: ``DataFrame`` or ``LazyFrame`` holding the columns.
         target: Column with class labels.
-        score: Column with predicted scores/probabilities (the thresholds are its
-            distinct values).
+        score: Column with predicted scores/probabilities (when ``thresholds`` is
+            ``None`` the thresholds are its distinct values).
+        thresholds: Optional fixed grid — an ``int`` ``N`` (``N`` data-driven score
+            quantiles), a threshold spec (e.g. ``quantiles(100)``,
+            ``equal_width(50)``, ``linspace(101)``), or a ``list[float]``. When
+            given, the cells are evaluated at exactly these operating points (each
+            group at its own, for an int or a data-derived spec) instead of at
+            every distinct score, and the ``endpoints`` origin row is not added.
         weight: Optional column with sample weights. When given, the cells are
             summed weights (``Float64``) instead of counts.
         pos_label: Value in ``target`` treated as the positive class (default 1).
@@ -61,7 +75,8 @@ def confusion_curve(
             pass (each group uses its own distinct scores).
         endpoints: When True (default), prepend a trivial ``threshold = +inf`` row
             with ``tp = fp = 0`` so a derived ROC/PR curve starts at the origin.
-            Set False for exactly the distinct-score thresholds.
+            Set False for exactly the distinct-score thresholds. Ignored when an
+            explicit ``thresholds`` grid is given.
 
     Returns:
         A ``LazyFrame`` with columns ``[*by, threshold, tp, fp, fn, tn]``, sorted by
@@ -81,11 +96,12 @@ def confusion_curve(
     # on the complete cases (a NaN-score point has no place on a curve). This
     # differs from the scalar metrics, which return null for any missing input.
     lf = frame.lazy().filter(~row_has_missing(values=[score], labels=[target], weight=weight))
-    by_list: list[IntoExpr] = (
-        [] if by is None else [by] if isinstance(by, str | pl.Expr) else list(by)
-    )
+    by_list = by_columns(by)
     by_names = [col_name(b) for b in by_list]
     descending = [False] * len(by_names)
+
+    if thresholds is not None:
+        return _grid_curve(lf, target, score, thresholds, weight, pos_label, by_list, by_names)
 
     w = resolve_weight(weight)
     cell_dtype = pl.Float64 if w is not None else pl.Int64
@@ -151,3 +167,72 @@ def confusion_curve(
         curve = pl.concat([origin, curve])
 
     return curve.sort([*by_names, "threshold"], descending=[*descending, True])
+
+
+def _grid_curve(
+    lf: pl.LazyFrame,
+    target: IntoExpr,
+    score: IntoExpr,
+    thresholds: ThresholdsLike,
+    weight: WeightInput,
+    pos_label: PosLabel,
+    by_list: list[IntoExpr],
+    by_names: list[str],
+) -> pl.LazyFrame:
+    """Confusion cells at a fixed threshold grid (the ``thresholds=`` path).
+
+    Stays fully lazy and scans the data **once**: each cell is aggregated into a
+    length-``N`` list (one entry per threshold) in a single ``select`` / ``agg``,
+    then a multi-column ``explode`` unpacks the four cell lists and the threshold
+    list together into the tidy ``[*by, threshold, tp, fp, fn, tn]`` long form. A
+    data-derived spec (e.g. ``quantiles``) resolves inside that one aggregation, so
+    under ``by`` every group is thresholded at its own grid.
+
+    The lists must be primitive, not a list of the ``confusion_matrix`` struct: the
+    struct form duplicates the aggregation across an ``N``-branch ``UNION`` (a lazy
+    ``concat`` of per-threshold sub-plans, re-run once per threshold by projection
+    pushdown) and also trips the floor Polars' lazy schema inference for struct
+    reductions under ``group_by``. Parallel primitive lists avoid both.
+    """
+    resolved = resolve_thresholds(thresholds, score)
+    w = resolve_weight(weight)
+    cell_dtype = pl.Float64 if w is not None else pl.Int64
+
+    thr, tp_l, fp_l, fn_l, tn_l = [], [], [], [], []
+    for _label, value in resolved:
+        tp, fp, fn, tn = _confusion_components(target, score, value, weight, pos_label)
+        thr.append((value if isinstance(value, pl.Expr) else pl.lit(value)).cast(pl.Float64))
+        tp_l.append(tp.cast(cell_dtype))
+        fp_l.append(fp.cast(cell_dtype))
+        fn_l.append(fn.cast(cell_dtype))
+        tn_l.append(tn.cast(cell_dtype))
+
+    long_cols = ["threshold", "tp", "fp", "fn", "tn"]
+    aggs = [
+        pl.concat_list(thr).alias("threshold"),
+        pl.concat_list(tp_l).alias("tp"),
+        pl.concat_list(fp_l).alias("fp"),
+        pl.concat_list(fn_l).alias("fn"),
+        pl.concat_list(tn_l).alias("tn"),
+    ]
+    if by_names:
+        keyed = lf.with_columns(
+            *(col_expr(b).alias(name) for b, name in zip(by_list, by_names, strict=True))
+        )
+        wide = keyed.group_by(by_names).agg(*aggs)
+    else:
+        wide = lf.select(*aggs)
+
+    # Re-cast each unpacked column to its scalar dtype. The explode produces scalar
+    # values at runtime, but the floor Polars' lazy schema keeps them ``List``-typed
+    # (worse under ``group_by``), which makes a downstream ``.select`` — e.g. a curve
+    # wrapper computing ``fp / (fp + tn)`` — panic with a list/scalar supertype error.
+    # The cast is a no-op on the data and forces the schema to resolve.
+    grid = wide.explode(long_cols).with_columns(
+        pl.col("threshold").cast(pl.Float64),
+        pl.col("tp").cast(cell_dtype),
+        pl.col("fp").cast(cell_dtype),
+        pl.col("fn").cast(cell_dtype),
+        pl.col("tn").cast(cell_dtype),
+    )
+    return grid.sort([*by_names, "threshold"], descending=[*([False] * len(by_names)), True])

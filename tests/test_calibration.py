@@ -149,6 +149,46 @@ class TestLazy:
         assert lazy.collect().equals(eager.collect())
 
 
+class TestByGroup:
+    def _grouped(self, seed=3, n=900):
+        rng = np.random.default_rng(seed)
+        g = rng.choice(["A", "B"], n)
+        y = rng.integers(0, 2, n)
+        p = np.clip(rng.beta(2.0, 2.0, n), 0.0, 1.0)
+        return pl.DataFrame({"g": g, "y": y.astype(int), "p": p})
+
+    def test_by_columns_and_shape(self):
+        out = calibration_curve(self._grouped(), "y", "p", n_bins=5, by="g")
+        assert out.columns == [
+            "g",
+            "bin",
+            "bin_lower",
+            "bin_upper",
+            "count",
+            "prob_pred",
+            "prob_true",
+        ]
+        assert set(out["g"].unique()) == {"A", "B"}
+
+    def test_by_matches_per_group_filter(self):
+        # A grouped curve equals the curve on each filtered subgroup (the bin edges
+        # are shared/global, so the bins line up).
+        df = self._grouped()
+        grouped = calibration_curve(df, "y", "p", n_bins=8, by="g").sort("g", "bin")
+        for g in ("A", "B"):
+            sub = calibration_curve(df.filter(pl.col("g") == g), "y", "p", n_bins=8)
+            got = grouped.filter(pl.col("g") == g)
+            assert got["bin"].to_list() == sub["bin"].to_list()
+            assert got["prob_pred"].to_numpy() == pytest.approx(sub["prob_pred"].to_numpy())
+            assert got["prob_true"].to_numpy() == pytest.approx(sub["prob_true"].to_numpy())
+
+    def test_counts_partition_the_frame(self):
+        # Every row lands in exactly one (group, bin), so counts sum to n.
+        df = self._grouped()
+        out = calibration_curve(df, "y", "p", n_bins=6, strategy="quantile", by="g")
+        assert out["count"].sum() == df.height
+
+
 @given(
     seed=st.integers(min_value=0, max_value=2**32 - 1),
     n_bins=st.integers(min_value=2, max_value=12),

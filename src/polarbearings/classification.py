@@ -455,10 +455,11 @@ def threshold_sweep(
 ) -> list[pl.Expr]:
     """Generate metric expressions across many thresholds in a single pass.
 
-    ``thresholds`` is either a list of fixed values or a *threshold spec* such as
+    ``thresholds`` is an ``int`` ``N`` (shorthand for ``quantiles(N)``), a list of
+    fixed values, or a *threshold spec* such as
     :func:`~polarbearings.thresholds.quantiles` or
-    :func:`~polarbearings.thresholds.equal_width`. A spec resolves against the
-    ``prob`` column inside the query graph, so quantile / equal-width thresholds
+    :func:`~polarbearings.thresholds.equal_width`. An int or a spec resolves against
+    the ``prob`` column inside the query graph, so quantile / equal-width thresholds
     are computed in-engine — and under ``group_by().agg(...)`` each group is swept
     at its own thresholds. A plain ``list[float]`` keeps the original column names.
 
@@ -468,7 +469,8 @@ def threshold_sweep(
             jaccard_score, or confusion_matrix.
         target: Column with class labels.
         prob: Column with predicted probabilities.
-        thresholds: Fixed thresholds or a spec. Defaults to ``quantiles(100)``.
+        thresholds: An int ``N`` (``quantiles(N)``), fixed thresholds, or a spec.
+            Defaults to ``quantiles(100)``.
         weight: Optional column with sample weights.
         pos_label: Value in ``target`` treated as the positive class (default 1).
 

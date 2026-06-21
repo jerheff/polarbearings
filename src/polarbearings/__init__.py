@@ -30,6 +30,7 @@ from polarbearings.classification import (
     threshold_sweep,
 )
 from polarbearings.confusion_curve import confusion_curve
+from polarbearings.curves import det_curve, expected_cost, pr_curve, roc_curve
 from polarbearings.gini import gini_coefficient
 from polarbearings.log_loss import log_loss
 from polarbearings.ranking import dcg_score, ndcg_score
@@ -82,6 +83,10 @@ __all__: list[str] = [
     # Curves (one row per threshold / bin)
     "confusion_curve",
     "calibration_curve",
+    "roc_curve",
+    "pr_curve",
+    "det_curve",
+    "expected_cost",
     # Utilities
     "threshold_sweep",
     "percentile_thresholds",

@@ -25,7 +25,9 @@ from polarbearings._common import (
     IntoExpr,
     PosLabel,
     WeightInput,
+    by_columns,
     col_expr,
+    col_name,
     resolve_weight,
     row_has_missing,
 )
@@ -76,6 +78,7 @@ def calibration_curve(
     bins: list[float] | None = None,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
+    by: IntoExpr | list[IntoExpr] | None = None,
 ) -> pl.LazyFrame:
     """Compute calibration-curve data, one row per non-empty bin.
 
@@ -97,12 +100,17 @@ def calibration_curve(
         weight: Optional column with sample weights. When given, ``count`` is the
             summed weight per bin and the means are weighted.
         pos_label: Value in ``target`` treated as the positive class (default 1).
+        by: Optional column(s) for a separate curve per group, all in one pass. The
+            bin edges are shared across groups (computed over the whole frame, so a
+            ``"quantile"`` strategy uses whole-frame quantiles) — this keeps the
+            bins comparable across groups, which is the point of segmenting.
 
     Returns:
-        A ``LazyFrame`` with columns ``bin`` (0-indexed), ``bin_lower``,
-        ``bin_upper``, ``count``, ``prob_pred`` (mean predicted probability) and
-        ``prob_true`` (observed positive fraction), sorted by ``bin``. Empty bins
-        are omitted. Call ``.collect()`` to materialize.
+        A ``LazyFrame`` with columns ``[*by, bin, bin_lower, bin_upper, count,
+        prob_pred, prob_true]`` — ``bin`` 0-indexed, ``prob_pred`` the mean
+        predicted probability, ``prob_true`` the observed positive fraction —
+        sorted by ``by`` then ``bin``. Empty bins are omitted. Call ``.collect()``
+        to materialize.
 
     Examples:
         >>> import polars as pl
@@ -122,6 +130,10 @@ def calibration_curve(
     n = len(edges) - 1
     interior = edges[1:-1]
 
+    by_list = by_columns(by)
+    by_names = [col_name(b) for b in by_list]
+    by_proj = [col_expr(b).alias(name) for b, name in zip(by_list, by_names, strict=True)]
+
     prob_f = col_expr(prob).cast(pl.Float64)
     # bin id = number of interior edges strictly below the prediction; this
     # reproduces numpy's ``searchsorted(edges[1:-1], p, side="left")`` exactly.
@@ -133,8 +145,8 @@ def calibration_curve(
     w = resolve_weight(weight)
     if w is None:
         agg = (
-            lf.select(binid.alias("bin"), prob_f.alias("p"), is_pos.alias("t"))
-            .group_by("bin")
+            lf.select(*by_proj, binid.alias("bin"), prob_f.alias("p"), is_pos.alias("t"))
+            .group_by([*by_names, "bin"])
             .agg(
                 pl.len().alias("count"),
                 pl.col("p").mean().alias("prob_pred"),
@@ -143,8 +155,10 @@ def calibration_curve(
         )
     else:
         agg = (
-            lf.select(binid.alias("bin"), prob_f.alias("p"), is_pos.alias("t"), w.alias("w"))
-            .group_by("bin")
+            lf.select(
+                *by_proj, binid.alias("bin"), prob_f.alias("p"), is_pos.alias("t"), w.alias("w")
+            )
+            .group_by([*by_names, "bin"])
             .agg(
                 pl.col("w").sum().alias("count"),
                 (pl.col("p") * pl.col("w")).sum().alias("ps"),
@@ -167,6 +181,6 @@ def calibration_curve(
     )
     return (
         agg.join(edge_df, on="bin", how="left")
-        .sort("bin")
-        .select("bin", "bin_lower", "bin_upper", "count", "prob_pred", "prob_true")
+        .sort([*by_names, "bin"])
+        .select(*by_names, "bin", "bin_lower", "bin_upper", "count", "prob_pred", "prob_true")
     )
