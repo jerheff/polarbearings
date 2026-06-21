@@ -307,30 +307,48 @@ df.select(pl.concat_list(threshold_sweep(confusion_matrix, "label", "score", qua
 # -> columns: threshold, tp, fp, fn, tn  (then tpr/fpr/precision/recall are column math)
 ```
 
-#### Exact ROC / PR curves
+#### Diagnostic curves: ROC, PR, DET, cost
 
-`confusion_curve` gives the confusion cells at **every distinct score** in one
-sorted pass (`O(n log n)`) — the exact step function behind ROC and
-precision-recall, where `threshold_sweep` samples a fixed grid. It returns the
-**same `threshold, tp, fp, fn, tn` schema**, so it's a drop-in:
+One call each, returning tidy, plot-ready `LazyFrame`s:
+
+```python
+from polarbearings import roc_curve, pr_curve, det_curve, expected_cost
+
+roc_curve(df, "label", "score").collect()        # -> threshold, fpr, tpr
+pr_curve(df, "label", "score").collect()         # -> threshold, precision, recall
+det_curve(df, "label", "score").collect()        # -> threshold, fpr, fnr
+expected_cost(df, "label", "score", {"fp": 1.0, "fn": 5.0}).collect()  # -> threshold, cost
+```
+
+All four take `weight=`, `pos_label=`, `by=` (a separate curve per segment in one
+pass), and `thresholds=` (below). They are thin column-math wrappers over
+`confusion_curve`.
+
+#### `confusion_curve` — the primitive
+
+`confusion_curve` gives the confusion cells `threshold, tp, fp, fn, tn`. By default
+it reports **every distinct score** in one sorted pass (`O(n log n)`) — the exact
+step function (matches scikit-learn's `roc_curve`), scaling to millions of rows.
+Pass `thresholds=` for a fixed **grid** of comparable operating points instead — an
+`int` (that many score quantiles), a spec (`quantiles(n)`, `equal_width(n)`,
+`linspace(n)`), or a `list[float]`:
 
 ```python
 from polarbearings import confusion_curve
 
-confusion_curve(df, "label", "score").collect()                 # one row per distinct score
-confusion_curve(df, "label", "score", by="segment").collect()   # a separate exact curve per segment
+confusion_curve(df, "label", "score").collect()                  # exact, every distinct score
+confusion_curve(df, "label", "score", thresholds=20).collect()   # 20 quantile operating points
+confusion_curve(df, "label", "score", by="segment").collect()    # a separate curve per segment
 # -> threshold, tp, fp, fn, tn   (then fpr = fp/(fp+tn), tpr = tp/(tp+fn), ... are column math)
 ```
 
-- Takes a `DataFrame` **or** `LazyFrame` and returns a `LazyFrame` — `.collect()` to
-  materialize, or compose it in a larger lazy query.
-- Matches scikit-learn's `roc_curve`, and scales to millions of rows where a
-  per-threshold sweep cannot.
+- Takes a `DataFrame` **or** `LazyFrame` and returns a `LazyFrame` — fully lazy and
+  single-pass either way; `.collect()` to materialize, or compose in a larger query.
 - `endpoints=True` (default) prepends a `threshold = +inf` row so a derived curve
   starts at the origin; `weight` and `pos_label` behave like every other metric.
 
-Use the grid (`threshold_sweep` + a spec) for a fixed, comparable set of operating
-points; use `confusion_curve` for the exact, all-thresholds curve.
+The `thresholds=` argument is forwarded by every curve wrapper, so `roc_curve(df,
+"label", "score", thresholds=20)` gives a 20-point grid ROC just the same.
 
 #### Threshold Sweep
 
@@ -462,11 +480,14 @@ from polarbearings import calibration_curve
 
 calibration_curve(df, "label", "prob", n_bins=10, strategy="quantile").collect()
 calibration_curve(df, "label", "prob", bins=[0.0, 0.25, 0.5, 0.75, 1.0]).collect()  # custom edges
-# -> columns: bin, bin_lower, bin_upper, count, prob_pred, prob_true
+calibration_curve(df, "label", "prob", n_bins=10, by="segment").collect()  # a curve per segment
+# -> columns: [*by], bin, bin_lower, bin_upper, count, prob_pred, prob_true
 ```
 
 Like `confusion_curve`, it accepts a `DataFrame` or `LazyFrame` and returns a
-`LazyFrame` (call `.collect()` to materialize).
+`LazyFrame` (call `.collect()` to materialize). `by=` computes one curve per group
+in a single pass, with **shared bins** across groups so the segments stay directly
+comparable.
 
 ### Class Weights
 
@@ -483,10 +504,79 @@ weighted = df.with_columns(balanced_sample_weight("label").alias("w"))
 weighted.select(roc_auc("label", "score", weight="w"))
 ```
 
+### Confidence intervals (bootstrap)
+
+Because every metric accepts a `weight`, a bootstrap replicate is just the metric
+under random weights — `polarbearings` uses the **Bayesian bootstrap**, generated
+in-engine (no Python resampling loop). `bootstrap_ci` returns `{estimate, low,
+high}` for the whole frame, or one row per group with `by=`:
+
+```python
+from polarbearings import bootstrap_ci, roc_auc
+
+bootstrap_ci(df, roc_auc, "label", "score", n_resamples=1000, method="bc")
+bootstrap_ci(df, roc_auc, "label", "score", by="segment")   # one CI per segment
+```
+
+`bootstrap_weight` exposes a single replicate as a weight **expression**, so it
+composes with *any* metric or curve — e.g. a bootstrapped ROC band is `roc_curve`
+under many replicate weights. Hashing a stable id column makes it reproducible
+across runs and safe inside `group_by`:
+
+```python
+from polarbearings import bootstrap_weight, roc_curve
+
+boot = df.with_row_index("id")
+roc_curve(boot, "label", "score", weight=bootstrap_weight("id", seed=0), thresholds=50)
+```
+
+It supports `kind="bayesian"` (default, `Exp(1)`) or `kind="poisson"` integer
+multiplicities, and `weight_kind="frequency"` for de-duplicated case counts (a row
+for `w` cases draws `Gamma(w, 1)`, not `w · Exp(1)` — correct variance, not
+over-dispersed).
+
+### Data splitting (deterministic, id-keyed)
+
+Hashing a stable record id to a uniform gives split assignments that are
+**reproducible** across runs and row orderings and **leak nothing** — the same id
+always lands in the same split. All are plain expressions (drop into
+`with_columns`, `group_by`, lazy):
+
+`seed` is the **first, required** argument — it *is* the split's identity, and
+independent splits must use different seeds (sharing one correlates them, since the
+assignment is a pure function of `id` and `seed`):
+
+```python
+from polarbearings import hash_split, hash_fold, hash_splits
+
+df.with_columns(holdout=hash_split(1, "id", fraction=0.2))  # bool: ~20% holdout
+df.with_columns(fold=hash_fold(0, "id", k=5))               # CV fold id 0..4
+df.with_columns(                                            # named multi-way
+    split=hash_splits(2, "id", [("test", 0.15), ("val", 0.15)], remainder="train")
+)
+```
+
+`hash_split` is **consistent**: growing `fraction` only *adds* rows to the holdout
+(no churn). `hash_splits` gives each split its own seed and a residual-conditional
+fraction, so resizing one split leaves the **upstream** splits' membership unchanged
+— unlike cumulative-threshold schemes that reshuffle neighbours. Order is priority;
+put the long-lived holdout first.
+
+**Stratification** is free in expectation (the hash ignores labels, so each class is
+sampled at `~fraction`). For an *exact* per-class split, rank within the stratum on
+the shared uniform:
+
+```python
+from polarbearings import hash_uniform
+
+u = hash_uniform(1, "id")
+df.with_columns(holdout=u.rank("ordinal").over("class") <= (0.2 * pl.len()).over("class"))
+```
+
 ### Diagnostic Plots
 
-`notebooks/diagnostics.ipynb` shows how to build plot-ready data for ROC, PR, cost,
-and calibration curves and hand it to Plotly — run it with
+`notebooks/diagnostics.ipynb` builds these curves and confidence bands with the
+helpers above and hands them to Plotly — run it with
 `uv run --group notebooks jupyter lab notebooks/diagnostics.ipynb`.
 
 ### Sample Weights
@@ -681,6 +771,10 @@ version comparison.
 - [x] Custom positive class label (`pos_label`: int, string, or bool)
 - [x] Multi-version Polars support (1.0.0+)
 - [x] Gini coefficient (normalized for non-negative targets)
+- [x] Diagnostic curves: `roc_curve`, `pr_curve`, `det_curve`, `expected_cost`, `confusion_curve`
+- [x] Calibration curve (`calibration_curve`, with `by=` segmentation)
+- [x] Bootstrap confidence intervals (`bootstrap_ci`) and composable `bootstrap_weight`
+- [x] Deterministic id-keyed data splitting (`hash_split`, `hash_splits`, `hash_fold`)
 - [ ] Multi-class ROC AUC (one-vs-rest, one-vs-one)
 - [ ] Calibration metrics (ECE, MCE)
 

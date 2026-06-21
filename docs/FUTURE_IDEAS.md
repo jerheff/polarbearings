@@ -5,27 +5,20 @@ A parking lot for metrics and model-evaluation utilities that fit the
 the scikit-learn analog (where one exists), why it fits, and the main
 implementation wrinkle.
 
-## Cross-validation fold assignment (high interest)
+## Cross-validation fold assignment (partly shipped)
 
-Assign deterministic CV fold ids to a frame entirely in-engine — no pandas
-round-trip, scales to 100M+ rows. Reuses the row-hash machinery already built for
-the Bayesian bootstrap (`bootstrap.py`).
+The id-keyed building blocks now exist in `split.py`: `hash_uniform`, `hash_split`
+(boolean holdout / `train_test_split`), `hash_splits` (named multi-way), and
+`hash_fold` (`KFold(shuffle=True)` membership). Exact stratification is documented
+as the rank-within-stratum pattern (`u.rank().over(class)`) rather than a parameter.
 
-- **`kfold_assign(n_splits, *, seed) -> pl.Expr`** — returns a fold id in
-  `0..n_splits-1` per row. Shuffled assignment via `hash(row_index, seed) % n_splits`
-  (or rank-based for exactly balanced fold sizes). Mirrors
-  `sklearn.model_selection.KFold(shuffle=True)` semantics (fold *membership*, not
-  the train/test index pairs).
-- **`stratified_kfold_assign(target, n_splits, *, seed) -> pl.Expr`** — balances
-  class proportions within each fold. Implementable as a per-class rank modulo
-  `n_splits` (`rank().over(target) % n_splits`), optionally hashed for shuffling.
-  Mirrors `StratifiedKFold`.
-- **`group_kfold_assign(group, n_splits) -> pl.Expr`** — keeps all rows of a group
-  in the same fold (`hash(group) % n_splits`). Mirrors `GroupKFold`.
+Still parked, if demand appears:
 
-Wrinkles: exact fold-size balancing under hashing needs a rank-based fallback;
-shuffled-vs-sorted assignment should be a documented choice. A `train_test_split`
-flavor (`hash(row) < frac`) is a trivial special case worth shipping alongside.
+- **`stratified_kfold_assign(target, n_splits, *, seed)`** — a dedicated helper that
+  bakes in the per-class rank-modulo so the user doesn't hand-write the `.over`.
+- **`group_kfold_assign(group, n_splits)`** — keep all rows of a group in the same
+  fold by hashing the *group* key instead of the row id (`hash_fold("group", k)`
+  already does exactly this; a named alias would document the intent).
 
 ## Deferred metrics
 
@@ -36,9 +29,6 @@ flavor (`hash(row) < frac`) is a trivial special case worth shipping alongside.
   top-k scores. Trivial for binary; the multiclass form needs wide (one-column-
   per-class) score input, which is a different data shape than the rest of the
   library. Mirrors `sklearn.metrics.top_k_accuracy_score`.
-- **`det_curve`** — Detection Error Tradeoff (FNR vs FPR across thresholds).
-  Cheap to derive from the existing `threshold_sweep` components. Mirrors
-  `sklearn.metrics.det_curve`.
 - **`hinge_loss`** — `mean(max(0, 1 - margin))`. Trivial elementwise, but niche
   (SVM-specific). Mirrors `sklearn.metrics.hinge_loss`.
 - **`d2_log_loss_score`** — D² with a log-loss deviance and the class-prior
@@ -50,8 +40,9 @@ flavor (`hash(row) < frac`) is a trivial special case worth shipping alongside.
 operate on the wide multilabel shape; defer until there is demand for multilabel
 support generally.
 
-## Cost curves / threshold economics
+## Shipped since this list was written
 
-Already expressible today by applying per-cell costs to `confusion_matrix` across
-a `threshold_sweep` (see the diagnostics notebook). If a recurring pattern
-emerges, a thin `expected_cost(costs, thresholds)` helper could wrap it.
+`det_curve`, `expected_cost` (cost curves), `roc_curve`/`pr_curve`, the
+`confusion_curve` primitive with a `thresholds=` grid, `calibration_curve` (incl.
+`by=`), and the bootstrap helpers (`bootstrap_ci`, `bootstrap_weight`) are all
+implemented — removed from the lists above.
