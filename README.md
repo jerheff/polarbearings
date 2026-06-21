@@ -489,6 +489,24 @@ Like `confusion_curve`, it accepts a `DataFrame` or `LazyFrame` and returns a
 in a single pass, with **shared bins** across groups so the segments stay directly
 comparable.
 
+For the scalar summaries, `expected_calibration_error` (ECE) and
+`maximum_calibration_error` (MCE) are plain **expressions** — the count-weighted
+average and the worst bin's `|mean predicted − observed|` gap — so they drop into
+`select` and `group_by` next to any other metric:
+
+```python
+from polarbearings import expected_calibration_error, maximum_calibration_error
+
+df.select(
+    ece=expected_calibration_error("label", "prob", n_bins=10),
+    mce=maximum_calibration_error("label", "prob", n_bins=10),
+)
+df.group_by("segment").agg(expected_calibration_error("label", "prob"))  # ECE per segment
+```
+
+They share `n_bins` / `strategy` / `bins` / `weight` / `pos_label` with
+`calibration_curve`; 0 is perfectly calibrated.
+
 ### Class Weights
 
 `balanced_sample_weight` produces per-row weights inversely proportional to class
@@ -775,8 +793,8 @@ version comparison.
 - [x] Calibration curve (`calibration_curve`, with `by=` segmentation)
 - [x] Bootstrap confidence intervals (`bootstrap_ci`) and composable `bootstrap_weight`
 - [x] Deterministic id-keyed data splitting (`hash_split`, `hash_splits`, `hash_fold`)
+- [x] Calibration metrics — ECE / MCE (`expected_calibration_error`, `maximum_calibration_error`)
 - [ ] Multi-class ROC AUC (one-vs-rest, one-vs-one)
-- [ ] Calibration metrics (ECE, MCE)
 
 ## Contributing
 

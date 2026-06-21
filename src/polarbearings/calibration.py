@@ -28,8 +28,10 @@ from polarbearings._common import (
     by_columns,
     col_expr,
     col_name,
+    guarded,
     resolve_weight,
     row_has_missing,
+    weight_suffix,
 )
 
 BinStrategy = Literal["uniform", "quantile"]
@@ -184,3 +186,181 @@ def calibration_curve(
         .sort([*by_names, "bin"])
         .select(*by_names, "bin", "bin_lower", "bin_upper", "count", "prob_pred", "prob_true")
     )
+
+
+def _calibration_gap_terms(
+    target: IntoExpr,
+    prob: IntoExpr,
+    n_bins: int,
+    strategy: BinStrategy,
+    bins: list[float] | None,
+    weight: WeightInput,
+    pos_label: PosLabel,
+) -> tuple[list[pl.Expr], list[pl.Expr], pl.Expr]:
+    """Per-bin ``(effective count, |mean_pred - mean_true|)`` terms, plus the total.
+
+    Bins ``prob`` with the same left-edge convention as :func:`calibration_curve`,
+    then for each bin returns its summed weight (or count) and the absolute
+    calibration gap. Uses per-bin ``filter`` aggregations rather than a window over
+    the bin id, so the result composes inside ``group_by().agg()`` on every supported
+    Polars version (windows-in-aggregation are rejected on the floor).
+    """
+    prob_f = col_expr(prob).cast(pl.Float64)
+    is_pos = (col_expr(target) == pos_label).cast(pl.Float64)
+
+    # Interior bin edges — fixed floats, or per-group quantile expressions.
+    if bins is not None:
+        edges = sorted(float(b) for b in bins)
+        if len(edges) < 2:
+            raise ValueError("`bins` must contain at least two edges.")
+        n_used = len(edges) - 1
+        interior: list[float | pl.Expr] = list(edges[1:-1])
+    elif n_bins < 1:
+        raise ValueError("`n_bins` must be >= 1.")
+    elif strategy == "uniform":
+        n_used = n_bins
+        interior = [i / n_bins for i in range(1, n_bins)]
+    elif strategy == "quantile":
+        n_used = n_bins
+        interior = [prob_f.quantile(i / n_bins, interpolation="linear") for i in range(1, n_bins)]
+    else:
+        raise ValueError(f"Unknown strategy {strategy!r}; use 'uniform' or 'quantile'.")
+
+    # bin id = number of interior edges strictly below the prediction.
+    binid: pl.Expr = pl.lit(0, dtype=pl.Int64)
+    for edge in interior:
+        binid = binid + (prob_f > edge).cast(pl.Int64)
+
+    w = resolve_weight(weight)
+    counts: list[pl.Expr] = []
+    gaps: list[pl.Expr] = []
+    for b in range(n_used):
+        mask = binid == b
+        if w is None:
+            count = mask.sum()
+            pred = prob_f.filter(mask).mean()
+            true = is_pos.filter(mask).mean()
+        else:
+            count = w.filter(mask).sum()
+            pred = (prob_f * w).filter(mask).sum() / count
+            true = (is_pos * w).filter(mask).sum() / count
+        counts.append(count)
+        gaps.append((pred - true).abs())
+    total = pl.len() if w is None else w.sum()
+    return counts, gaps, total
+
+
+def _calibration_alias(
+    name: str, target: IntoExpr, prob: IntoExpr, weight: WeightInput, pos_label: PosLabel
+) -> str:
+    """Build the output-column alias for a calibration-error metric."""
+    alias = f"{name}_{col_name(target)}_{col_name(prob)}{weight_suffix(weight)}"
+    if pos_label != 1:
+        alias += f"_pos{pos_label}"
+    return alias
+
+
+def expected_calibration_error(
+    target: IntoExpr,
+    prob: IntoExpr,
+    *,
+    n_bins: int = 10,
+    strategy: BinStrategy = "uniform",
+    bins: list[float] | None = None,
+    weight: WeightInput = None,
+    pos_label: PosLabel = 1,
+) -> pl.Expr:
+    """Expected Calibration Error (ECE) as a Polars expression.
+
+    Bins predictions by ``prob`` and returns the count-weighted average absolute gap
+    between each bin's mean predicted probability and its observed positive fraction:
+    ``sum_b (n_b / N) * |pred_b - true_b|`` (0 is perfectly calibrated). It is a plain
+    expression, so it drops into ``select`` and ``group_by().agg()`` alongside any
+    other metric, on every supported Polars version.
+
+    Rows with a missing (null/NaN) ``prob``, ``target``, or ``weight`` make the whole
+    result null — like the other scalar metrics, and unlike :func:`calibration_curve`,
+    which drops incomplete rows.
+
+    Args:
+        target: Column with class labels.
+        prob: Column with predicted probabilities in ``[0, 1]``.
+        n_bins: Number of bins (ignored when ``bins`` is given). Defaults to 10.
+        strategy: ``"uniform"`` (equal-width over ``[0, 1]``) or ``"quantile"``
+            (equal-frequency). Ignored when ``bins`` is given.
+        bins: Explicit monotonic bin edges (length ``k + 1`` for ``k`` bins),
+            overriding ``n_bins``/``strategy``.
+        weight: Optional sample-weight column; the bins, per-bin means, and the
+            average are all weighted.
+        pos_label: Value in ``target`` treated as the positive class (default 1).
+
+    Returns:
+        A Polars expression yielding the ECE (null if any input is missing or the
+        frame/group is empty).
+
+    Raises:
+        ValueError: For an unknown ``strategy``, ``n_bins < 1``, or fewer than two
+            ``bins`` edges.
+
+    Examples:
+        >>> import polars as pl
+        >>> from polarbearings import expected_calibration_error
+        >>> df = pl.DataFrame({"y": [0, 0, 1, 1], "p": [0.1, 0.4, 0.6, 0.9]})
+        >>> df.select(expected_calibration_error("y", "p", n_bins=2))  # doctest: +SKIP
+    """
+    counts, gaps, total = _calibration_gap_terms(
+        target, prob, n_bins, strategy, bins, weight, pos_label
+    )
+    terms = [pl.when(c > 0).then(c * g).otherwise(0.0) for c, g in zip(counts, gaps, strict=True)]
+    ece = pl.when(total > 0).then(pl.sum_horizontal(terms) / total).otherwise(None)
+    alias = _calibration_alias("expected_calibration_error", target, prob, weight, pos_label)
+    return guarded(ece, values=[prob], labels=[target], weight=weight).alias(alias)
+
+
+def maximum_calibration_error(
+    target: IntoExpr,
+    prob: IntoExpr,
+    *,
+    n_bins: int = 10,
+    strategy: BinStrategy = "uniform",
+    bins: list[float] | None = None,
+    weight: WeightInput = None,
+    pos_label: PosLabel = 1,
+) -> pl.Expr:
+    """Maximum Calibration Error (MCE) as a Polars expression.
+
+    The worst bin's absolute calibration gap: ``max_b |pred_b - true_b|`` over the
+    non-empty bins (0 is perfectly calibrated). Shares all binning options and
+    semantics with :func:`expected_calibration_error`, and likewise composes in
+    ``select`` and ``group_by().agg()``.
+
+    Args:
+        target: Column with class labels.
+        prob: Column with predicted probabilities in ``[0, 1]``.
+        n_bins: Number of bins (ignored when ``bins`` is given). Defaults to 10.
+        strategy: ``"uniform"`` or ``"quantile"``. Ignored when ``bins`` is given.
+        bins: Explicit monotonic bin edges, overriding ``n_bins``/``strategy``.
+        weight: Optional sample-weight column.
+        pos_label: Value in ``target`` treated as the positive class (default 1).
+
+    Returns:
+        A Polars expression yielding the MCE (null if any input is missing or the
+        frame/group is empty).
+
+    Raises:
+        ValueError: For an unknown ``strategy``, ``n_bins < 1``, or fewer than two
+            ``bins`` edges.
+
+    Examples:
+        >>> import polars as pl
+        >>> from polarbearings import maximum_calibration_error
+        >>> df = pl.DataFrame({"y": [0, 0, 1, 1], "p": [0.1, 0.4, 0.6, 0.9]})
+        >>> df.select(maximum_calibration_error("y", "p", n_bins=2))  # doctest: +SKIP
+    """
+    counts, gaps, _ = _calibration_gap_terms(
+        target, prob, n_bins, strategy, bins, weight, pos_label
+    )
+    terms = [pl.when(c > 0).then(g).otherwise(None) for c, g in zip(counts, gaps, strict=True)]
+    mce = pl.max_horizontal(terms)
+    alias = _calibration_alias("maximum_calibration_error", target, prob, weight, pos_label)
+    return guarded(mce, values=[prob], labels=[target], weight=weight).alias(alias)

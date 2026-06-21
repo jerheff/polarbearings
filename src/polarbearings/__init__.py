@@ -13,7 +13,11 @@ from polarbearings.bootstrap import (
     ci_from_distribution,
 )
 from polarbearings.brier_score import brier_score
-from polarbearings.calibration import calibration_curve
+from polarbearings.calibration import (
+    calibration_curve,
+    expected_calibration_error,
+    maximum_calibration_error,
+)
 from polarbearings.class_weight import balanced_class_weights, balanced_sample_weight
 from polarbearings.classification import (
     accuracy,
@@ -85,6 +89,8 @@ __all__: list[str] = [
     # Curves (one row per threshold / bin)
     "confusion_curve",
     "calibration_curve",
+    "expected_calibration_error",
+    "maximum_calibration_error",
     "roc_curve",
     "pr_curve",
     "det_curve",

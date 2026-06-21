@@ -9,6 +9,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from sklearn.calibration import calibration_curve as sk_cc
 
+from polarbearings import expected_calibration_error, maximum_calibration_error
 from polarbearings.calibration import calibration_curve as _calibration_curve
 
 
@@ -201,3 +202,139 @@ def test_against_sklearn(seed, n_bins, strategy):
     out = calibration_curve(df, "y", "p", n_bins=n_bins, strategy=strategy)
     assert out["prob_pred"].to_numpy() == pytest.approx(pp)
     assert out["prob_true"].to_numpy() == pytest.approx(pt)
+
+
+def _ece_mce_np(y, p, n_bins, w=None, strategy="uniform"):
+    edges = (
+        np.linspace(0, 1, n_bins + 1)
+        if strategy == "uniform"
+        else np.quantile(p, np.linspace(0, 1, n_bins + 1))
+    )
+    b = np.searchsorted(edges[1:-1], p, side="left")
+    w = np.ones_like(p, float) if w is None else w
+    tot = w.sum()
+    ece = mce = 0.0
+    for bb in np.unique(b):
+        m = b == bb
+        wb = w[m].sum()
+        gap = abs((p[m] * w[m]).sum() / wb - (y[m] * w[m]).sum() / wb)
+        ece += wb / tot * gap
+        mce = max(mce, gap)
+    return ece, mce
+
+
+class TestCalibrationError:
+    @pytest.mark.parametrize("strategy", ["uniform", "quantile"])
+    @pytest.mark.parametrize("n_bins", [5, 10, 15])
+    def test_matches_numpy(self, strategy, n_bins):
+        rng = np.random.default_rng(0)
+        y = rng.integers(0, 2, 3000)
+        p = np.clip(rng.beta(2, 2, 3000), 0, 1)
+        df = pl.DataFrame({"y": y, "p": p})
+        ece = df.select(
+            expected_calibration_error("y", "p", n_bins=n_bins, strategy=strategy)
+        ).item()
+        mce = df.select(
+            maximum_calibration_error("y", "p", n_bins=n_bins, strategy=strategy)
+        ).item()
+        te, tm = _ece_mce_np(y, p, n_bins, strategy=strategy)
+        assert ece == pytest.approx(te)
+        assert mce == pytest.approx(tm)
+
+    def test_weighted_matches_numpy(self):
+        rng = np.random.default_rng(1)
+        y = rng.integers(0, 2, 3000)
+        p = np.clip(rng.beta(2, 2, 3000), 0, 1)
+        w = rng.uniform(0.5, 2.0, 3000)
+        df = pl.DataFrame({"y": y, "p": p, "w": w})
+        ece = df.select(expected_calibration_error("y", "p", weight="w")).item()
+        te, _ = _ece_mce_np(y, p, 10, w=w)
+        assert ece == pytest.approx(te)
+
+    def test_consistent_with_calibration_curve(self):
+        rng = np.random.default_rng(2)
+        df = pl.DataFrame({"y": rng.integers(0, 2, 2000), "p": np.clip(rng.beta(2, 2, 2000), 0, 1)})
+        cal = calibration_curve(df, "y", "p", n_bins=10)
+        gap = (cal["prob_pred"] - cal["prob_true"]).abs()
+        ece_cc = (cal["count"] / cal["count"].sum() * gap).sum()
+        assert df.select(expected_calibration_error("y", "p")).item() == pytest.approx(ece_cc)
+        assert df.select(maximum_calibration_error("y", "p")).item() == pytest.approx(gap.max())
+
+    def test_perfect_calibration_is_zero(self):
+        df = pl.DataFrame({"y": [0, 0, 1, 1] * 50, "p": [0.0, 0.0, 1.0, 1.0] * 50})
+        assert df.select(expected_calibration_error("y", "p")).item() == pytest.approx(0.0)
+        assert df.select(maximum_calibration_error("y", "p")).item() == pytest.approx(0.0)
+
+    def test_group_by(self):
+        rng = np.random.default_rng(3)
+        seg = rng.choice(["a", "b"], 4000)
+        y = rng.integers(0, 2, 4000)
+        p = np.clip(rng.beta(2, 2, 4000), 0, 1)
+        df = pl.DataFrame({"seg": seg, "y": y, "p": p})
+        out = (
+            df.group_by("seg", maintain_order=True)
+            .agg(
+                expected_calibration_error("y", "p").alias("ece"),
+                maximum_calibration_error("y", "p").alias("mce"),
+            )
+            .sort("seg")
+        )
+        for row in out.iter_rows(named=True):
+            m = seg == row["seg"]
+            te, tm = _ece_mce_np(y[m], p[m], 10)
+            assert row["ece"] == pytest.approx(te)
+            assert row["mce"] == pytest.approx(tm)
+
+    def test_missing_is_null(self):
+        df = pl.DataFrame({"y": [0, 1, 1, None], "p": [0.1, 0.5, 0.9, 0.3]})
+        assert df.select(expected_calibration_error("y", "p")).item() is None
+        assert df.select(maximum_calibration_error("y", "p")).item() is None
+
+    def test_pos_label(self):
+        a = pl.DataFrame({"y": [1, 1, 2, 2], "p": [0.1, 0.3, 0.6, 0.9]})
+        b = pl.DataFrame({"y": [0, 0, 1, 1], "p": [0.1, 0.3, 0.6, 0.9]})
+        assert a.select(expected_calibration_error("y", "p", pos_label=2)).item() == pytest.approx(
+            b.select(expected_calibration_error("y", "p")).item()
+        )
+
+    def test_custom_bins_match_calibration_curve(self):
+        rng = np.random.default_rng(5)
+        df = pl.DataFrame({"y": rng.integers(0, 2, 1500), "p": np.clip(rng.beta(2, 2, 1500), 0, 1)})
+        edges = [0.0, 0.25, 0.5, 0.75, 1.0]
+        cal = calibration_curve(df, "y", "p", bins=edges)
+        gap = (cal["prob_pred"] - cal["prob_true"]).abs()
+        ece_cc = (cal["count"] / cal["count"].sum() * gap).sum()
+        assert df.select(expected_calibration_error("y", "p", bins=edges)).item() == pytest.approx(
+            ece_cc
+        )
+        assert df.select(maximum_calibration_error("y", "p", bins=edges)).item() == pytest.approx(
+            gap.max()
+        )
+
+    def test_validation(self):
+        df = pl.DataFrame({"y": [0, 1], "p": [0.2, 0.8]})
+        with pytest.raises(ValueError, match="Unknown strategy"):
+            df.select(expected_calibration_error("y", "p", strategy=cast("Any", "nope")))
+        with pytest.raises(ValueError, match="n_bins"):
+            df.select(expected_calibration_error("y", "p", n_bins=0))
+        with pytest.raises(ValueError, match="at least two edges"):
+            df.select(maximum_calibration_error("y", "p", bins=[0.5]))
+
+
+@given(
+    seed=st.integers(min_value=0, max_value=2**32 - 1),
+    n_bins=st.integers(min_value=2, max_value=20),
+    strategy=st.sampled_from(["uniform", "quantile"]),
+)
+@settings(deadline=None, database=None, suppress_health_check=[HealthCheck.differing_executors])
+def test_calibration_error_matches_curve_property(seed, n_bins, strategy):
+    rng = np.random.default_rng(seed)
+    n = int(rng.integers(50, 1200))
+    df = pl.DataFrame({"y": rng.integers(0, 2, n), "p": np.clip(rng.random(n), 0, 1)})
+    cal = calibration_curve(df, "y", "p", n_bins=n_bins, strategy=strategy)
+    gap = (cal["prob_pred"] - cal["prob_true"]).abs()
+    ece_cc = (cal["count"] / cal["count"].sum() * gap).sum()
+    ece = df.select(expected_calibration_error("y", "p", n_bins=n_bins, strategy=strategy)).item()
+    mce = df.select(maximum_calibration_error("y", "p", n_bins=n_bins, strategy=strategy)).item()
+    assert ece == pytest.approx(ece_cc)
+    assert mce == pytest.approx(gap.max())
