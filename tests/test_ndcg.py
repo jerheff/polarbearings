@@ -107,6 +107,39 @@ class TestRankingEdgeCases:
         assert df.select(ndcg_score("rel", "score")).to_series()[0] == pytest.approx(1.0)
 
 
+class TestTieHandling:
+    """DCG/NDCG break score ties by physical row order.
+
+    ``sort_by`` is stable on equal keys, so when scores tie the input row order
+    decides each document's rank. This is *not* sklearn's gain-averaging
+    (``ignore_ties=False``) and it also diverges from ``ignore_ties=True`` under
+    ties — a single-expression design cannot gain-average. These tests lock the
+    documented, order-dependent value for a fixed input order so the behavior
+    can't drift silently; callers needing reproducibility under ties must
+    sort/break ties upstream.
+    """
+
+    def test_dcg_ties_follow_row_order(self):
+        # Both documents tie at score=1.0; the gain in the first row takes rank 0
+        # (discount 1.0), the second takes rank 1 (discount 1/log2(3)).
+        forward = pl.DataFrame({"rel": [3.0, 0.0], "score": [1.0, 1.0]})
+        reverse = pl.DataFrame({"rel": [0.0, 3.0], "score": [1.0, 1.0]})
+        fwd = forward.select(dcg_score("rel", "score")).to_series()[0]
+        rev = reverse.select(dcg_score("rel", "score")).to_series()[0]
+        assert fwd == pytest.approx(3.0)
+        assert rev == pytest.approx(3.0 / np.log2(3))
+        assert fwd != pytest.approx(rev)  # order-dependent, as documented
+
+    def test_ndcg_ties_follow_row_order(self):
+        # IDCG (gains sorted by themselves) = 3.0, so NDCG = DCG / 3.0.
+        forward = pl.DataFrame({"rel": [3.0, 0.0], "score": [1.0, 1.0]})
+        reverse = pl.DataFrame({"rel": [0.0, 3.0], "score": [1.0, 1.0]})
+        fwd = forward.select(ndcg_score("rel", "score")).to_series()[0]
+        rev = reverse.select(ndcg_score("rel", "score")).to_series()[0]
+        assert fwd == pytest.approx(1.0)
+        assert rev == pytest.approx(1.0 / np.log2(3))
+
+
 @given(
     # size >= 2: sklearn's ndcg_score rejects a single document (our impl handles
     # it, covered in TestRankingEdgeCases).
