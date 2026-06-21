@@ -60,7 +60,12 @@ def quantiles(n: int) -> ThresholdSpec:
 
     def spec(score: IntoExpr) -> list[ResolvedThreshold]:
         col = col_expr(score)
-        return [(f"q{q:g}", col.quantile(q)) for q in qs]
+        # Pin "linear" interpolation explicitly: it matches every other quantile in
+        # the library (the calibration bin edges) and the computed cut points of
+        # equal_width/linspace, so all threshold specs return comparable interpolated
+        # values rather than quantiles() alone snapping to the nearest observed score
+        # (Polars' default is "nearest").
+        return [(f"q{q:g}", col.quantile(q, interpolation="linear")) for q in qs]
 
     return spec
 

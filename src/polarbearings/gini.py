@@ -58,12 +58,20 @@ def gini_coefficient(
         weight: Optional column name with sample weights. If provided, the
             Lorenz curve uses cumulative weight on the x-axis.
         pos_label: When given, map ``target == pos_label`` to a 0/1 indicator
-            before computing Gini (= ``2·AUC − 1``); needed for string/categorical
-            or non-1 binary labels. When ``None`` (default), the target is used as
-            a numeric magnitude directly.
+            before computing Gini (= ``2·AUC − 1`` for unweighted data — see the
+            note below); needed for string/categorical or non-1 binary labels. When
+            ``None`` (default), the target is used as a numeric magnitude directly.
 
     Returns:
         A Polars expression evaluating to the normalized Gini coefficient.
+
+    Note:
+        The ``2·AUC − 1`` identity for binary targets holds for the **unweighted**
+        case only. The weighted normalized Gini uses a per-unit-weight
+        perfect-ordering baseline (and a count-vs-weight Lorenz-axis asymmetry), so
+        weighted binary Gini does **not** equal ``2·weighted_AUC − 1`` — the two can
+        differ materially. Reach for :func:`roc_auc` if you specifically need a
+        weighted AUC.
     """
     alias = f"gini_{col_name(target)}_{col_name(score)}"
     alias += weight_suffix(weight)

@@ -178,7 +178,10 @@ df2.select(gini_coefficient("y", "score", pos_label="fraud"))
 - Returns values between ``-1.0`` and ``1.0``.
 - ``1.0`` means the score ordering is optimal for the observed target distribution.
 - ``0.0`` means the score is no better than random.
-- Supports optional sample weights.
+- Supports optional sample weights. **Caveat:** the binary ``pos_label`` identity
+  ``Gini = 2·AUC − 1`` holds only for *unweighted* data — the weighted normalized
+  Gini uses a per-unit-weight perfect-ordering baseline, so weighted binary Gini is
+  **not** ``2·weighted_AUC − 1``. Use `roc_auc` for a weighted AUC.
 - ``pos_label`` (default ``None``) maps a class label (``target == pos_label``) to a
   0/1 indicator before computing Gini, for binary/string labels; with ``None`` the
   target is used directly as a numeric magnitude (continuous or already 0/1).

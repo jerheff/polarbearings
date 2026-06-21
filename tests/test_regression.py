@@ -1097,6 +1097,19 @@ class TestLogCoshLoss:
             _np_log_cosh(y, pred), rel=1e-9
         )
 
+    def test_matches_definition_on_small_residuals(self):
+        # _np_log_cosh reuses the implementation's own stable identity, so the
+        # property test only checks Polars == that identity. Anchor it to the
+        # textbook definition log(cosh(e)) directly on small residuals (where cosh
+        # doesn't overflow), so a wrong constant in the identity can't hide.
+        rng = np.random.default_rng(0)
+        y = rng.normal(0, 1, 200)
+        pred = y + rng.normal(0, 0.3, 200)  # |residual| small enough that cosh is finite
+        df = pl.DataFrame({"y": y, "pred": pred})
+        got = df.select(log_cosh_loss("y", "pred")).to_series()[0]
+        definition = float(np.log(np.cosh(pred - y)).mean())
+        assert got == pytest.approx(definition, rel=1e-12)
+
     def test_weighted_matches_numpy_reference(self):
         np.random.seed(42)
         y = np.random.randn(100)

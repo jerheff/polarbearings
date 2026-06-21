@@ -209,7 +209,9 @@ class TestThresholdField:
         assert tidy.columns == ["threshold", "tp", "fp", "fn", "tn"]
         assert tidy.height == 10
         # The threshold column holds the real quantile cut-points, in order.
-        assert tidy["threshold"][0] == pytest.approx(cast("float", df["score"].quantile(1 / 11)))
+        assert tidy["threshold"][0] == pytest.approx(
+            cast("float", df["score"].quantile(1 / 11, interpolation="linear"))
+        )
         assert tidy["threshold"].is_sorted()
         # Cells still sum to n on every row.
         assert (
@@ -238,4 +240,6 @@ class TestThresholdField:
         assert set(tidy.columns) == {"g", "threshold", "tp", "fp", "fn", "tn"}
         sub0 = df.filter(pl.col("g") == 0)
         first = tidy.filter(pl.col("g") == 0)["threshold"][0]
-        assert first == pytest.approx(cast("float", sub0["score"].quantile(1 / 6)))
+        assert first == pytest.approx(
+            cast("float", sub0["score"].quantile(1 / 6, interpolation="linear"))
+        )

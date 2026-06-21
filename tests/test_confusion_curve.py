@@ -80,9 +80,12 @@ class TestCompatibility:
         roc = cc.with_columns(tpr=pl.col("tp") / p, fpr=pl.col("fp") / n)
         ours = dict(zip(roc["threshold"], zip(roc["fpr"], roc["tpr"], strict=True), strict=True))
         fpr, tpr, thr = roc_curve(df["y"].to_numpy(), df["score"].to_numpy())
+        matched = 0
         for t, f, r in zip(thr, fpr, tpr, strict=True):
             if t in ours:  # sklearn drops collinear points and adds an inf endpoint
+                matched += 1
                 assert ours[t] == pytest.approx((f, r))
+        assert matched > 0, "no shared thresholds — parity check would pass vacuously"
 
 
 class TestEndpoints:
@@ -285,6 +288,9 @@ def test_roc_against_sklearn(n, seed):
     roc = cc.with_columns(tpr=pl.col("tp") / p, fpr=pl.col("fp") / neg)
     ours = dict(zip(roc["threshold"], zip(roc["fpr"], roc["tpr"], strict=True), strict=True))
     fpr, tpr, thr = roc_curve(y, score)
+    matched = 0
     for t, f, r in zip(thr, fpr, tpr, strict=True):
         if t in ours:
+            matched += 1
             assert ours[t] == pytest.approx((f, r))
+    assert matched > 0, "no shared thresholds — parity check would pass vacuously"

@@ -116,9 +116,12 @@ class TestDetCurve:
         det = pb_det_curve(df, "y", "score").collect()
         ours = {t: (f, n) for t, f, n in zip(det["threshold"], det["fpr"], det["fnr"], strict=True)}
         fpr, fnr, thr = det_curve(df["y"].to_numpy(), df["score"].to_numpy())
+        matched = 0
         for t, f, n in zip(thr, fpr, fnr, strict=True):
             if t in ours:  # sklearn collapses tied thresholds; we keep all distinct scores
+                matched += 1
                 assert ours[t] == pytest.approx((f, n))
+        assert matched > 0, "no shared thresholds — parity check would pass vacuously"
 
     def test_no_infinite_endpoint_by_default(self, df):
         det = pb_det_curve(df, "y", "score").collect()

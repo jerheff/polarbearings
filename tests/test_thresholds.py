@@ -42,7 +42,7 @@ class TestSpecs:
         for i, (_, expr) in enumerate(resolved, start=1):
             assert isinstance(expr, pl.Expr)
             got = df.select(expr.alias("t")).to_series()[0]
-            exp = df["p"].quantile(i / 5)
+            exp = df["p"].quantile(i / 5, interpolation="linear")
             assert got == pytest.approx(exp)
 
     def test_equal_width_values_match_concrete(self, df):
@@ -87,7 +87,7 @@ class TestThresholdSweep:
         swept = df.select(*threshold_sweep(precision, "y", "p", quantiles(5)))
         assert len(swept.columns) == 5
         # First column = precision at the 1/6 quantile of p.
-        thr = float(df["p"].quantile(1 / 6))
+        thr = float(df["p"].quantile(1 / 6, interpolation="linear"))
         exp = df.select(precision("y", "p", threshold=thr)).to_series()[0]
         assert swept[swept.columns[0]][0] == pytest.approx(exp)
 
@@ -97,7 +97,9 @@ class TestThresholdSweep:
         for g in range(3):
             sub = df.filter(pl.col("g") == g)
             exp = sub.select(
-                precision("y", "p", threshold=float(sub["p"].quantile(1 / 6)))
+                precision(
+                    "y", "p", threshold=float(sub["p"].quantile(1 / 6, interpolation="linear"))
+                )
             ).to_series()[0]
             got = out.filter(pl.col("g") == g)[col][0]
             assert got == pytest.approx(exp)
