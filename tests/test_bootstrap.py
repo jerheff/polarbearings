@@ -13,6 +13,8 @@ from typing import Any, cast
 import numpy as np
 import polars as pl
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 from polars.testing import assert_frame_equal
 from scipy.stats import norm
 from sklearn.metrics import roc_auc_score
@@ -20,6 +22,7 @@ from sklearn.metrics import roc_auc_score
 from polarbearings import (
     bootstrap,
     bootstrap_ci,
+    bootstrap_weight,
     ci_from_distribution,
     f1_score,
     fbeta_score,
@@ -27,6 +30,7 @@ from polarbearings import (
     max_error,
     median_absolute_error,
     roc_auc,
+    roc_curve,
 )
 from polarbearings.bootstrap import _reduce_ci
 
@@ -309,3 +313,176 @@ class TestPerGroupHelper:
 class TestFeatureFlag:
     def test_returns_bool(self):
         assert isinstance(_BMOD._supports_list_agg(), bool)
+
+
+class TestBootstrapWeight:
+    def _df(self, n=2000, seed=0):
+        rng = np.random.default_rng(seed)
+        return pl.DataFrame(
+            {
+                "cohort": rng.choice(["A", "B"], n),
+                "y": rng.integers(0, 2, n),
+                "p": rng.random(n),
+                "w": rng.uniform(0.5, 2.0, n),
+            }
+        ).with_row_index("id")
+
+    def test_same_id_and_seed_are_deterministic(self):
+        df = self._df()
+        a = df.select(bootstrap_weight("id", seed=5).alias("x"))["x"]
+        b = df.select(bootstrap_weight("id", seed=5).alias("x"))["x"]
+        assert (a == b).all()
+
+    def test_different_seed_differs(self):
+        df = self._df()
+        a = df.select(bootstrap_weight("id", seed=1).alias("x"))["x"]
+        b = df.select(bootstrap_weight("id", seed=2).alias("x"))["x"]
+        assert not (a == b).all()
+
+    def test_reproducible_across_row_order(self):
+        # Hashing a stable id (not position) => same weights after a shuffle.
+        df = self._df()
+        base = df.select("id", bootstrap_weight("id", seed=7).alias("x"))
+        shuffled = (
+            df.sample(fraction=1.0, shuffle=True, seed=3)
+            .select("id", bootstrap_weight("id", seed=7).alias("x"))
+            .sort("id")
+        )
+        assert_frame_equal(base.sort("id"), shuffled)
+
+    def test_pairs_with_internal_boot_weight(self):
+        # bootstrap_weight(id, seed) reproduces the internal replicate used by
+        # bootstrap()/bootstrap_ci() with the same row-index column and seed.
+        df = self._df()
+        got = df.select(roc_auc("y", "p", weight=bootstrap_weight("id", seed=4))).item()
+        ref = df.select(roc_auc("y", "p", weight=_BMOD._boot_weight(None, 4, "id"))).item()
+        assert got == pytest.approx(ref)
+
+    def test_works_in_grid_by_curve(self):
+        # The case positional int_range cannot do: a gridded, grouped curve.
+        df = self._df()
+        out = roc_curve(
+            df, "y", "p", by="cohort", thresholds=10, weight=bootstrap_weight("id", seed=4)
+        ).collect()
+        assert out.height == 20
+        assert out.columns == ["cohort", "threshold", "fpr", "tpr"]
+
+    def test_bayesian_is_exp1(self):
+        # Exp(1): mean ~ 1, std ~ 1, and exp(-weight) = u ~ Uniform(0,1) => mean ~ 0.5.
+        df = self._df(n=20000)
+        x = df.select(bootstrap_weight("id", seed=0).alias("x"))["x"].to_numpy()
+        assert x.mean() == pytest.approx(1.0, abs=0.05)
+        assert x.std() == pytest.approx(1.0, abs=0.05)
+        assert np.exp(-x).mean() == pytest.approx(0.5, abs=0.02)
+
+    def test_poisson_integer_counts_mean_one(self):
+        df = self._df(n=20000)
+        x = df.select(bootstrap_weight("id", seed=0, kind="poisson").alias("x"))["x"].to_numpy()
+        assert np.allclose(x, np.round(x))  # integer multiplicities
+        assert x.mean() == pytest.approx(1.0, abs=0.05)
+
+    def test_folds_base_weight_multiplicatively(self):
+        df = self._df()
+        folded = df.select(bootstrap_weight("id", seed=2, weight="w").alias("x"))["x"]
+        bare = df.select(bootstrap_weight("id", seed=2).alias("x"))["x"]
+        ratio = (folded / bare).to_numpy()
+        assert ratio == pytest.approx(df["w"].to_numpy())
+
+    def test_rejects_bad_kind(self):
+        df = self._df()
+        with pytest.raises(ValueError, match="kind must be one of"):
+            df.select(bootstrap_weight("id", kind=cast("Any", "nope")))
+
+    def test_rejects_bad_weight_kind(self):
+        df = self._df()
+        with pytest.raises(ValueError, match="weight_kind must be one of"):
+            df.select(bootstrap_weight("id", weight="w", weight_kind=cast("Any", "nope")))
+
+    def test_frequency_needs_weight(self):
+        df = self._df()
+        with pytest.raises(ValueError, match=r"frequency.*needs a"):
+            df.select(bootstrap_weight("id", weight_kind="frequency"))
+
+    def test_poisson_frequency_raises(self):
+        df = self._df()
+        with pytest.raises(NotImplementedError, match="Poisson frequency"):
+            df.select(bootstrap_weight("id", kind="poisson", weight="w", weight_kind="frequency"))
+
+    def test_frequency_gamma_moments(self):
+        # A constant case-count w draws Gamma(w, 1): mean ~ w, variance ~ w (NOT w**2
+        # like the importance scaling would give).
+        for wval in (2.0, 8.0):
+            df = pl.DataFrame({"id": np.arange(40000), "w": np.full(40000, wval)})
+            g = df.select(
+                bootstrap_weight("id", seed=1, weight="w", weight_kind="frequency").alias("g")
+            )["g"].to_numpy()
+            assert g.mean() == pytest.approx(wval, rel=0.03)
+            assert g.var() == pytest.approx(wval, rel=0.06)
+
+    def test_frequency_variance_below_importance(self):
+        # The whole point: for a case count w, frequency (var w) is much tighter than
+        # importance scaling (var w**2).
+        df = pl.DataFrame({"id": np.arange(40000), "w": np.full(40000, 6.0)})
+        freq = df.select(
+            bootstrap_weight("id", seed=1, weight="w", weight_kind="frequency").alias("x")
+        )["x"].var()
+        imp = df.select(
+            bootstrap_weight("id", seed=1, weight="w", weight_kind="importance").alias("x")
+        )["x"].var()
+        assert freq == pytest.approx(6.0, rel=0.1)
+        assert imp == pytest.approx(36.0, rel=0.1)
+
+    def test_frequency_weights_are_nonnegative(self):
+        df = pl.DataFrame({"id": np.arange(50000), "w": np.full(50000, 1.0)})
+        g = df.select(
+            bootstrap_weight("id", seed=2, weight="w", weight_kind="frequency").alias("g")
+        )["g"].to_numpy()
+        assert (g >= 0).all()
+
+
+_PROP = settings(
+    deadline=None, database=None, suppress_health_check=[HealthCheck.differing_executors]
+)
+
+
+@given(w=st.floats(min_value=1.0, max_value=100.0), seed=st.integers(min_value=0, max_value=5000))
+@_PROP
+def test_frequency_gamma_moments_property(w, seed):
+    # weight_kind="frequency" draws Gamma(w, 1): mean ~ w, variance ~ w, for any w.
+    n = 30000
+    df = pl.DataFrame({"id": np.arange(n), "w": np.full(n, w)})
+    g = df.select(
+        bootstrap_weight("id", seed=seed, weight="w", weight_kind="frequency").alias("g")
+    )["g"].to_numpy()
+    assert g.mean() == pytest.approx(w, rel=0.05)
+    assert g.var() == pytest.approx(w, rel=0.2)
+
+
+@given(w=st.floats(min_value=0.5, max_value=50.0), seed=st.integers(min_value=0, max_value=5000))
+@_PROP
+def test_importance_scales_variance_property(w, seed):
+    # Importance weight w * Exp(1): mean ~ w, variance ~ w**2 (the over-dispersion
+    # that frequency weights avoid).
+    n = 30000
+    df = pl.DataFrame({"id": np.arange(n), "w": np.full(n, w)})
+    x = df.select(bootstrap_weight("id", seed=seed, weight="w").alias("x"))["x"].to_numpy()
+    assert x.mean() == pytest.approx(w, rel=0.05)
+    assert x.var() == pytest.approx(w * w, rel=0.2)
+
+
+@given(
+    bseed=st.integers(min_value=0, max_value=10000),
+    shuf=st.integers(min_value=0, max_value=10000),
+)
+@_PROP
+def test_bootstrap_weight_order_invariant_property(bseed, shuf):
+    # Keyed on the id, so the per-row weight is independent of row order.
+    n = 2000
+    df = pl.DataFrame({"id": np.arange(n)})
+    base = df.select("id", bootstrap_weight("id", seed=bseed).alias("w")).sort("id")
+    shuffled = (
+        df.sample(fraction=1.0, shuffle=True, seed=shuf)
+        .select("id", bootstrap_weight("id", seed=bseed).alias("w"))
+        .sort("id")
+    )
+    assert (base["w"] == shuffled["w"]).all()

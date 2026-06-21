@@ -9,6 +9,7 @@ from polarbearings.bootstrap import (
     BootstrapCI,
     bootstrap,
     bootstrap_ci,
+    bootstrap_weight,
     ci_from_distribution,
 )
 from polarbearings.brier_score import brier_score
@@ -100,6 +101,7 @@ __all__: list[str] = [
     "BootstrapCI",
     "bootstrap",
     "bootstrap_ci",
+    "bootstrap_weight",
     "ci_from_distribution",
     # Data splitting (deterministic, id-keyed)
     "hash_uniform",
