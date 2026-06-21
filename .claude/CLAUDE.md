@@ -147,10 +147,16 @@ user's older environment. Transitive deps still resolve to their highest
 compatible versions.
 
 **Floor policy:**
-- Runtime/compat targets (`polars`, `numpy`, `scikit-learn`) keep **low** floors
-  on purpose — those floors are what we promise to support.
-- Tooling (`ty`, `ruff`, `pytest`, `hypothesis`, …) keeps **current** floors so
-  lowest-direct still gives modern tools, not stale ones.
+- Only `polars` keeps a **low** floor (1.0.0) on purpose: it is the package's
+  *sole* runtime dependency, so its floor is the *only* version-support promise we
+  make.
+- **Everything else is dev-only and keeps a current floor** so `lowest-direct`
+  gives a modern dev environment, not a stale one. This explicitly includes
+  `numpy` and `scikit-learn`: they are **not** package dependencies (the published
+  wheel depends only on polars) — they are test/parity tooling, so bump them
+  forward freely alongside `ty`, `ruff`, `pytest`, `hypothesis`, etc. Do **not**
+  treat numpy/scikit-learn as low-floor "compat targets"; there is no support
+  promise for them.
 
 **The upper bound is guarded separately** so we also catch APIs deprecated or
 removed since our floors:
