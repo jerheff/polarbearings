@@ -732,7 +732,11 @@ def d2_pinball_score(target: IntoExpr, pred: IntoExpr, alpha: float = 0.5) -> pl
     # Polars' built-in quantile interpolations reproduce this, so build it
     # explicitly so the baseline pinball loss matches scikit-learn exactly.
     idx = ((alpha * y.len()).ceil() - 1.0).clip(lower_bound=0).cast(pl.Int64)
-    baseline = y.sort().get(idx)
+    # ``implode().list.get`` rather than ``sort().get(idx)``: the latter broadcasts a
+    # scalar against the column inside ``group_by().agg()`` in a way that panics on
+    # Polars 1.24.0 ("expected List, got f64"). Imploding to an explicit list keeps
+    # the indexed read unambiguously a list op — robust on every supported version.
+    baseline = y.sort().implode().list.get(idx)
 
     num = _pinball(y - p).sum()
     den = _pinball(y - baseline).sum()
