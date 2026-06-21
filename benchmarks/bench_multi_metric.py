@@ -79,14 +79,14 @@ THRESHOLD = 0.5
 # (name, builder) for the threshold-based metrics; each builder returns a named
 # pl.Expr over the "label"/"prob" columns at THRESHOLD.
 _THRESHOLD_METRICS = [
-    ("precision", lambda: precision("label", "prob", THRESHOLD)),
-    ("recall", lambda: recall("label", "prob", THRESHOLD)),
-    ("f1", lambda: f1_score("label", "prob", THRESHOLD)),
-    ("accuracy", lambda: accuracy("label", "prob", THRESHOLD)),
-    ("balanced_accuracy", lambda: balanced_accuracy("label", "prob", THRESHOLD)),
-    ("specificity", lambda: specificity("label", "prob", THRESHOLD)),
-    ("mcc", lambda: matthews_corrcoef("label", "prob", THRESHOLD)),
-    ("cohens_kappa", lambda: cohens_kappa("label", "prob", THRESHOLD)),
+    ("precision", lambda: precision("label", "prob", threshold=THRESHOLD)),
+    ("recall", lambda: recall("label", "prob", threshold=THRESHOLD)),
+    ("f1", lambda: f1_score("label", "prob", threshold=THRESHOLD)),
+    ("accuracy", lambda: accuracy("label", "prob", threshold=THRESHOLD)),
+    ("balanced_accuracy", lambda: balanced_accuracy("label", "prob", threshold=THRESHOLD)),
+    ("specificity", lambda: specificity("label", "prob", threshold=THRESHOLD)),
+    ("mcc", lambda: matthews_corrcoef("label", "prob", threshold=THRESHOLD)),
+    ("cohens_kappa", lambda: cohens_kappa("label", "prob", threshold=THRESHOLD)),
 ]
 
 # (name, builder) for the probability-based metrics (no threshold).

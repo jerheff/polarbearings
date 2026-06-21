@@ -22,6 +22,7 @@ class _MetricFn(Protocol):
         self,
         target: IntoExpr,
         prob: IntoExpr,
+        *,
         threshold: float | pl.Expr = ...,
         weight: WeightInput = ...,
         pos_label: PosLabel = ...,
@@ -106,6 +107,7 @@ def _alias(
 def confusion_matrix(
     target: IntoExpr,
     prob: IntoExpr,
+    *,
     threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
@@ -177,6 +179,7 @@ def confusion_matrix(
 def precision(
     target: IntoExpr,
     prob: IntoExpr,
+    *,
     threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
@@ -201,6 +204,7 @@ def precision(
 def recall(
     target: IntoExpr,
     prob: IntoExpr,
+    *,
     threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
@@ -225,6 +229,7 @@ def recall(
 def f1_score(
     target: IntoExpr,
     prob: IntoExpr,
+    *,
     threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
@@ -249,6 +254,7 @@ def f1_score(
 def jaccard_score(
     target: IntoExpr,
     prob: IntoExpr,
+    *,
     threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
@@ -280,6 +286,7 @@ def jaccard_score(
 def accuracy(
     target: IntoExpr,
     prob: IntoExpr,
+    *,
     threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
@@ -304,6 +311,7 @@ def accuracy(
 def balanced_accuracy(
     target: IntoExpr,
     prob: IntoExpr,
+    *,
     threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
@@ -333,6 +341,7 @@ def balanced_accuracy(
 def specificity(
     target: IntoExpr,
     prob: IntoExpr,
+    *,
     threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
@@ -357,6 +366,7 @@ def specificity(
 def fbeta_score(
     target: IntoExpr,
     prob: IntoExpr,
+    *,
     beta: float,
     threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
@@ -386,6 +396,7 @@ def fbeta_score(
 def matthews_corrcoef(
     target: IntoExpr,
     prob: IntoExpr,
+    *,
     threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
@@ -413,6 +424,7 @@ def matthews_corrcoef(
 def cohens_kappa(
     target: IntoExpr,
     prob: IntoExpr,
+    *,
     threshold: float | pl.Expr = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
@@ -450,6 +462,7 @@ def threshold_sweep(
     target: IntoExpr,
     prob: IntoExpr,
     thresholds: ThresholdsLike | None = None,
+    *,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> list[pl.Expr]:

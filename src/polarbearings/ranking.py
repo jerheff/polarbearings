@@ -7,10 +7,15 @@ selecting over the whole frame, or many rankings at once with
 
 Discounted Cumulative Gain at position ``i`` (0-indexed, ranked by ``score``
 descending) is ``gain_i / log_base(i + 2)``; NDCG normalizes DCG by the ideal
-ordering (sorting gains by themselves). This matches scikit-learn's
-``dcg_score`` / ``ndcg_score`` with ``ignore_ties=True`` — ties in ``score`` are
-broken by sort order rather than gain-averaged (gain-averaging is not expressible
-as a single pure Polars expression).
+ordering (sorting gains by themselves).
+
+**Tie handling.** For *distinct* scores this matches scikit-learn's ``dcg_score`` /
+``ndcg_score`` with ``ignore_ties=True``. Under *tied* scores it does not: ties are
+broken by physical row order (``sort_by`` is stable on equal keys), not
+gain-averaged, so the result is order-dependent and diverges from scikit-learn's
+``ignore_ties=True`` (which breaks ties differently). Gain-averaging is not
+expressible as a single pure Polars expression. If you need a reproducible result
+under tied scores, sort or break ties upstream before evaluating.
 """
 
 import math
@@ -45,13 +50,15 @@ def _ranking_alias(name: str, relevance: IntoExpr, score: IntoExpr, k: int | Non
 
 
 def dcg_score(
-    relevance: IntoExpr, score: IntoExpr, k: int | None = None, log_base: float = 2.0
+    relevance: IntoExpr, score: IntoExpr, *, k: int | None = None, log_base: float = 2.0
 ) -> pl.Expr:
     """Compute Discounted Cumulative Gain (DCG) as a Polars expression.
 
     Documents are ranked by ``score`` (descending); each contributes
     ``relevance / log_base(rank + 2)`` (rank 0-indexed). Mirrors scikit-learn's
-    ``dcg_score`` with ``ignore_ties=True``.
+    ``dcg_score`` with ``ignore_ties=True`` **for distinct scores**; under tied
+    scores ties break by row order (see the module docstring) rather than matching
+    scikit-learn.
 
     Args:
         relevance: Column name or expression with graded relevance / gain values
@@ -76,13 +83,15 @@ def dcg_score(
 
 
 def ndcg_score(
-    relevance: IntoExpr, score: IntoExpr, k: int | None = None, log_base: float = 2.0
+    relevance: IntoExpr, score: IntoExpr, *, k: int | None = None, log_base: float = 2.0
 ) -> pl.Expr:
     """Compute Normalized Discounted Cumulative Gain (NDCG) as a Polars expression.
 
     NDCG = DCG / IDCG, where IDCG is the DCG of the ideal ranking (gains sorted by
     themselves). Lies in ``[0, 1]`` for non-negative relevance. Mirrors
-    scikit-learn's ``ndcg_score`` with ``ignore_ties=True``.
+    scikit-learn's ``ndcg_score`` with ``ignore_ties=True`` **for distinct scores**;
+    under tied scores ties break by row order (see the module docstring) rather than
+    matching scikit-learn.
 
     Returns null when the ideal DCG is 0 (every document is irrelevant, so the
     ratio is undefined). Note scikit-learn returns ``0.0`` in that degenerate

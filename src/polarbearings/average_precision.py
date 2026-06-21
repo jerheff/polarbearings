@@ -16,6 +16,7 @@ from polarbearings._common import (
 def average_precision(
     target: IntoExpr,
     score: IntoExpr,
+    *,
     weight: WeightInput = None,
     pos_label: int | float | str | bool = 1,
 ) -> pl.Expr:

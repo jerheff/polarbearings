@@ -16,6 +16,7 @@ from polarbearings._common import (
 def brier_score(
     target: IntoExpr,
     prob: IntoExpr,
+    *,
     weight: WeightInput = None,
     pos_label: int | float | str | bool = 1,
 ) -> pl.Expr:

@@ -16,6 +16,7 @@ from polarbearings._common import (
 def log_loss(
     target: IntoExpr,
     prob: IntoExpr,
+    *,
     eps: float = 1e-15,
     weight: WeightInput = None,
     pos_label: int | float | str | bool = 1,

@@ -42,6 +42,7 @@ def _gini_target(target: IntoExpr, pos_label: PosLabel | None) -> pl.Expr:
 def gini_coefficient(
     target: IntoExpr,
     score: IntoExpr,
+    *,
     weight: WeightInput = None,
     pos_label: PosLabel | None = None,
 ) -> pl.Expr:

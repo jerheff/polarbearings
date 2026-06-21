@@ -21,7 +21,7 @@ def _regression_alias(name: str, target: IntoExpr, pred: IntoExpr, weight: Weigh
     return alias
 
 
-def r2_score(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Expr:
+def r2_score(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) -> pl.Expr:
     """Compute the coefficient of determination (R-squared).
 
     R² = 1 - SS_res / SS_tot, where SS_res = sum((y - pred)²) and
@@ -53,7 +53,7 @@ def r2_score(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl
     )
 
 
-def mape(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Expr:
+def mape(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) -> pl.Expr:
     """Compute mean absolute percentage error.
 
     MAPE = mean(|y - pred| / |y|). Returns null on empty data. Rows where
@@ -83,7 +83,7 @@ def mape(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Exp
     )
 
 
-def mae(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Expr:
+def mae(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) -> pl.Expr:
     """Compute mean absolute error.
 
     MAE = mean(|target - pred|), or weighted: sum(w·|target - pred|) / sum(w).
@@ -103,7 +103,7 @@ def mae(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Expr
     )
 
 
-def mse(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Expr:
+def mse(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) -> pl.Expr:
     """Compute mean squared error.
 
     MSE = mean((target - pred)²), or weighted: sum(w·(target - pred)²) / sum(w).
@@ -123,7 +123,7 @@ def mse(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Expr
     )
 
 
-def rmse(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Expr:
+def rmse(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) -> pl.Expr:
     """Compute root mean squared error.
 
     RMSE = sqrt(MSE).
@@ -143,7 +143,9 @@ def rmse(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Exp
     )
 
 
-def mean_squared_log_error(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Expr:
+def mean_squared_log_error(
+    target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None
+) -> pl.Expr:
     """Compute mean squared logarithmic error (MSLE).
 
     MSLE = mean((log1p(y) - log1p(pred))²), or weighted by sample weights.
@@ -179,7 +181,7 @@ def mean_squared_log_error(target: IntoExpr, pred: IntoExpr, weight: WeightInput
 
 
 def root_mean_squared_log_error(
-    target: IntoExpr, pred: IntoExpr, weight: WeightInput = None
+    target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None
 ) -> pl.Expr:
     """Compute root mean squared logarithmic error (RMSLE).
 
@@ -274,7 +276,7 @@ def median_absolute_error(target: IntoExpr, pred: IntoExpr) -> pl.Expr:
 
 
 def explained_variance_score(
-    target: IntoExpr, pred: IntoExpr, weight: WeightInput = None
+    target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None
 ) -> pl.Expr:
     """Compute the explained variance score.
 
@@ -319,7 +321,7 @@ def explained_variance_score(
 
 
 def mean_pinball_loss(
-    target: IntoExpr, pred: IntoExpr, alpha: float = 0.5, weight: WeightInput = None
+    target: IntoExpr, pred: IntoExpr, *, alpha: float = 0.5, weight: WeightInput = None
 ) -> pl.Expr:
     """Compute the mean pinball loss (a.k.a. quantile loss).
 
@@ -352,7 +354,7 @@ def mean_pinball_loss(
     )
 
 
-def smape(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Expr:
+def smape(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) -> pl.Expr:
     """Compute the symmetric mean absolute percentage error (sMAPE).
 
     sMAPE = mean(2 * |y - pred| / (|y| + |pred|)). Has no scikit-learn analog.
@@ -388,7 +390,7 @@ def smape(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Ex
 
 
 def huber_loss(
-    target: IntoExpr, pred: IntoExpr, delta: float = 1.0, weight: WeightInput = None
+    target: IntoExpr, pred: IntoExpr, *, delta: float = 1.0, weight: WeightInput = None
 ) -> pl.Expr:
     """Compute the mean Huber loss.
 
@@ -423,7 +425,7 @@ def huber_loss(
     )
 
 
-def log_cosh_loss(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Expr:
+def log_cosh_loss(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) -> pl.Expr:
     """Compute the mean log-cosh loss.
 
     log_cosh = mean(log(cosh(pred - y))). Has no scikit-learn metric. Behaves
@@ -491,7 +493,7 @@ def _tweedie_unit_deviance(y: pl.Expr, p: pl.Expr, power: float) -> pl.Expr:
 
 
 def mean_tweedie_deviance(
-    target: IntoExpr, pred: IntoExpr, power: float = 0.0, weight: WeightInput = None
+    target: IntoExpr, pred: IntoExpr, *, power: float = 0.0, weight: WeightInput = None
 ) -> pl.Expr:
     """Compute the mean Tweedie deviance.
 
@@ -538,7 +540,9 @@ def mean_tweedie_deviance(
     )
 
 
-def mean_poisson_deviance(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Expr:
+def mean_poisson_deviance(
+    target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None
+) -> pl.Expr:
     """Compute the mean Poisson deviance.
 
     Thin wrapper over :func:`mean_tweedie_deviance` with ``power = 1``. Mirrors
@@ -569,7 +573,7 @@ def mean_poisson_deviance(target: IntoExpr, pred: IntoExpr, weight: WeightInput 
     )
 
 
-def mean_gamma_deviance(target: IntoExpr, pred: IntoExpr, weight: WeightInput = None) -> pl.Expr:
+def mean_gamma_deviance(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) -> pl.Expr:
     """Compute the mean Gamma deviance.
 
     Thin wrapper over :func:`mean_tweedie_deviance` with ``power = 2``. Mirrors
@@ -601,7 +605,7 @@ def mean_gamma_deviance(target: IntoExpr, pred: IntoExpr, weight: WeightInput = 
 
 
 def d2_tweedie_score(
-    target: IntoExpr, pred: IntoExpr, power: float = 0.0, weight: WeightInput = None
+    target: IntoExpr, pred: IntoExpr, *, power: float = 0.0, weight: WeightInput = None
 ) -> pl.Expr:
     """Compute the D² regression score with a Tweedie deviance.
 
@@ -690,7 +694,7 @@ def d2_absolute_error_score(target: IntoExpr, pred: IntoExpr) -> pl.Expr:
     )
 
 
-def d2_pinball_score(target: IntoExpr, pred: IntoExpr, alpha: float = 0.5) -> pl.Expr:
+def d2_pinball_score(target: IntoExpr, pred: IntoExpr, *, alpha: float = 0.5) -> pl.Expr:
     """Compute the D² regression score with a pinball-loss deviance.
 
     D² = ``1 - pinball(y, pred) / pinball(y, baseline)``, where the baseline is

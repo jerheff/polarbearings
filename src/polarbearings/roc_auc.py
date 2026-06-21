@@ -15,7 +15,7 @@ from polarbearings._common import (
 
 
 def roc_auc(
-    target: IntoExpr, score: IntoExpr, weight: WeightInput = None, pos_label: PosLabel = 1
+    target: IntoExpr, score: IntoExpr, *, weight: WeightInput = None, pos_label: PosLabel = 1
 ) -> pl.Expr:
     """Compute ROC AUC score for binary classification as a Polars expression.
 
