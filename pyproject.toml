@@ -166,12 +166,18 @@ filterwarnings = ["error::DeprecationWarning"]
 
 [tool.coverage.run]
 source = ["polarbearings"]
+# Branch coverage (not just line): a version-gated `if` that only ever takes one
+# arc on a given Polars version is flagged as a partial branch, so the 100% gate
+# can only be met by exercising both arcs — which `just test-cov` / the CI coverage
+# job do by combining a floor run with a 1.36+ run (see those for the rationale).
+branch = true
 
 [tool.coverage.report]
 omit = ["tests/*", "benchmarks/*"]
 # Single source of truth for the coverage gate: CI and `just test-cov` both fail
-# below 100%. Version-gated branches carry `# pragma: no cover` (see bootstrap.py),
-# so 100% is genuinely reachable on every Polars version in the matrix.
+# below 100%. Reaching 100% requires combining a floor (polars 1.0.0) run with a
+# 1.36+ run so the version-gated fast paths (fused bootstrap >=1.28, ECE/MCE
+# over-in-agg >=1.36) execute on both sides — no `# pragma: no cover` needed.
 fail_under = 100
 
 [tool.mutmut]

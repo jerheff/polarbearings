@@ -55,9 +55,9 @@ def _supports_list_agg() -> bool:
         probe.group_by("_g").agg(
             pl.concat_list([pl.col("_x").sum(), pl.col("_x").mean()]).list.max()
         )
-    except Exception:  # pragma: no cover - this outcome runs on Polars < 1.28 (floor/mid CI)
-        return False
-    return True  # pragma: no cover - this outcome runs on Polars >= 1.28 (latest CI; #22249)
+    except Exception:
+        return False  # Polars < 1.28 (floor/mid CI)
+    return True  # Polars >= 1.28 (latest CI; #22249)
 
 
 # Metrics with no ``weight`` parameter cannot use the weighted bootstrap.
@@ -378,7 +378,7 @@ def _bootstrap_ci_by(
         row_index=ridx,
         **metric_kwargs,
     )
-    if _supports_list_agg():  # pragma: no cover - fused path, runs on Polars >= 1.28 (latest CI)
+    if _supports_list_agg():
         # Polars >= 1.28: reduce the freshly built distribution in the same agg.
         ci = ci_from_distribution(dist, level=level, method=method, estimate=estimate)
         out = (

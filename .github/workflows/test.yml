@@ -101,15 +101,22 @@ jobs:
           version: "latest"
           enable-cache: true
 
-      # Floor env (lowest-direct) so coverage is measured against polars>=1.0.0.
+      # Base env (lowest-direct); each leg below pins its own polars via `--with`.
       # ruff/format/ty run in the Lint workflow's prek job.
       - name: Install dependencies (lowest-direct)
         run: uv sync
 
-      # Coverage gate: fails below 100% (threshold lives in pyproject's
-      # [tool.coverage.report] fail_under, so local `just test-cov` matches).
-      - name: Tests with coverage gate
-        run: uv run pytest -m 'not hypothesis' --cov=polarbearings --cov-report=term-missing -q
+      # Coverage gate: branch coverage, 100% (fail_under lives in pyproject, so
+      # local `just test-cov` matches). Combine a floor (1.0.0) run with a 1.36+ run
+      # so the version-gated fast paths (fused bootstrap >=1.28, ECE/MCE
+      # over-in-agg >=1.36) execute on both arcs — no `# pragma: no cover` needed.
+      # Both legs run in this one job/checkout so coverage paths align for combine.
+      - name: Coverage gate (combined floor + 1.36+, branch, 100%)
+        run: |
+          uv run --with 'polars==1.0.0' coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
+          uv run --with 'polars==1.41.2' coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
+          uv run coverage combine
+          uv run coverage report --show-missing
 
   # Single rollup of every job above (incl. all matrix legs) — make THIS the
   # required check in branch protection. Its name is stable, so the matrix and

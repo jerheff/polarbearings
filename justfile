@@ -112,9 +112,16 @@ install-test:
 publish: build
     uv publish
 
-# Run tests with coverage report
+# Coverage gate (100%, branch). Combine a floor (1.0.0) run with a 1.36+ run so the
+# version-gated fast paths (fused bootstrap >=1.28, ECE/MCE over-in-agg >=1.36)
+# execute on both arcs — no `# pragma: no cover` needed. Mirrors the CI coverage
+# job; the 1.36+ leg is the matrix's latest. `coverage report` enforces fail_under.
 test-cov:
-    uv run pytest --cov=src/polarbearings --cov-report=term-missing tests/
+    rm -f .coverage .coverage.*
+    uv run --with polars==1.0.0 coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
+    uv run --with polars==1.41.2 coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
+    uv run coverage combine
+    uv run coverage report --show-missing
 
 # Cap the size sweep with BENCH_MAX_N (e.g. `BENCH_MAX_N=100000 just bench`).
 # Run performance benchmarks against the current/dev env

@@ -54,9 +54,9 @@ def _supports_over_in_agg() -> bool:
     try:
         probe = pl.DataFrame({"_g": [0, 0], "_b": [0, 1], "_x": [1.0, 2.0]})
         probe.group_by("_g").agg(pl.col("_x").mean().over(pl.col("_b")).mean())
-    except Exception:  # pragma: no cover - this outcome runs on Polars < 1.36 (floor/mid CI)
-        return False
-    return True  # pragma: no cover - this outcome runs on Polars >= 1.36 (latest CI; #25402)
+    except Exception:
+        return False  # Polars < 1.36 (floor/mid CI)
+    return True  # Polars >= 1.36 (latest CI; #25402)
 
 
 def _bin_edges(
@@ -253,9 +253,7 @@ def _bin_setup(
     return prob_f, is_pos, binid, n_used
 
 
-def _gap_over(  # pragma: no cover - windowed fast path, only called on Polars >= 1.36 (latest CI)
-    prob_f: pl.Expr, is_pos: pl.Expr, binid: pl.Expr, w: pl.Expr | None
-) -> pl.Expr:
+def _gap_over(prob_f: pl.Expr, is_pos: pl.Expr, binid: pl.Expr, w: pl.Expr | None) -> pl.Expr:
     """Per-row absolute calibration gap of the row's bin, via a windowed mean.
 
     A single hashed ``O(n)`` pass: ``Expr.over(binid)`` broadcasts each bin's mean
@@ -361,7 +359,7 @@ def expected_calibration_error(
     prob_f, is_pos, binid, n_used = _bin_setup(target, prob, n_bins, strategy, bins, pos_label)
     w = resolve_weight(weight)
     total = pl.len() if w is None else w.sum()
-    if _supports_over_in_agg():  # pragma: no cover - windowed fast path, Polars >= 1.36 (latest CI)
+    if _supports_over_in_agg():  # Polars >= 1.36 windowed fast path (else: per-bin filter)
         gap = _gap_over(prob_f, is_pos, binid, w)
         # mean of the per-row bin gap == sum_b (n_b / N) * gap_b (weighted: by w).
         mean_gap = gap.mean() if w is None else (gap * w).sum() / w.sum()
@@ -419,7 +417,7 @@ def maximum_calibration_error(
     prob_f, is_pos, binid, n_used = _bin_setup(target, prob, n_bins, strategy, bins, pos_label)
     w = resolve_weight(weight)
     total = pl.len() if w is None else w.sum()
-    if _supports_over_in_agg():  # pragma: no cover - windowed fast path, Polars >= 1.36 (latest CI)
+    if _supports_over_in_agg():  # Polars >= 1.36 windowed fast path (else: per-bin filter)
         gap = _gap_over(prob_f, is_pos, binid, w)
         mce = pl.when(total > 0).then(gap.max()).otherwise(None)
     else:
