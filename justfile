@@ -33,6 +33,12 @@ test:
 test-fast:
     uv run pytest tests/ -q
 
+# Deep property-based fuzz: the Hypothesis-marked tests at 2500 examples each
+# (~3.5 min). For local use — `just ci` already runs these at the default ~100
+# examples, so this is the on-demand extended pass, not a CI gate.
+test-thorough:
+    uv run pytest tests/ -m hypothesis --hypothesis-profile=thorough -q
+
 # Test against a specific Polars version (uses ephemeral overlay, venv unchanged)
 test-polars version:
     uv run --with polars=={{version}} pytest tests/ -q --tb=short
@@ -42,6 +48,29 @@ test-compat:
     just test-polars 1.0.0
     just test-polars 1.24.0
     just test-polars 1.41.2
+
+# Thorough LOCAL Polars sweep (not a CI gate): every minor from the last 12 months,
+# one per year for older releases, plus the floor — the version list is pulled live
+# from PyPI (auto-updates), so no hardcoded versions to bump. Runs the full suite
+# against each and prints a pass/fail summary. Densify older coverage by shortening
+# the second window, e.g. `just test-sweep 365 180` (recent_days, older_cadence_days).
+test-sweep recent_days="365" older_cadence="365":
+    #!/usr/bin/env bash
+    set -uo pipefail
+    versions=$(uv run --quiet python scripts/compat_versions.py {{recent_days}} {{older_cadence}})
+    if [[ -z "$versions" ]]; then echo "no versions resolved (PyPI unreachable?)"; exit 1; fi
+    echo "Sweeping $(echo "$versions" | wc -w | tr -d ' ') Polars versions: $versions"
+    fail=0; summary=""
+    for v in $versions; do
+        printf '\n========== polars %s ==========\n' "$v"
+        if uv run --quiet --with "polars==$v" pytest tests/ -q; then
+            summary+="  PASS  $v"$'\n'
+        else
+            summary+="  FAIL  $v"$'\n'; fail=1
+        fi
+    done
+    printf '\n===== sweep summary =====\n%s' "$summary"
+    exit "$fail"
 
 # Test the UPPER bound: newest compatible deps (the dev default is the floor).
 # Mirrors the test-highest CI job; leaves the committed lock untouched.
