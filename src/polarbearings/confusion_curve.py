@@ -29,7 +29,17 @@ from polarbearings._common import (
     row_has_missing,
 )
 from polarbearings.classification import _confusion_components
-from polarbearings.thresholds import ThresholdsLike, resolve_thresholds
+from polarbearings.thresholds import ResolvedThreshold, ThresholdsLike, resolve_thresholds
+
+# Grid size at/above which the whole-frame ``thresholds=`` path computes the exact
+# curve once and samples it (``O(n log n + N)``) instead of running N independent
+# aggregations (``O(n · N)``). PROVISIONAL: the per-aggregation form has a very
+# small, well-parallelized constant, so the practical crossover is sensitive to
+# machine state; the value here needs confirming on a thermally-baseline box (the
+# laptop it was first tuned on was throttling). Whole-frame only — the grouped
+# (``by``) ``join_asof`` emits an unsuppressable "sortedness cannot be checked"
+# notice at collect time on newer Polars.
+_GRID_EXACT_CUTOVER = 30
 
 
 def confusion_curve(
@@ -98,11 +108,31 @@ def confusion_curve(
     lf = frame.lazy().filter(~row_has_missing(values=[score], labels=[target], weight=weight))
     by_list = by_columns(by)
     by_names = [col_name(b) for b in by_list]
-    descending = [False] * len(by_names)
 
     if thresholds is not None:
         return _grid_curve(lf, target, score, thresholds, weight, pos_label, by_list, by_names)
+    return _exact_curve(
+        lf, target, score, weight, pos_label, by_list, by_names, endpoints=endpoints
+    )
 
+
+def _exact_curve(
+    lf: pl.LazyFrame,
+    target: IntoExpr,
+    score: IntoExpr,
+    weight: WeightInput,
+    pos_label: PosLabel,
+    by_list: list[IntoExpr],
+    by_names: list[str],
+    *,
+    endpoints: bool,
+) -> pl.LazyFrame:
+    """Confusion cells at every distinct score via one sorted cumulative pass.
+
+    The default (``thresholds=None``) path of :func:`confusion_curve`; also the
+    backbone of the large-grid fast path in :func:`_grid_via_exact`.
+    """
+    descending = [False] * len(by_names)
     w = resolve_weight(weight)
     cell_dtype = pl.Float64 if w is not None else pl.Int64
 
@@ -195,6 +225,11 @@ def _grid_curve(
     reductions under ``group_by``. Parallel primitive lists avoid both.
     """
     resolved = resolve_thresholds(thresholds, score)
+    # Large whole-frame grids are cheaper computed off the exact curve (see
+    # _GRID_EXACT_CUTOVER); small grids and any grouped grid stay on the direct form.
+    if not by_names and len(resolved) >= _GRID_EXACT_CUTOVER:
+        return _grid_via_exact(lf, target, score, resolved, weight, pos_label)
+
     w = resolve_weight(weight)
     cell_dtype = pl.Float64 if w is not None else pl.Int64
 
@@ -236,3 +271,51 @@ def _grid_curve(
         pl.col("tn").cast(cell_dtype),
     )
     return grid.sort([*by_names, "threshold"], descending=[*([False] * len(by_names)), True])
+
+
+def _grid_via_exact(
+    lf: pl.LazyFrame,
+    target: IntoExpr,
+    score: IntoExpr,
+    resolved: list[ResolvedThreshold],
+    weight: WeightInput,
+    pos_label: PosLabel,
+) -> pl.LazyFrame:
+    """Whole-frame grid cells, sampled off the exact curve (the large-N fast path).
+
+    Builds the exact step function once — with the ``+inf`` endpoint as the
+    predict-nothing sentinel — then reads the cells at each grid threshold with a
+    single forward ``join_asof``. For a threshold ``t``, the forward asof matches the
+    smallest distinct score ``>= t``, whose cumulative cells are exactly the
+    confusion matrix at ``t`` (predict positive when ``score >= t``); a ``t`` above
+    every score matches the ``+inf`` row (predict nothing). Identical results to the
+    direct per-threshold form; selected past :data:`_GRID_EXACT_CUTOVER`.
+
+    Whole-frame only: see :data:`_GRID_EXACT_CUTOVER` for why the grouped path is
+    excluded. Both operands are sorted by ``threshold`` and explicitly flagged sorted
+    so ``join_asof`` neither re-checks nor warns across Polars versions.
+    """
+    w = resolve_weight(weight)
+    cell_dtype = pl.Float64 if w is not None else pl.Int64
+
+    exact = (
+        _exact_curve(lf, target, score, weight, pos_label, [], [], endpoints=True)
+        .select("threshold", "tp", "fp", "fn", "tn")
+        .sort("threshold")
+        .with_columns(pl.col("threshold").set_sorted())
+    )
+    thr_exprs = [(v if isinstance(v, pl.Expr) else pl.lit(v)).cast(pl.Float64) for _, v in resolved]
+    grid = (
+        lf.select(pl.concat_list(thr_exprs).alias("threshold"))
+        .explode("threshold")
+        .sort("threshold")
+        .with_columns(pl.col("threshold").set_sorted())
+    )
+    sampled = grid.join_asof(exact, on="threshold", strategy="forward")
+    return sampled.select(
+        "threshold",
+        pl.col("tp").cast(cell_dtype),
+        pl.col("fp").cast(cell_dtype),
+        pl.col("fn").cast(cell_dtype),
+        pl.col("tn").cast(cell_dtype),
+    ).sort("threshold", descending=True)

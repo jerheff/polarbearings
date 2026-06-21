@@ -8,6 +8,7 @@ from hypothesis import strategies as st
 from sklearn.metrics import roc_curve
 
 from polarbearings import confusion_matrix
+from polarbearings.confusion_curve import _GRID_EXACT_CUTOVER
 from polarbearings.confusion_curve import confusion_curve as _confusion_curve
 
 
@@ -214,6 +215,57 @@ class TestBy:
     def test_by_list(self, df):
         out = confusion_curve(df, "y", "score", by=["seg"], endpoints=False)
         assert "seg" in out.columns
+
+
+class TestGridFastPath:
+    """The whole-frame large-N grid sampled off the exact curve (>= cutover)."""
+
+    def test_large_grid_matches_confusion_matrix(self, df):
+        thresholds = [round(t, 4) for t in np.linspace(0.02, 0.98, 40)]
+        assert len(thresholds) >= _GRID_EXACT_CUTOVER  # exercises _grid_via_exact
+        cc = confusion_curve(df, "y", "score", thresholds=thresholds)
+        assert cc.height == len(thresholds)
+        for t in (thresholds[1], thresholds[19], thresholds[38]):
+            cm = (
+                df.select(confusion_matrix("y", "score", threshold=t).alias("cm"))
+                .unnest("cm")
+                .row(0, named=True)
+            )
+            row = cc.filter(pl.col("threshold") == t).row(0, named=True)
+            assert (row["tp"], row["fp"], row["fn"], row["tn"]) == (
+                cm["tp"],
+                cm["fp"],
+                cm["fn"],
+                cm["tn"],
+            )
+
+    def test_fast_and_direct_paths_agree(self, df, monkeypatch):
+        import sys
+
+        from polars.testing import assert_frame_equal
+
+        # The package re-exports the `confusion_curve` function over the submodule
+        # name, so reach the module object via sys.modules to patch the cutover.
+        cc_mod = sys.modules["polarbearings.confusion_curve"]
+        thresholds = [round(t, 4) for t in np.linspace(0.01, 0.99, 35)]
+        for weight in (None, "w"):
+            fast = _confusion_curve(
+                df, "y", "score", thresholds=thresholds, weight=weight
+            ).collect()
+            # Force the direct per-threshold path on the same thresholds and compare.
+            monkeypatch.setattr(cc_mod, "_GRID_EXACT_CUTOVER", 10**9)
+            direct = _confusion_curve(
+                df, "y", "score", thresholds=thresholds, weight=weight
+            ).collect()
+            monkeypatch.setattr(cc_mod, "_GRID_EXACT_CUTOVER", _GRID_EXACT_CUTOVER)
+            assert_frame_equal(fast.sort("threshold"), direct.sort("threshold"))
+
+    def test_grouped_large_grid_stays_direct_and_correct(self, df):
+        # Grouped grids never take the fast path, but must still be correct at large N.
+        thresholds = [round(t, 4) for t in np.linspace(0.05, 0.95, 32)]
+        out = confusion_curve(df, "y", "score", thresholds=thresholds, by="seg")
+        assert set(out["seg"].unique()) == set(df["seg"].unique())
+        assert out.height == len(thresholds) * df["seg"].n_unique()
 
 
 @given(

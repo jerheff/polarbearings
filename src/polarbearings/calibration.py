@@ -17,6 +17,7 @@ binning expression and so triggers a scoped collect of those quantiles (the
 ``"uniform"`` and explicit-``bins`` strategies add no collect of their own).
 """
 
+import functools
 from typing import Literal
 
 import polars as pl
@@ -35,6 +36,27 @@ from polarbearings._common import (
 )
 
 BinStrategy = Literal["uniform", "quantile"]
+
+
+@functools.cache
+def _supports_over_in_agg() -> bool:
+    """Whether an elementwise ``Expr.over`` composes inside ``group_by().agg()``.
+
+    Added in Polars 1.36.0 (pola-rs/polars#25402, "Allow elementwise Expr.over in
+    aggregation context"). On older Polars a window expression inside an aggregation
+    raises ``window expression not allowed in aggregation``. When available it lets
+    the per-bin calibration means be a single ``O(n)`` hashed window pass that works
+    in both ``select`` and ``group_by().agg()``; otherwise we fall back to the
+    per-bin ``filter`` form (``O(n · n_bins)``) which composes on every version.
+    Feature-detected (not version-parsed) to be robust to dev builds, and cached
+    since the probe result is constant for the process.
+    """
+    try:
+        probe = pl.DataFrame({"_g": [0, 0], "_b": [0, 1], "_x": [1.0, 2.0]})
+        probe.group_by("_g").agg(pl.col("_x").mean().over(pl.col("_b")).mean())
+    except Exception:  # pragma: no cover - this outcome runs on Polars < 1.36 (floor/mid CI)
+        return False
+    return True  # pragma: no cover - this outcome runs on Polars >= 1.36 (latest CI; #25402)
 
 
 def _bin_edges(
@@ -188,27 +210,25 @@ def calibration_curve(
     )
 
 
-def _calibration_gap_terms(
+def _bin_setup(
     target: IntoExpr,
     prob: IntoExpr,
     n_bins: int,
     strategy: BinStrategy,
     bins: list[float] | None,
-    weight: WeightInput,
     pos_label: PosLabel,
-) -> tuple[list[pl.Expr], list[pl.Expr], pl.Expr]:
-    """Per-bin ``(effective count, |mean_pred - mean_true|)`` terms, plus the total.
+) -> tuple[pl.Expr, pl.Expr, pl.Expr, int]:
+    """Shared binning setup: ``(prob_f, is_pos, bin_id, n_used)``.
 
-    Bins ``prob`` with the same left-edge convention as :func:`calibration_curve`,
-    then for each bin returns its summed weight (or count) and the absolute
-    calibration gap. Uses per-bin ``filter`` aggregations rather than a window over
-    the bin id, so the result composes inside ``group_by().agg()`` on every supported
-    Polars version (windows-in-aggregation are rejected on the floor).
+    Resolves the interior bin edges (fixed floats, or per-group quantile
+    expressions for the ``"quantile"`` strategy) with the same left-edge convention
+    as :func:`calibration_curve`, validates them, and builds the per-row bin id
+    (number of interior edges strictly below the prediction). ``n_used`` is the
+    number of bins, needed only by the per-bin ``filter`` fallback.
     """
     prob_f = col_expr(prob).cast(pl.Float64)
     is_pos = (col_expr(target) == pos_label).cast(pl.Float64)
 
-    # Interior bin edges — fixed floats, or per-group quantile expressions.
     if bins is not None:
         edges = sorted(float(b) for b in bins)
         if len(edges) < 2:
@@ -230,8 +250,39 @@ def _calibration_gap_terms(
     binid: pl.Expr = pl.lit(0, dtype=pl.Int64)
     for edge in interior:
         binid = binid + (prob_f > edge).cast(pl.Int64)
+    return prob_f, is_pos, binid, n_used
 
-    w = resolve_weight(weight)
+
+def _gap_over(  # pragma: no cover - windowed fast path, only called on Polars >= 1.36 (latest CI)
+    prob_f: pl.Expr, is_pos: pl.Expr, binid: pl.Expr, w: pl.Expr | None
+) -> pl.Expr:
+    """Per-row absolute calibration gap of the row's bin, via a windowed mean.
+
+    A single hashed ``O(n)`` pass: ``Expr.over(binid)`` broadcasts each bin's mean
+    predicted probability and observed positive fraction back to its rows, so every
+    row carries its own bin's gap. Requires :func:`_supports_over_in_agg` (Polars
+    1.36+). A bin whose summed weight is 0 has an undefined mean; its gap is forced
+    to 0 so it neither pollutes ``ECE`` (its rows carry weight 0 anyway) nor wins
+    ``MCE`` (0 is the minimum gap) — matching the per-bin fallback's ``count > 0``
+    gate.
+    """
+    if w is None:
+        return (prob_f.mean().over(binid) - is_pos.mean().over(binid)).abs()
+    wsum = w.sum().over(binid)
+    gap = ((prob_f * w).sum().over(binid) / wsum - (is_pos * w).sum().over(binid) / wsum).abs()
+    return pl.when(wsum > 0).then(gap).otherwise(0.0)
+
+
+def _gap_terms_perbin(
+    prob_f: pl.Expr, is_pos: pl.Expr, binid: pl.Expr, n_used: int, w: pl.Expr | None
+) -> tuple[list[pl.Expr], list[pl.Expr]]:
+    """Per-bin ``(effective count, |mean_pred - mean_true|)`` lists, one per bin.
+
+    The Polars-1.0.0-floor-compatible fallback: one ``filter`` aggregation per bin
+    (``O(n · n_bins)``). Unlike :func:`_gap_over` it composes inside
+    ``group_by().agg()`` on every supported version (no window expression), so it is
+    used whenever :func:`_supports_over_in_agg` is False.
+    """
     counts: list[pl.Expr] = []
     gaps: list[pl.Expr] = []
     for b in range(n_used):
@@ -246,8 +297,7 @@ def _calibration_gap_terms(
             true = (is_pos * w).filter(mask).sum() / count
         counts.append(count)
         gaps.append((pred - true).abs())
-    total = pl.len() if w is None else w.sum()
-    return counts, gaps, total
+    return counts, gaps
 
 
 def _calibration_alias(
@@ -308,11 +358,20 @@ def expected_calibration_error(
         >>> df = pl.DataFrame({"y": [0, 0, 1, 1], "p": [0.1, 0.4, 0.6, 0.9]})
         >>> df.select(expected_calibration_error("y", "p", n_bins=2))  # doctest: +SKIP
     """
-    counts, gaps, total = _calibration_gap_terms(
-        target, prob, n_bins, strategy, bins, weight, pos_label
-    )
-    terms = [pl.when(c > 0).then(c * g).otherwise(0.0) for c, g in zip(counts, gaps, strict=True)]
-    ece = pl.when(total > 0).then(pl.sum_horizontal(terms) / total).otherwise(None)
+    prob_f, is_pos, binid, n_used = _bin_setup(target, prob, n_bins, strategy, bins, pos_label)
+    w = resolve_weight(weight)
+    total = pl.len() if w is None else w.sum()
+    if _supports_over_in_agg():  # pragma: no cover - windowed fast path, Polars >= 1.36 (latest CI)
+        gap = _gap_over(prob_f, is_pos, binid, w)
+        # mean of the per-row bin gap == sum_b (n_b / N) * gap_b (weighted: by w).
+        mean_gap = gap.mean() if w is None else (gap * w).sum() / w.sum()
+        ece = pl.when(total > 0).then(mean_gap).otherwise(None)
+    else:
+        counts, gaps = _gap_terms_perbin(prob_f, is_pos, binid, n_used, w)
+        terms = [
+            pl.when(c > 0).then(c * g).otherwise(0.0) for c, g in zip(counts, gaps, strict=True)
+        ]
+        ece = pl.when(total > 0).then(pl.sum_horizontal(terms) / total).otherwise(None)
     alias = _calibration_alias("expected_calibration_error", target, prob, weight, pos_label)
     return guarded(ece, values=[prob], labels=[target], weight=weight).alias(alias)
 
@@ -357,10 +416,15 @@ def maximum_calibration_error(
         >>> df = pl.DataFrame({"y": [0, 0, 1, 1], "p": [0.1, 0.4, 0.6, 0.9]})
         >>> df.select(maximum_calibration_error("y", "p", n_bins=2))  # doctest: +SKIP
     """
-    counts, gaps, _ = _calibration_gap_terms(
-        target, prob, n_bins, strategy, bins, weight, pos_label
-    )
-    terms = [pl.when(c > 0).then(g).otherwise(None) for c, g in zip(counts, gaps, strict=True)]
-    mce = pl.max_horizontal(terms)
+    prob_f, is_pos, binid, n_used = _bin_setup(target, prob, n_bins, strategy, bins, pos_label)
+    w = resolve_weight(weight)
+    total = pl.len() if w is None else w.sum()
+    if _supports_over_in_agg():  # pragma: no cover - windowed fast path, Polars >= 1.36 (latest CI)
+        gap = _gap_over(prob_f, is_pos, binid, w)
+        mce = pl.when(total > 0).then(gap.max()).otherwise(None)
+    else:
+        counts, gaps = _gap_terms_perbin(prob_f, is_pos, binid, n_used, w)
+        terms = [pl.when(c > 0).then(g).otherwise(None) for c, g in zip(counts, gaps, strict=True)]
+        mce = pl.max_horizontal(terms)
     alias = _calibration_alias("maximum_calibration_error", target, prob, weight, pos_label)
     return guarded(mce, values=[prob], labels=[target], weight=weight).alias(alias)
