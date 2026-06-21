@@ -57,6 +57,7 @@ from polarbearings.regression import (
     smape,
 )
 from polarbearings.roc_auc import roc_auc
+from polarbearings.split import hash_fold, hash_split, hash_splits, hash_uniform
 from polarbearings.thresholds import equal_width, linspace, quantiles, resolve_thresholds
 
 __all__: list[str] = [
@@ -100,6 +101,11 @@ __all__: list[str] = [
     "bootstrap",
     "bootstrap_ci",
     "ci_from_distribution",
+    # Data splitting (deterministic, id-keyed)
+    "hash_uniform",
+    "hash_split",
+    "hash_fold",
+    "hash_splits",
     # Regression
     "mae",
     "mse",
