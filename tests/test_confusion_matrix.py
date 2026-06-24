@@ -17,6 +17,7 @@ from hypothesis.extra.numpy import arrays
 from sklearn.metrics import confusion_matrix as sklearn_cm
 
 from polarbearings import confusion_matrix, precision, quantiles, recall, threshold_sweep
+from polarbearings._common import EXPLODE_KW
 
 
 def _cells(df: pl.DataFrame, expr: pl.Expr) -> dict:
@@ -205,7 +206,7 @@ class TestThresholdField:
         rng = np.random.default_rng(1)
         df = pl.DataFrame({"label": rng.integers(0, 2, 2000), "score": rng.random(2000)})
         exprs = threshold_sweep(confusion_matrix, "label", "score", quantiles(10))
-        tidy = df.select(pl.concat_list(exprs).alias("cm")).explode("cm").unnest("cm")
+        tidy = df.select(pl.concat_list(exprs).alias("cm")).explode("cm", **EXPLODE_KW).unnest("cm")
         assert tidy.columns == ["threshold", "tp", "fp", "fn", "tn"]
         assert tidy.height == 10
         # The threshold column holds the real quantile cut-points, in order.
@@ -233,7 +234,7 @@ class TestThresholdField:
         tidy = (
             df.group_by("g")
             .agg(pl.concat_list(exprs).alias("cm"))
-            .explode("cm")
+            .explode("cm", **EXPLODE_KW)
             .unnest("cm")
             .sort("g")
         )

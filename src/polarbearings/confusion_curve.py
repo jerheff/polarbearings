@@ -19,6 +19,7 @@ and let the optimizer plan it all at collect time.
 import polars as pl
 
 from polarbearings._common import (
+    EXPLODE_KW,
     IntoExpr,
     PosLabel,
     WeightInput,
@@ -263,7 +264,7 @@ def _grid_curve(
     # (worse under ``group_by``), which makes a downstream ``.select`` — e.g. a curve
     # wrapper computing ``fp / (fp + tn)`` — panic with a list/scalar supertype error.
     # The cast is a no-op on the data and forces the schema to resolve.
-    grid = wide.explode(long_cols).with_columns(
+    grid = wide.explode(long_cols, **EXPLODE_KW).with_columns(
         pl.col("threshold").cast(pl.Float64),
         pl.col("tp").cast(cell_dtype),
         pl.col("fp").cast(cell_dtype),
@@ -307,7 +308,7 @@ def _grid_via_exact(
     thr_exprs = [(v if isinstance(v, pl.Expr) else pl.lit(v)).cast(pl.Float64) for _, v in resolved]
     grid = (
         lf.select(pl.concat_list(thr_exprs).alias("threshold"))
-        .explode("threshold")
+        .explode("threshold", **EXPLODE_KW)
         .sort("threshold")
         .with_columns(pl.col("threshold").set_sorted())
     )

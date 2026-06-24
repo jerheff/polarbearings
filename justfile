@@ -47,7 +47,7 @@ test-polars version:
 test-compat:
     just test-polars 1.0.0
     just test-polars 1.24.0
-    just test-polars 1.41.2
+    just test-polars 1.42.0
 
 # Thorough LOCAL Polars sweep (not a CI gate): every minor from the last 12 months,
 # one per year for older releases, plus the floor — the version list is pulled live
@@ -119,7 +119,7 @@ publish: build
 test-cov:
     rm -f .coverage .coverage.*
     uv run --with polars==1.0.0 coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
-    uv run --with polars==1.41.2 coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
+    uv run --with polars==1.42.0 coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
     uv run coverage combine
     uv run coverage report --show-missing
 
@@ -146,7 +146,7 @@ bench-polars version:
 bench-compare:
     rm -rf .benchmarks
     uv run python benchmarks/cooldown.py baseline
-    just bench-polars 1.41.2
+    just bench-polars 1.42.0
     uv run python benchmarks/cooldown.py wait
     just bench-polars 1.0.0
     uv run pytest-benchmark compare --group-by=name --sort=name --columns=median,iqr

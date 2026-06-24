@@ -1,9 +1,23 @@
 """Shared helpers for metric implementations."""
 
+import inspect
 from collections.abc import Sequence
 from typing import TypeAlias
 
 import polars as pl
+
+# Polars 1.42 deprecates calling ``explode`` without ``empty_as_null``; in Polars 2.0
+# the default flips from ``True`` to ``False``. Our reshape sites explode a
+# ``concat_list`` whose lists have a fixed length >= 1 — an empty list is structurally
+# impossible — so the flag is behaviorally inert. We pin it to the going-forward
+# default (``False``) where the parameter exists and omit it on the 1.0.0 floor (where
+# it does not), silencing the deprecation without changing behavior on any Polars.
+# Splat into any ``explode`` call: ``frame.explode(cols, **EXPLODE_KW)``.
+EXPLODE_KW: dict[str, bool] = (
+    {"empty_as_null": False}
+    if "empty_as_null" in inspect.signature(pl.LazyFrame.explode).parameters
+    else {}
+)
 
 # A column reference: either a column name or a Polars expression (Polars' own
 # ``IntoExpr`` convention). Every parameter that names a column accepts this, so a
