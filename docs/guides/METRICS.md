@@ -457,6 +457,34 @@ Hashing a stable record id to a uniform gives split assignments that are
 always lands in the same split. All are plain expressions (drop into
 `with_columns`, `group_by`, lazy):
 
+The mixing is a fixed SplitMix64 finalizer (wrapping-`UInt64` arithmetic), **not**
+Polars' `Expr.hash` — so a holdout stays pinned to the same rows even after a Polars
+upgrade. (`Expr.hash` only promises stability within one Polars version, and its
+result did change between 1.24 and 1.42.)
+
+`id` must be an **integer** column. This keeps the package's only dependency `polars`;
+for **string / UUID** ids, materialize a stable `Int64` key once and split on that
+column. Use a *fixed* hash so the key is reproducible — **not** Polars' `Expr.hash`,
+the version-unstable function this whole section exists to avoid.
+
+```python
+# Option A — the polars-hash plugin (fixed wyhash), reinterpreted into Int64:
+keyed = df.with_columns(id_key=pl.col("uuid").nchash.wyhash().reinterpret(signed=True))
+
+# Option B — dependency-free, a one-time hashlib pass materialized to a column:
+import hashlib
+def _key(s: str) -> int:
+    d = hashlib.blake2b(s.encode(), digest_size=8).digest()
+    return int.from_bytes(d, "little") - 2**63          # center into Int64
+keyed = df.with_columns(id_key=pl.col("uuid").map_elements(_key, return_dtype=pl.Int64))
+
+# Then split on the integer key as usual:
+keyed.with_columns(holdout=hash_split(1, "id_key", fraction=0.2))
+```
+
+Do this once and persist `id_key` if the split must stay pinned long-term — then even
+the string→int step can never drift.
+
 `seed` is the **first, required** argument — it *is* the split's identity, and
 independent splits must use different seeds (sharing one correlates them, since the
 assignment is a pure function of `id` and `seed`):

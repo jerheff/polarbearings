@@ -20,6 +20,10 @@ uv add git+https://github.com/jerheff/polarbearings.git
 # or: pip install git+https://github.com/jerheff/polarbearings.git
 ```
 
+The only runtime dependency is Polars. The id-keyed splitters take an **integer** id
+column; for string / UUID ids, map them to a stable integer key first (see the
+[splitting docs](docs/guides/METRICS.md#data-splitting-deterministic-id-keyed)).
+
 ## Quick Start
 
 ```python

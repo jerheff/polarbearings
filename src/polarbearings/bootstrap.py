@@ -129,14 +129,18 @@ def bootstrap_weight(
     - ``kind="poisson"``: a ``Poisson(1)`` integer multiplicity — the classic
       with-replacement bootstrap (exact in the large-``n`` limit).
 
-    Pass ``id_col`` — the name (or expression) of a **stable row identifier** — to
-    hash that instead of row position. This makes the resample **reproducible across
-    runs and row orderings**, and — because it is an ordinary column rather than
-    ``int_range`` — lets the weight be used inside ``group_by``/``by=`` (a positional
-    ``int_range`` goes list-valued there). With no ``id_col``, row position is used,
-    which is fine in a whole-frame ``select`` or the default (exact) curves but not
-    inside a grouped aggregation: add one with ``df.with_row_index("id")`` and pass
-    ``id_col="id"``.
+    Pass ``id_col`` — the name (or expression) of a **stable integer row
+    identifier** — to hash that instead of row position. This makes the resample
+    **reproducible across runs and row orderings**, and — because it is an ordinary
+    column rather than ``int_range`` — lets the weight be used inside
+    ``group_by``/``by=`` (a positional ``int_range`` goes list-valued there). With no
+    ``id_col``, row position is used, which is fine in a whole-frame ``select`` or the
+    default (exact) curves but not inside a grouped aggregation: add one with
+    ``df.with_row_index("id")`` and pass ``id_col="id"``. The hashing (via
+    :func:`~polarbearings.split.hash_uniform`) uses a fixed SplitMix64 mix, so a given
+    ``(id, seed)`` yields the same draw on every supported Polars version. ``id_col``
+    must be an **integer** column; for a string/UUID id, materialize a stable integer
+    key first (see :func:`~polarbearings.split.hash_uniform`).
 
     ``weight_kind`` says what an existing ``weight`` *means*:
 
