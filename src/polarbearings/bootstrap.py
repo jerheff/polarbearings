@@ -28,6 +28,7 @@ Entry points:
 """
 
 import functools
+import inspect
 import math
 from collections.abc import Callable, Sequence
 from statistics import NormalDist, stdev
@@ -60,9 +61,6 @@ def _supports_list_agg() -> bool:
     return True  # Polars >= 1.28 (latest CI; #22249)
 
 
-# Metrics with no ``weight`` parameter cannot use the weighted bootstrap.
-_NON_WEIGHTABLE = frozenset({"max_error", "median_absolute_error"})
-
 _Method = Literal["percentile", "basic", "normal", "bc"]
 _VALID_METHODS = get_args(_Method)
 
@@ -86,11 +84,16 @@ _TWO_PI = 2.0 * math.pi
 
 
 class BootstrapCI(TypedDict):
-    """The whole-frame interval returned by :func:`bootstrap_ci`."""
+    """The whole-frame interval returned by :func:`bootstrap_ci`.
 
-    estimate: float
-    low: float
-    high: float
+    All three fields are ``None`` when the metric is undefined on the data (e.g.
+    single-class ROC AUC), mirroring the null-for-undefined convention every metric
+    expression follows.
+    """
+
+    estimate: float | None
+    low: float | None
+    high: float | None
 
 
 _PPF_CLAMP = 1e-12
@@ -103,6 +106,19 @@ def _metric_name(metric: Callable[..., pl.Expr]) -> str:
         return name
     func = getattr(metric, "func", None)  # functools.partial
     return getattr(func, "__name__", "metric")
+
+
+def _is_weightable(metric: Callable[..., pl.Expr]) -> bool:
+    """Whether ``metric`` accepts a ``weight`` argument (required for weighted bootstrap).
+
+    Determined from the signature rather than a hand-maintained name set, so the
+    friendly "needs a weightable metric" error can never drift as new unweightable
+    metrics land (``max_error``, ``median_absolute_error``, ``dcg_score``,
+    ``ndcg_score``, ``d2_absolute_error_score``, ``d2_pinball_score``).
+    ``inspect.signature`` transparently unwraps ``functools.partial``, the
+    ``metric_kwargs`` binding pattern used throughout this module.
+    """
+    return "weight" in inspect.signature(metric).parameters
 
 
 def bootstrap_weight(
@@ -297,7 +313,7 @@ def bootstrap(
         List(Float64)
     """
     name = _metric_name(metric)
-    if name in _NON_WEIGHTABLE:
+    if not _is_weightable(metric):
         msg = (
             f"bootstrap() needs a weightable metric; {name!r} has no weight parameter. "
             "Index-resampling for such metrics is not yet supported."
@@ -477,8 +493,11 @@ def bootstrap_ci(
         **metric_kwargs: Extra keyword arguments forwarded to ``metric``.
 
     Returns:
-        Without ``by``: a dict ``{"estimate": ..., "low": ..., "high": ...}``.
-        With ``by``: a DataFrame with columns ``[*by, estimate, low, high]``.
+        Without ``by``: a dict ``{"estimate": ..., "low": ..., "high": ...}``. All
+        three are ``None`` when the metric is undefined on the data (e.g.
+        single-class ROC AUC), following the null-for-undefined convention.
+        With ``by``: a DataFrame with columns ``[*by, estimate, low, high]``; a group
+        on which the metric is undefined gets null estimate/low/high.
 
     Raises:
         ValueError: If ``method`` is not one of the supported methods.
@@ -521,8 +540,14 @@ def bootstrap_ci(
         )
         .collect()
     )
+    estimate_val = materialized.get_column("_estimate").item()
+    if estimate_val is None:
+        # The metric is undefined on this data (single-class AUC, constant-target
+        # R^2, ...). Bayesian weights are strictly positive, so every replicate is
+        # null too; reducing them would crash. Degrade to null like the expressions.
+        return {"estimate": None, "low": None, "high": None}
     dist = materialized.get_column("_dist").item().to_list()
-    estimate = float(materialized.get_column("_estimate").item())
+    estimate = float(estimate_val)
     low, high = _reduce_ci(dist, estimate, level, method)
     return {"estimate": estimate, "low": low, "high": high}
 
