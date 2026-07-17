@@ -24,11 +24,15 @@ from polarbearings import (
     bootstrap_ci,
     bootstrap_weight,
     ci_from_distribution,
+    d2_absolute_error_score,
+    d2_pinball_score,
+    dcg_score,
     f1_score,
     fbeta_score,
     mae,
     max_error,
     median_absolute_error,
+    ndcg_score,
     roc_auc,
     roc_curve,
 )
@@ -53,6 +57,20 @@ def _reg_df(n=4000, seed=0):
 
 def _unnest1(df, expr, name="x"):
     return df.select(expr.alias(name)).unnest(name).row(0, named=True)
+
+
+def _ordered(ci):
+    """Assert a whole-frame CI is fully defined; return (low, estimate, high) as floats.
+
+    bootstrap_ci returns ``float | None`` (null on an undefined metric); on the
+    well-defined data these tests use, the values are always present. Narrowing here
+    keeps the ``<=`` comparisons type-checkable.
+    """
+    low, est, high = ci["low"], ci["estimate"], ci["high"]
+    assert low is not None
+    assert est is not None
+    assert high is not None
+    return low, est, high
 
 
 def _numpy_ci(dist, theta, level, method):
@@ -89,11 +107,23 @@ class TestDistribution:
         b = df.select(bootstrap(f1_score, "y", "p", n_resamples=80, seed=2)).to_series()[0]
         assert list(a) != list(b)
 
-    def test_non_weightable_metrics_raise(self):
+    @pytest.mark.parametrize(
+        "metric",
+        [
+            max_error,
+            median_absolute_error,
+            # These four gained no weight param but were absent from the old
+            # hardcoded set, so they used to leak a raw TypeError (audit finding 2).
+            dcg_score,
+            ndcg_score,
+            d2_absolute_error_score,
+            d2_pinball_score,
+        ],
+    )
+    def test_non_weightable_metrics_raise_friendly_error(self, metric):
         df, *_ = _binary_df()
-        for metric in (max_error, median_absolute_error):
-            with pytest.raises(ValueError, match="weightable"):
-                df.select(bootstrap(metric, "y", "p"))
+        with pytest.raises(ValueError, match="weightable"):
+            df.select(bootstrap(metric, "y", "p"))
 
 
 class TestReductionMath:
@@ -164,7 +194,16 @@ class TestBootstrapCi:
         df, *_ = _binary_df()
         ci = bootstrap_ci(df, roc_auc, "y", "p", n_resamples=300)
         assert set(ci) == {"estimate", "low", "high"}
-        assert ci["low"] <= ci["estimate"] <= ci["high"]
+        low, est, high = _ordered(ci)
+        assert low <= est <= high
+
+    def test_undefined_metric_returns_nulls_not_crash(self):
+        # Single-class data: roc_auc is null, so every replicate is null too. The
+        # reduction used to crash on float(None) (audit finding 3); it must instead
+        # degrade to null estimate/low/high like the metric expression does.
+        df = pl.DataFrame({"y": [1, 1, 1, 1], "p": [0.1, 0.4, 0.6, 0.9]})
+        ci = bootstrap_ci(df, roc_auc, "y", "p", n_resamples=50)
+        assert ci == {"estimate": None, "low": None, "high": None}
 
     def test_estimate_is_point_metric(self):
         df, *_ = _binary_df()
@@ -175,20 +214,24 @@ class TestBootstrapCi:
     def test_accepts_lazyframe(self):
         df, *_ = _binary_df()
         ci = bootstrap_ci(df.lazy(), roc_auc, "y", "p", n_resamples=100)
-        assert ci["low"] <= ci["estimate"] <= ci["high"]
+        low, est, high = _ordered(ci)
+        assert low <= est <= high
 
     def test_all_methods_run_and_bracket(self):
         df, *_ = _binary_df()
         for method in ("percentile", "basic", "normal", "bc"):
             ci = bootstrap_ci(df, roc_auc, "y", "p", n_resamples=300, method=method, seed=0)
-            assert ci["low"] <= ci["high"]
+            low, _, high = _ordered(ci)
+            assert low <= high
 
     def test_higher_level_is_wider(self):
         df, *_ = _binary_df()
         c90 = bootstrap_ci(df, roc_auc, "y", "p", n_resamples=400, level=0.90, seed=5)
         c99 = bootstrap_ci(df, roc_auc, "y", "p", n_resamples=400, level=0.99, seed=5)
-        assert c99["low"] <= c90["low"]
-        assert c99["high"] >= c90["high"]
+        lo90, _, hi90 = _ordered(c90)
+        lo99, _, hi99 = _ordered(c99)
+        assert lo99 <= lo90
+        assert hi99 >= hi90
 
     def test_invalid_method_raises(self):
         df, *_ = _binary_df()
@@ -288,6 +331,24 @@ class TestPerGroupHelper:
     def test_per_group_bc_not_supported(self):
         with pytest.raises(NotImplementedError, match="bc"):
             bootstrap_ci(self._segmented(), roc_auc, "y", "p", by="seg", method="bc")
+
+    def test_degenerate_group_gets_null_row(self):
+        # One group is single-class (roc_auc undefined) and one is well-formed. The
+        # degenerate group must yield null estimate/low/high while the other is a
+        # normal CI — consistent with the whole-frame null convention (finding 3).
+        df = pl.DataFrame(
+            {
+                "seg": ["a", "a", "a", "a", "b", "b", "b", "b"],
+                "y": [1, 1, 1, 1, 0, 0, 1, 1],
+                "p": [0.2, 0.4, 0.6, 0.8, 0.1, 0.3, 0.7, 0.9],
+            }
+        )
+        out = bootstrap_ci(df, roc_auc, "y", "p", by="seg", n_resamples=100, seed=0).sort("seg")
+        rows = {r["seg"]: r for r in out.iter_rows(named=True)}
+        assert rows["a"]["estimate"] is None
+        assert rows["a"]["low"] is None
+        assert rows["a"]["high"] is None
+        assert rows["b"]["low"] <= rows["b"]["estimate"] <= rows["b"]["high"]
 
     def test_fused_equals_materialized(self, monkeypatch):
         # Within one Polars version the default branch (fused on >=1.28) must equal
