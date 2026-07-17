@@ -25,6 +25,19 @@ import polars as pl
 from polarbearings._common import IntoExpr, col_expr, col_name, guarded
 
 
+def _validate_k(k: int | None) -> None:
+    """Reject ``k`` values that ``head(k)`` would mishandle.
+
+    Polars' ``head(-n)`` means "all but the last n", so a negative ``k`` would
+    silently truncate the ranking instead of erroring, and ``k=0`` is meaningless.
+    Validating eagerly turns a confusing collect-time ``ComputeError`` (or a silent
+    wrong answer) into an immediate, named failure.
+    """
+    if k is not None and k < 1:
+        msg = f"k must be a positive integer or None, got {k!r}."
+        raise ValueError(msg)
+
+
 def _dcg_expr(gain: pl.Expr, order_by: pl.Expr, k: int | None, log_base: float) -> pl.Expr:
     """DCG aggregation: gains taken in ``order_by``-descending order, log-discounted.
 
@@ -78,6 +91,7 @@ def dcg_score(
         >>> df.select(dcg_score("rel", "score")).to_series()[0]  # doctest: +SKIP
         7.14...
     """
+    _validate_k(k)
     dcg = _dcg_expr(col_expr(relevance).cast(pl.Float64), col_expr(score), k, log_base)
     return guarded(dcg, values=[relevance, score]).alias(_ranking_alias("dcg", relevance, score, k))
 
@@ -115,6 +129,7 @@ def ndcg_score(
         >>> df.select(ndcg_score("rel", "score")).to_series()[0]  # doctest: +SKIP
         0.94...
     """
+    _validate_k(k)
     rel = col_expr(relevance).cast(pl.Float64)
     dcg = _dcg_expr(rel, col_expr(score), k, log_base)
     idcg = _dcg_expr(rel, rel, k, log_base)

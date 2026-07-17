@@ -106,6 +106,20 @@ class TestRankingEdgeCases:
         assert df.select(dcg_score("rel", "score")).to_series()[0] == pytest.approx(2.0)
         assert df.select(ndcg_score("rel", "score")).to_series()[0] == pytest.approx(1.0)
 
+    @pytest.mark.parametrize("metric", [dcg_score, ndcg_score])
+    @pytest.mark.parametrize("k", [0, -1, -5])
+    def test_nonpositive_k_raises_eagerly(self, metric, k):
+        # k<1 must fail at build time with a named error, not a collect-time Polars
+        # ComputeError (k=-1) or a silent head(-n) miscount for other negatives.
+        with pytest.raises(ValueError, match="k must be a positive integer"):
+            metric("rel", "score", k=k)
+
+    @pytest.mark.parametrize("metric", [dcg_score, ndcg_score])
+    def test_valid_k_and_none_accepted(self, metric):
+        df = pl.DataFrame({"rel": [3.0, 2.0, 1.0], "score": [0.9, 0.5, 0.1]})
+        for k in (1, 3, 100, None):  # k past the row count is fine (head clamps)
+            df.select(metric("rel", "score", k=k))
+
 
 class TestTieHandling:
     """DCG/NDCG break score ties by physical row order.
