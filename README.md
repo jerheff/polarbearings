@@ -1,4 +1,4 @@
-# Polarbearings =;D
+# Polarbearings 🐻‍❄️
 
 High-performance machine learning metrics implemented as native Polars expressions.
 
@@ -20,9 +20,7 @@ uv add git+https://github.com/jerheff/polarbearings.git
 # or: pip install git+https://github.com/jerheff/polarbearings.git
 ```
 
-The only runtime dependency is Polars. The id-keyed splitters take an **integer** id
-column; for string / UUID ids, map them to a stable integer key first (see the
-[splitting docs](docs/guides/METRICS.md#data-splitting-deterministic-id-keyed)).
+The only runtime dependency is Polars.
 
 ## Quick Start
 
@@ -31,19 +29,19 @@ import polars as pl
 from polarbearings import roc_auc
 
 df = pl.DataFrame({
-    "actual": [0, 0, 1, 1, 1],
-    "predicted_score": [0.1, 0.4, 0.35, 0.8, 0.9]
+    "label": [0, 0, 1, 1, 1],
+    "score": [0.1, 0.4, 0.35, 0.8, 0.9]
 })
 
 # Every metric is a Polars expression — use it anywhere an expression is allowed.
-df.select(roc_auc("actual", "predicted_score"))
+df.select(roc_auc("label", "score"))
 # shape: (1, 1)
-# ┌──────────────────────────────────┐
-# │ roc_auc_actual_predicted_score   │
-# │ f64                              │
-# ╞══════════════════════════════════╡
-# │ 0.833333                         │
-# └──────────────────────────────────┘
+# ┌─────────────────────┐
+# │ roc_auc_label_score │
+# │ f64                 │
+# ╞═════════════════════╡
+# │ 0.833333            │
+# └─────────────────────┘
 ```
 
 ## Why Polarbearings
@@ -78,8 +76,8 @@ Because every metric is just an expression, a full report is one `df.select(...)
 
 <!--- invisible-code-block: python
 df = pl.DataFrame({
-    "label": [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
-    "prob": [0.1, 0.9, 0.2, 0.8, 0.15, 0.85, 0.3, 0.7, 0.25, 0.75, 0.4, 0.6],
+    "label": [0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0],
+    "prob": [0.2, 0.45, 0.6, 0.55, 0.75, 0.35, 0.3, 0.8, 0.65, 0.5, 0.7, 0.4],
 })
 --->
 
@@ -99,11 +97,18 @@ df.select(
     brier_score("label", "prob"),
     confusion_matrix("label", "prob"),   # struct {threshold, tp, fp, fn, tn}
 )
+# One tidy row, one column per metric (8 columns; abbreviated):
+# shape: (1, 8)
+# ┌──────────────────────────┬───────────────────────┬─────┬────────────────────────┐
+# │ precision_label_prob_0.5 ┆ recall_label_prob_0.5 ┆  …  ┆ brier_score_label_prob │
+# │ f64                      ┆ f64                   ┆     ┆ f64                    │
+# ╞══════════════════════════╪═══════════════════════╪═════╪════════════════════════╡
+# │ 0.714286                 ┆ 0.833333              ┆  …  ┆ 0.161944               │
+# └──────────────────────────┴───────────────────────┴─────┴────────────────────────┘
 ```
 
-This single-`select` form is the fast path — Polars shares the scans and
-parallelizes the outputs. `benchmarks/bench_multi_metric.py` reproduces the timing
-across sizes from 100 to 1M rows.
+`benchmarks/bench_multi_metric.py` reproduces this timing across sizes from 100 to
+1M rows.
 
 ## Metrics
 
@@ -148,9 +153,13 @@ calibration_curve(df, "label", "prob", n_bins=10, strategy="quantile").collect()
 
 ### Cross-cutting behaviour
 
-Three behaviours are shared by the metrics rather than specific to one — full
+Four behaviours are shared by the metrics rather than specific to one — full
 details in the [metrics reference](docs/guides/METRICS.md#cross-cutting-behaviour):
 
+- **Output names** — each expression is pre-aliased `<metric>_<target>_<score>`
+  (plus suffixes for a weight, non-default `pos_label`, or threshold), so
+  `roc_auc("label", "score")` yields a `roc_auc_label_score` column. Chain
+  `.alias("auc")` to rename it.
 - **Sample weights** — pass `weight="col"` to nearly any metric. Six omit it
   (`dcg_score`, `ndcg_score`, `max_error`, `median_absolute_error`,
   `d2_absolute_error_score`, `d2_pinball_score`) where a weighted form is undefined
@@ -205,15 +214,17 @@ Polarbearings runs every metric as a native Polars expression. The advantage is
 isn't.** Numbers below are speedup vs scikit-learn (scikit-learn time ÷
 polarbearings time; higher = faster), median of clean benchmark runs.
 
-**Where polarbearings wins big** — grouped, probabilistic, and ranking metrics:
+**Where polarbearings wins big** — grouped, probabilistic, and ranking metrics.
+Ranges span polars 1.0.0 and 1.41.2; see
+[PERFORMANCE.md](docs/technical/PERFORMANCE.md) for the per-version, per-size matrix.
 
 | Metric | 100k rows | 10M rows |
 |--------|:---:|:---:|
-| Grouped metrics (per segment) | **15–65x** | — |
-| Brier Score | ~18x | ~8.6x |
-| Log Loss | ~5.7x | ~4–5x |
-| ROC AUC | ~4.5x | ~4.5x |
-| Precision / F1 | ~3.5–5x | ~2–3x |
+| Grouped metrics (per segment) | **~15–60x** | — |
+| Precision / F1 | ~5–22x | ~14–23x |
+| Brier Score | ~9–10x | ~7–8x |
+| Log Loss | ~5–6x | ~4–5x |
+| ROC AUC | ~4.5–6x | ~5x |
 | 13 metrics in one `select` | — | **5.8x** |
 
 **Where it's at parity or slower** — trivial reductions (MAE, MSE, MAPE, R²) are
@@ -236,7 +247,7 @@ recipes.
 uv sync --all-groups   # install dependencies
 just test              # run tests        (or: uv run pytest)
 just quality           # lint + type-check
-just ci                # all CI checks locally
+just check             # fast local check: lint + type-check + tests (not full CI)
 just test-compat       # test against min / mid / latest Polars
 just bench             # benchmarks vs scikit-learn
 ```
@@ -265,7 +276,7 @@ More candidate metrics and their implementation notes live in
 
 Contributions are welcome! Please:
 
-1. Run `just ci` to verify your changes locally
+1. Run `just check` to verify your changes locally (lint + type-check + tests)
 2. Submit a Pull Request with a clear description
 
 ## License

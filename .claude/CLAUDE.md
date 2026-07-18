@@ -66,7 +66,7 @@ just bench                  # Run benchmarks against scikit-learn
 - `src/polarbearings/brier_score.py` - Brier score
 - `src/polarbearings/gini.py` - Normalized Gini coefficient
 - `src/polarbearings/ranking.py` - Ranking quality (DCG / NDCG)
-- `src/polarbearings/classification.py` - Threshold-based classification metrics (precision, recall, F1, fbeta, specificity, accuracy, balanced accuracy, MCC, Cohen's kappa, jaccard, confusion matrix, threshold sweep, percentile thresholds)
+- `src/polarbearings/classification.py` - Threshold-based classification metrics (precision, recall, F1, fbeta, specificity, accuracy, balanced accuracy, MCC, Cohen's kappa, jaccard, confusion matrix, threshold sweep)
 - `src/polarbearings/regression.py` - Regression metrics (MAE, MSE, RMSE, R², MAPE, MSLE/RMSLE, pinball, smape, huber, log-cosh, tweedie/poisson/gamma deviance, d2 scores, max/median error)
 - `src/polarbearings/calibration.py` - Calibration curve + ECE / MCE
 - `src/polarbearings/curves.py` - Diagnostic curves (ROC, PR, DET, expected cost)
@@ -87,7 +87,7 @@ All metrics are implemented as Polars expressions that:
 - Unit tests for basic functionality
 - Property-based tests with Hypothesis for random data
 - Compatibility tests against scikit-learn
-- Multi-version Polars compatibility tests (1.0.0, 1.24.0, 1.41.2)
+- Multi-version Polars compatibility tests (1.0.0, 1.24.0, 1.42.0)
 
 ## Important Files
 

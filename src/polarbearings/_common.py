@@ -118,15 +118,15 @@ def weighted_mean(values: pl.Expr, weight: pl.Expr | None) -> pl.Expr:
 
     Returns null when the total weight is zero: a zero-total-weight average is
     undefined, and nulling it keeps the whole weighted-metric family on the library's
-    null-for-undefined convention instead of leaking a ``0/0 = NaN``. The guard is on
-    ``weight.sum()`` — the exact denominator, reused from the division — so it costs
-    nothing over a bare ``(values * weight).sum() / weight.sum()`` (verified: within
-    noise of, and on Polars 1.42 marginally faster than, a separate ``(w > 0).any()``
-    pass, which cannot short-circuit in the vectorized engine anyway).
+    null-for-undefined convention instead of leaking a ``0/0 = NaN``.
     """
     if weight is None:
         return values.mean()
     total = weight.sum()
+    # Guard on ``weight.sum()`` — the exact denominator, reused from the division — so
+    # it costs nothing over a bare ``(values * weight).sum() / total``. Verified within
+    # noise of, and on Polars 1.42 marginally faster than, a separate ``(w > 0).any()``
+    # pass, which cannot short-circuit in the vectorized engine anyway.
     return pl.when(total > 0).then((values * weight).sum() / total).otherwise(None)
 
 

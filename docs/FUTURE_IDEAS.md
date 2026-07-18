@@ -3,7 +3,8 @@
 A parking lot for metrics and model-evaluation utilities that fit the
 "native Polars expression" design but are not yet implemented. Each entry notes
 the scikit-learn analog (where one exists), why it fits, and the main
-implementation wrinkle.
+implementation wrinkle. Items that ship graduate to the [Shipped since this list was
+written](#shipped-since-this-list-was-written) section at the bottom.
 
 ## Cross-validation fold assignment (partly shipped)
 

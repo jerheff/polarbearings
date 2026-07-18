@@ -39,6 +39,21 @@ def log_loss(
         - Lower is better (0 is perfect).
         - Heavily penalizes confident wrong predictions.
         - Probabilities are clipped to [eps, 1-eps] for numerical stability.
+
+    Examples:
+        >>> import polars as pl
+        >>> from polarbearings import log_loss
+        >>>
+        >>> df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
+        >>> df.select(log_loss("label", "prob"))
+        shape: (1, 1)
+        ┌─────────────────────┐
+        │ log_loss_label_prob │
+        │ ---                 │
+        │ f64                 │
+        ╞═════════════════════╡
+        │ 0.308093            │
+        └─────────────────────┘
     """
     target_float = (col_expr(target) == pos_label).cast(pl.Float64)
 

@@ -37,6 +37,21 @@ def brier_score(
         - Lower is better (0 is perfect).
         - Brier score = mean((predicted_probability - actual_outcome)²).
         - Proper scoring rule (rewards calibrated probabilities).
+
+    Examples:
+        >>> import polars as pl
+        >>> from polarbearings import brier_score
+        >>>
+        >>> df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
+        >>> df.select(brier_score("label", "prob"))
+        shape: (1, 1)
+        ┌────────────────────────┐
+        │ brier_score_label_prob │
+        │ ---                    │
+        │ f64                    │
+        ╞════════════════════════╡
+        │ 0.085                  │
+        └────────────────────────┘
     """
     target_float = (col_expr(target) == pos_label).cast(pl.Float64)
     per_sample = (col_expr(prob) - target_float) ** 2
