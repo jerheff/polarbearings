@@ -108,8 +108,8 @@ jobs:
 
       # Coverage gate: branch coverage, 100% (fail_under lives in pyproject, so
       # local `just test-cov` matches). Combine a floor (1.0.0) run with a 1.36+ run
-      # so the version-gated fast paths (fused bootstrap >=1.28, ECE/MCE
-      # over-in-agg >=1.36) execute on both arcs — no `# pragma: no cover` needed.
+      # so the version-gated fast paths (e.g. ECE/MCE over-in-agg >=1.36) execute on
+      # both arcs — no `# pragma: no cover` needed.
       # Both legs run in this one job/checkout so coverage paths align for combine.
       - name: Coverage gate (combined floor + 1.36+, branch, 100%)
         run: |
@@ -118,13 +118,43 @@ jobs:
           uv run coverage combine
           uv run coverage report --show-missing
 
+  memory-limits:
+    name: Memory limits (per-test ceilings)
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.11"
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: "latest"
+          enable-cache: true
+
+      # pytest-memray lives in the `memory` group (kept out of `dev` so the Py
+      # 3.11-3.14 matrix never installs it). Pin a recent Polars: the memory
+      # pathologies this guards against (e.g. the fused per-group bootstrap blowup)
+      # surface there, not on the floor.
+      - name: Install dependencies + memray
+        run: |
+          uv sync --group memory
+          uv pip install polars==1.42.0
+
+      # Enforces tests/conftest.py's default per-test memory ceiling (+ any per-test
+      # overrides). A regression that pushes a test over its ceiling fails here
+      # loudly instead of silently OOM-killing a matrix runner.
+      - name: Enforce per-test memory ceilings
+        run: uv run pytest -m 'not hypothesis' --memray -q
+
   # Single rollup of every job above (incl. all matrix legs) — make THIS the
   # required check in branch protection. Its name is stable, so the matrix and
   # job names underneath can change without touching the protection rule.
   tests-passed:
     name: All tests passed
     if: always()
-    needs: [test, test-highest, coverage]
+    needs: [test, test-highest, coverage, memory-limits]
     runs-on: ubuntu-latest
     steps:
       - name: Verify all required jobs succeeded

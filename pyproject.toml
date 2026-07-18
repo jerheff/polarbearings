@@ -66,6 +66,12 @@ notebooks = [
     "nbconvert>=7.17.1",
     "ipykernel>=7.3",
 ]
+# Per-test memory-limit enforcement for the dedicated "Memory limits" CI job (run
+# with `pytest --memray`). Kept out of `dev` so the Py 3.11-3.14 test matrix doesn't
+# install it (memray is Linux/macOS only). See tests/conftest.py.
+memory = [
+    "pytest-memray>=1.9.0",
+]
 
 [tool.uv]
 required-version = ">=0.11"
@@ -161,7 +167,11 @@ error-on-warning = true
 testpaths = ["tests"]
 python_files = ["test_*.py", "bench_*.py"]
 python_functions = ["test_*"]
-markers = ["hypothesis: property-based tests using Hypothesis (slow)"]
+markers = [
+    "hypothesis: property-based tests using Hypothesis (slow)",
+    "limit_memory: pytest-memray per-test peak-memory ceiling (enforced under --memray)",
+    "limit_leaks: pytest-memray per-test leak ceiling (enforced under --memray)",
+]
 # Escalate deprecations to test failures so the highest-resolution job flags an
 # API polars/sklearn is phasing out the moment it appears, not when it's removed.
 filterwarnings = ["error::DeprecationWarning"]
@@ -178,8 +188,8 @@ branch = true
 omit = ["tests/*", "benchmarks/*"]
 # Single source of truth for the coverage gate: CI and `just test-cov` both fail
 # below 100%. Reaching 100% requires combining a floor (polars 1.0.0) run with a
-# 1.36+ run so the version-gated fast paths (fused bootstrap >=1.28, ECE/MCE
-# over-in-agg >=1.36) execute on both sides — no `# pragma: no cover` needed.
+# 1.36+ run so the version-gated fast paths (e.g. ECE/MCE over-in-agg >=1.36)
+# execute on both sides — no `# pragma: no cover` needed.
 fail_under = 100
 
 [tool.mutmut]

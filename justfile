@@ -113,15 +113,21 @@ publish: build
     uv publish
 
 # Coverage gate (100%, branch). Combine a floor (1.0.0) run with a 1.36+ run so the
-# version-gated fast paths (fused bootstrap >=1.28, ECE/MCE over-in-agg >=1.36)
-# execute on both arcs — no `# pragma: no cover` needed. Mirrors the CI coverage
-# job; the 1.36+ leg is the matrix's latest. `coverage report` enforces fail_under.
+# version-gated fast paths (e.g. ECE/MCE over-in-agg >=1.36) execute on both arcs —
+# no `# pragma: no cover` needed. Mirrors the CI coverage job; the 1.36+ leg is the
+# matrix's latest. `coverage report` enforces fail_under.
 test-cov:
     rm -f .coverage .coverage.*
     uv run --with polars==1.0.0 coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
     uv run --with polars==1.42.0 coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
     uv run coverage combine
     uv run coverage report --show-missing
+
+# Enforce per-test memory ceilings (tests/conftest.py) via pytest-memray, pinned to a
+# recent Polars where the memory pathologies show up. Mirrors the CI memory-limits job.
+test-memory:
+    uv sync --group memory
+    uv run --with polars==1.42.0 pytest -m 'not hypothesis' --memray -q
 
 # Cap the size sweep with BENCH_MAX_N (e.g. `BENCH_MAX_N=100000 just bench`).
 # Run performance benchmarks against the current/dev env
