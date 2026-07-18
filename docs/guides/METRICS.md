@@ -271,20 +271,6 @@ df.group_by("segment").agg(*threshold_sweep(f1_score, "label", "prob", quantiles
 Metrics also accept a Polars **expression** as the threshold directly, e.g.
 `precision("label", "prob", threshold=pl.col("prob").quantile(0.9))`.
 
-### Percentile Thresholds
-
-`percentile_thresholds` materializes concrete threshold values from a score
-series (eager) — complements the in-graph `quantiles` spec when you need the
-numbers themselves:
-
-```python
-from polarbearings import f1_score, percentile_thresholds, threshold_sweep
-
-scores = df["prob"]
-thresholds = percentile_thresholds(scores, [10, 25, 50, 75, 90])
-df.select(*threshold_sweep(f1_score, "label", "prob", thresholds))
-```
-
 ## Regression Metrics
 
 ```python

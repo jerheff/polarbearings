@@ -111,7 +111,7 @@ semantics, edge cases, and scikit-learn correspondence.
 | **Ranking** | `roc_auc`, `average_precision`, `gini_coefficient`, `dcg_score`, `ndcg_score` |
 | **Probabilistic** | `log_loss`, `brier_score` |
 | **Classification** | `precision`, `recall`, `f1_score`, `fbeta_score`, `specificity`, `accuracy`, `balanced_accuracy`, `matthews_corrcoef`, `cohens_kappa`, `jaccard_score`, `confusion_matrix` |
-| **Thresholds** | `threshold_sweep`, `percentile_thresholds`, `quantiles` / `equal_width` / `linspace` specs |
+| **Thresholds** | `threshold_sweep`, `quantiles` / `equal_width` / `linspace` specs |
 | **Curves** | `roc_curve`, `pr_curve`, `det_curve`, `expected_cost`, `confusion_curve` |
 | **Regression** | `mae`, `mse`, `rmse`, `r2_score`, `mape`, `smape`, MSLE/RMSLE, `huber_loss`, `log_cosh_loss`, pinball, Tweedie/Poisson/gamma deviance, D² scores, `max_error`, `median_absolute_error` |
 | **Calibration** | `calibration_curve`, `expected_calibration_error` (ECE), `maximum_calibration_error` (MCE) |

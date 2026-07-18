@@ -28,7 +28,6 @@ from polarbearings.classification import (
     fbeta_score,
     jaccard_score,
     matthews_corrcoef,
-    percentile_thresholds,
     precision,
     recall,
     specificity,
@@ -97,7 +96,6 @@ __all__: list[str] = [
     "expected_cost",
     # Utilities
     "threshold_sweep",
-    "percentile_thresholds",
     "quantiles",
     "equal_width",
     "linspace",

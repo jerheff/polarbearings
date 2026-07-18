@@ -96,7 +96,6 @@ _NON_SCALAR = {
     "det_curve",
     "expected_cost",
     "threshold_sweep",
-    "percentile_thresholds",
     "quantiles",
     "equal_width",
     "linspace",

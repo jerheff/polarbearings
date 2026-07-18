@@ -518,29 +518,3 @@ def threshold_sweep(
         expr = metric_fn(target, prob, threshold=value, weight=weight, pos_label=pos_label)
         exprs.append(expr.alias(f"{prefix}_{label}{suffix}"))
     return exprs
-
-
-def percentile_thresholds(series: pl.Series, percentiles: list[float]) -> list[float]:
-    """Compute threshold values from percentiles of a score distribution.
-
-    Args:
-        series: A Polars Series of prediction scores/probabilities.
-        percentiles: List of percentile values (0-100).
-
-    Returns:
-        List of threshold values corresponding to the given percentiles.
-
-    Examples:
-        >>> import polars as pl
-        >>> from polarbearings import percentile_thresholds
-        >>>
-        >>> scores = pl.Series([0.1, 0.2, 0.3, 0.5, 0.7, 0.8, 0.9])
-        >>> percentile_thresholds(scores, [25, 50, 75])
-    """
-    thresholds: list[float] = []
-    for p in percentiles:
-        q = series.quantile(p / 100, interpolation="linear")
-        if q is None:
-            raise ValueError("Cannot compute percentile thresholds on an empty series.")
-        thresholds.append(float(q))
-    return thresholds
