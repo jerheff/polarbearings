@@ -32,19 +32,26 @@ def balanced_sample_weight(target: IntoExpr) -> pl.Expr:
     ``with_columns`` partitioned by the group (e.g. ``pl.len().over([group, target])``
     composed by the caller) or compute per filtered frame.
 
+    **Null labels** are treated as missing, not as their own class: they are
+    excluded from ``n_samples`` and ``n_classes`` (so they do not dilute the real
+    classes' weights), and a null-label row gets a null weight. This matches the
+    library's "missing input never silently changes a number" policy.
+
     Args:
         target: Column name or expression with the class labels. Integer, string,
             and boolean columns are all supported.
 
     Returns:
-        A Polars expression evaluating to the per-row balanced weight, aliased
-        ``"balanced_sample_weight_<target>"``.
+        A Polars expression evaluating to the per-row balanced weight (null for a
+        null-label row), aliased ``"balanced_sample_weight_<target>"``.
     """
-    count_over_class = pl.len().over(col_expr(target))
-    n_classes = col_expr(target).n_unique()
-    n_samples = pl.len()
+    label = col_expr(target)
+    count_over_class = pl.len().over(label)
+    n_classes = label.drop_nulls().n_unique()  # null is not a class
+    n_samples = label.count()  # count() excludes nulls, unlike pl.len()
 
     weight = n_samples / (n_classes * count_over_class)
+    weight = pl.when(label.is_null()).then(None).otherwise(weight)
     return weight.cast(pl.Float64).alias(f"balanced_sample_weight_{col_name(target)}")
 
 
@@ -55,15 +62,19 @@ def balanced_class_weights(series: pl.Series) -> dict[object, float]:
     returning a mapping from class label to its weight
     ``n_samples / (n_classes * count(c))``.
 
+    Null labels are treated as missing (dropped), not as their own class, so they
+    neither appear as a key nor dilute the real classes' weights.
+
     Args:
         series: A Polars Series of class labels. Integer, string, and boolean
             dtypes are all supported.
 
     Returns:
-        A dict mapping each distinct class label to its balanced weight.
+        A dict mapping each distinct (non-null) class label to its balanced weight.
     """
-    n_samples = series.len()
-    counts = series.value_counts()
+    labels = series.drop_nulls()
+    n_samples = labels.len()
+    counts = labels.value_counts()
     label_col, count_col = counts.columns[0], counts.columns[1]
     n_classes = counts.height
 

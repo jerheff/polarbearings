@@ -50,6 +50,16 @@ class TestBalancedSampleWeight:
         # n_classes == 1 -> every weight is 1.0, matching sklearn.
         _assert_matches_sklearn([5, 5, 5])
 
+    def test_null_label_excluded(self):
+        # A null label is missing, not a class: its row gets a null weight and it
+        # does not dilute the real classes (which match sklearn on the non-null y).
+        df = pl.DataFrame({"y": [1, 1, 0, None]})
+        result = df.select(balanced_sample_weight("y")).to_series().to_list()
+        expected = compute_sample_weight("balanced", np.asarray([1, 1, 0]))
+        assert result[-1] is None
+        for got, want in zip(result[:-1], expected, strict=True):
+            assert got == pytest.approx(want)
+
     def test_used_in_downstream_weighting(self):
         # Weighted sum of a constant column equals n_classes-balanced total.
         df = pl.DataFrame({"y": [0, 0, 0, 1], "value": [1.0, 1.0, 1.0, 1.0]})
@@ -98,6 +108,15 @@ class TestBalancedClassWeights:
         expected = compute_class_weight("balanced", classes=classes, y=np.asarray(labels))
         for cls, want in zip(classes, expected, strict=True):
             assert result[cls] == pytest.approx(want)
+
+    def test_null_labels_dropped(self):
+        # Nulls are missing, not a class: no null key, and the real classes match
+        # sklearn computed on the non-null labels.
+        result = balanced_class_weights(pl.Series("y", [1, 1, 0, None]))
+        assert set(result) == {0, 1}
+        expected = compute_class_weight("balanced", classes=np.array([0, 1]), y=np.array([1, 1, 0]))
+        assert result[0] == pytest.approx(expected[0])
+        assert result[1] == pytest.approx(expected[1])
 
 
 @given(
