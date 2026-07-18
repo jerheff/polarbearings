@@ -7,6 +7,23 @@ expression — so it drops into ``select``, ``with_columns``, ``group_by``, and 
 pipelines. The same primitive powers the bootstrap weights
 (:func:`~polarbearings.bootstrap.bootstrap_weight`).
 
+**Stable across Polars versions.** The mixing is a fixed `SplitMix64
+<https://prng.di.unimi.it/splitmix64.c>`_ finalizer built only from *defined*
+wrapping ``UInt64`` arithmetic (add, multiply, XOR, right-shift), **not** Polars'
+:meth:`~polars.Expr.hash`, whose docstring reserves the right to change the hash
+between releases (*"stability is only guaranteed within a single version"* — and it
+did change between 1.24 and 1.42). Because the split key is computed by us, the same
+``(seed, id)`` maps to the same uniform on every supported Polars version, so a
+holdout pinned today stays pinned after a Polars upgrade.
+
+**Id types.** ``id_col`` must be an **integer** column (any width, signed or unsigned;
+values are read as their two's-complement ``UInt64`` bit pattern). For **string /
+UUID** ids, materialize a stable ``Int64`` key once and split on that — see
+:func:`hash_uniform` for the recipe. Keep the package's sole dependency ``polars`` by
+using a fixed hash you control for that key (a :mod:`hashlib` digest, the
+``polars-hash`` plugin, or a surrogate key); never Polars' :meth:`~polars.Expr.hash`,
+which is the version-unstable function this module exists to avoid.
+
 ``seed`` is the **first, required** argument of every helper: it *is* the split's
 identity (the "seed-42 split"), and independent splits must use different seeds — a
 shared default would silently correlate them (same id + same seed = same uniform),
@@ -38,21 +55,80 @@ import polars as pl
 
 from polarbearings._common import IntoExpr, col_expr
 
-# Divisor mapping a UInt64 hash into a (0, 1] uniform.
+# SplitMix64 (Vigna) constants — a fixed, version-independent integer mix. We use
+# it instead of ``Expr.hash`` because it is expressible entirely in *defined*
+# wrapping-``UInt64`` arithmetic (add/multiply/XOR/right-shift), whose results are
+# identical on every Polars version; ``Expr.hash`` explicitly does not promise that.
+_GOLDEN_GAMMA = 0x9E3779B97F4A7C15  # odd increment ≈ 2**64 / golden ratio
+_MIX_1 = 0xBF58476D1CE4E5B9
+_MIX_2 = 0x94D049BB133111EB
+_U64_MASK = (1 << 64) - 1
+# Divisor mapping a UInt64 mix into a (0, 1] uniform.
 _U64_SCALE = 2.0**64
 
 
+def _u64(value: int) -> pl.Expr:
+    """A ``UInt64`` literal, reduced mod ``2**64`` (so Python ints can't overflow)."""
+    return pl.lit(value & _U64_MASK, dtype=pl.UInt64)
+
+
+def _shr(z: pl.Expr, bits: int) -> pl.Expr:
+    """Logical right shift of a ``UInt64`` expression (``z >> bits``).
+
+    Polars has no expression shift operator on the 1.0.0 floor, but an unsigned
+    right shift by ``bits`` is exactly floor-division by ``2**bits``. The cast pins
+    the result back to ``UInt64`` so no version can promote it to a wider dtype.
+    """
+    return (z // _u64(1 << bits)).cast(pl.UInt64)
+
+
+def _splitmix64(state: pl.Expr) -> pl.Expr:
+    """One SplitMix64 step: advance the state by ``GOLDEN_GAMMA``, then finalize.
+
+    Every operation wraps at 64 bits and is dtype-pinned to ``UInt64``, so the mixed
+    integer is bit-identical across Polars versions. The leading increment means a
+    zero ``state`` (e.g. ``id == 0`` at ``seed == 0``) does not map to zero.
+    """
+    z = (state + _u64(_GOLDEN_GAMMA)).cast(pl.UInt64)
+    z = ((z ^ _shr(z, 30)).cast(pl.UInt64) * _u64(_MIX_1)).cast(pl.UInt64)
+    z = ((z ^ _shr(z, 27)).cast(pl.UInt64) * _u64(_MIX_2)).cast(pl.UInt64)
+    return (z ^ _shr(z, 31)).cast(pl.UInt64)
+
+
 def hash_uniform(seed: int, id_col: IntoExpr) -> pl.Expr:
-    """Deterministic uniform in ``(0, 1]`` from hashing a record id.
+    """Deterministic uniform in ``(0, 1]`` from mixing a record id.
 
     The shared primitive behind :func:`hash_split`, :func:`hash_fold`, and the
-    bootstrap weights: ``(hash(id, seed) + 1) / 2**64``. Keyed on the id, so it is
-    reproducible across runs and independent of row order.
+    bootstrap weights: ``(splitmix64(id, seed) + 1) / 2**64``. Keyed on the id, so it
+    is reproducible across runs, independent of row order, and — unlike Polars'
+    :meth:`~polars.Expr.hash` — **stable across Polars versions** (see the module
+    docstring). The id's bits are offset by ``seed`` before the mix, so distinct seeds
+    give independent uniforms.
+
+    ``id_col`` must be an **integer** column (any width, signed or unsigned; must fit
+    in ``Int64``). For **string / UUID** ids, materialize a stable ``Int64`` key once
+    and split on that column. Use a *fixed* hash for the key so it is reproducible;
+    do **not** use Polars' :meth:`~polars.Expr.hash`, the version-unstable function
+    this module exists to avoid. For example, with the ``polars-hash`` plugin::
+
+        keyed = df.with_columns(id_key=pl.col("uuid").nchash.wyhash().reinterpret(signed=True))
+        keyed.with_columns(holdout=hash_split(1, "id_key", fraction=0.2))
+
+    or, dependency-free, a one-time :mod:`hashlib` pass materialized to a column::
+
+        import hashlib
+
+        def _key(s: str) -> int:
+            digest = hashlib.blake2b(s.encode(), digest_size=8).digest()
+            return int.from_bytes(digest, "little") - 2**63  # center into Int64
+
+        keyed = df.with_columns(id_key=pl.col("uuid").map_elements(_key, pl.Int64))
 
     Args:
         seed: Hash seed; the split's identity. Different seeds give independent
             uniforms for the same id.
-        id_col: Stable per-row identifier (column name or expression) to hash.
+        id_col: Stable per-row **integer** identifier (column name or expression) to
+            hash. Any integer width, signed or unsigned; must fit in ``Int64``.
 
     Returns:
         A ``Float64`` Polars expression with values in ``(0, 1]``.
@@ -63,7 +139,11 @@ def hash_uniform(seed: int, id_col: IntoExpr) -> pl.Expr:
         >>> df = pl.DataFrame({"id": [1, 2, 3]})
         >>> df.select(u=hash_uniform(0, "id"))  # doctest: +SKIP
     """
-    return (col_expr(id_col).hash(seed=seed).cast(pl.Float64) + 1.0) / _U64_SCALE
+    # Widen to Int64 then reinterpret the bits as UInt64: works for every integer
+    # width and maps negative ids by two's complement (a plain cast would reject them).
+    key = col_expr(id_col).cast(pl.Int64).reinterpret(signed=False)
+    state = (key + _u64(seed * _GOLDEN_GAMMA)).cast(pl.UInt64)
+    return (_splitmix64(state).cast(pl.Float64) + 1.0) / _U64_SCALE
 
 
 def hash_split(seed: int, id_col: IntoExpr, *, fraction: float) -> pl.Expr:
@@ -78,7 +158,8 @@ def hash_split(seed: int, id_col: IntoExpr, *, fraction: float) -> pl.Expr:
     Args:
         seed: Hash seed; the split's identity. Use distinct seeds for independent
             splits — sharing a seed correlates them.
-        id_col: Stable per-row identifier (column name or expression) to hash.
+        id_col: Stable per-row integer identifier (column name or expression) to hash
+            (see :func:`hash_uniform` for string-id handling).
         fraction: Target share of rows in the holdout, in ``[0, 1]``.
 
     Returns:
@@ -107,7 +188,8 @@ def hash_fold(seed: int, id_col: IntoExpr, *, k: int) -> pl.Expr:
 
     Args:
         seed: Hash seed; the fold assignment's identity.
-        id_col: Stable per-row identifier (column name or expression) to hash.
+        id_col: Stable per-row integer identifier (column name or expression) to hash
+            (see :func:`hash_uniform` for string-id handling).
         k: Number of folds (``>= 1``).
 
     Returns:

@@ -27,7 +27,6 @@ Entry points:
       per-group bias correction can't be expressed without re-materialization.
 """
 
-import functools
 import inspect
 import math
 from collections.abc import Callable, Sequence
@@ -38,28 +37,6 @@ import polars as pl
 
 from polarbearings._common import IntoExpr, WeightInput, col_expr, resolve_weight
 from polarbearings.split import hash_uniform
-
-
-@functools.cache
-def _supports_list_agg() -> bool:
-    """Whether Polars can reduce a list built from aggregations in a single pass.
-
-    Fixed in Polars 1.28.0 (pola-rs/polars#22249, "Support literal:list agg"). On
-    older Polars, reducing a freshly built list inside ``group_by().agg()`` — or a
-    single fused lazy plan — raises ``invalid series dtype: expected List`` /
-    ``failed to determine supertype of list[f64] and f64``, so the per-group CI
-    must insert a materialization boundary between generating the distribution and
-    reducing it. Feature-detected (not version-parsed) to be robust to dev builds.
-    """
-    try:
-        probe = pl.DataFrame({"_g": [0, 0], "_x": [1.0, 2.0]})
-        probe.group_by("_g").agg(
-            pl.concat_list([pl.col("_x").sum(), pl.col("_x").mean()]).list.max()
-        )
-    except Exception:
-        return False  # Polars < 1.28 (floor/mid CI)
-    return True  # Polars >= 1.28 (latest CI; #22249)
-
 
 _Method = Literal["percentile", "basic", "normal", "bc"]
 _VALID_METHODS = get_args(_Method)
@@ -145,14 +122,18 @@ def bootstrap_weight(
     - ``kind="poisson"``: a ``Poisson(1)`` integer multiplicity — the classic
       with-replacement bootstrap (exact in the large-``n`` limit).
 
-    Pass ``id_col`` — the name (or expression) of a **stable row identifier** — to
-    hash that instead of row position. This makes the resample **reproducible across
-    runs and row orderings**, and — because it is an ordinary column rather than
-    ``int_range`` — lets the weight be used inside ``group_by``/``by=`` (a positional
-    ``int_range`` goes list-valued there). With no ``id_col``, row position is used,
-    which is fine in a whole-frame ``select`` or the default (exact) curves but not
-    inside a grouped aggregation: add one with ``df.with_row_index("id")`` and pass
-    ``id_col="id"``.
+    Pass ``id_col`` — the name (or expression) of a **stable integer row
+    identifier** — to hash that instead of row position. This makes the resample
+    **reproducible across runs and row orderings**, and — because it is an ordinary
+    column rather than ``int_range`` — lets the weight be used inside
+    ``group_by``/``by=`` (a positional ``int_range`` goes list-valued there). With no
+    ``id_col``, row position is used, which is fine in a whole-frame ``select`` or the
+    default (exact) curves but not inside a grouped aggregation: add one with
+    ``df.with_row_index("id")`` and pass ``id_col="id"``. The hashing (via
+    :func:`~polarbearings.split.hash_uniform`) uses a fixed SplitMix64 mix, so a given
+    ``(id, seed)`` yields the same draw on every supported Polars version. ``id_col``
+    must be an **integer** column; for a string/UUID id, materialize a stable integer
+    key first (see :func:`~polarbearings.split.hash_uniform`).
 
     ``weight_kind`` says what an existing ``weight`` *means*:
 
@@ -374,10 +355,15 @@ def _bootstrap_ci_by(
 ) -> pl.DataFrame:
     """Per-group confidence intervals, returned as a DataFrame.
 
-    On Polars >= 1.28 the distribution is reduced in the same ``agg`` (one fused
-    pass); on older Polars it materializes the per-group distribution first, then
-    reduces it. Either way the reduction is a single vectorized expression over all
-    groups — never a Python per-group loop. The result is identical across versions.
+    The per-group distribution is generated as a list column, materialized, then
+    reduced by a single vectorized expression over all groups (never a Python
+    per-group loop). We deliberately do **not** fuse generation and reduction into
+    one ``group_by().agg()``: that fused plan makes Polars 1.42 materialize an
+    ~150 MB-per-replicate intermediate *independent of row count* (≈15 GB at
+    ``n_resamples=100``, enough to OOM-kill CI), while the two-step is a few hundred
+    MB for an identical result. The raw ``bootstrap`` expression stays composable —
+    only this whole-result helper takes the materialization boundary, and it returns
+    a DataFrame anyway.
     """
     keys = list(by)
     ridx = "__pb_row_index"
@@ -394,29 +380,21 @@ def _bootstrap_ci_by(
         row_index=ridx,
         **metric_kwargs,
     )
-    if _supports_list_agg():
-        # Polars >= 1.28: reduce the freshly built distribution in the same agg.
-        ci = ci_from_distribution(dist, level=level, method=method, estimate=estimate)
-        out = (
-            framed.group_by(keys)
-            .agg(estimate.alias("estimate"), ci.alias("_ci"))
-            .unnest("_ci")
-            .collect()
-        )
-    else:
-        # Older Polars: materialization boundary, then reduce the real list column.
-        materialized = (
-            framed.group_by(keys).agg(estimate.alias("estimate"), dist.alias("_dist")).collect()
-        )
-        out = (
-            materialized.with_columns(
-                ci_from_distribution(
-                    "_dist", level=level, method=method, estimate="estimate"
-                ).alias("_ci")
+    # Generate the per-group distribution as a list column and materialize it, then
+    # reduce the real list column. See the docstring: fusing these into one agg is a
+    # multi-GB memory pathology on Polars 1.42.
+    materialized = (
+        framed.group_by(keys).agg(estimate.alias("estimate"), dist.alias("_dist")).collect()
+    )
+    out = (
+        materialized.with_columns(
+            ci_from_distribution("_dist", level=level, method=method, estimate="estimate").alias(
+                "_ci"
             )
-            .drop("_dist")
-            .unnest("_ci")
         )
+        .drop("_dist")
+        .unnest("_ci")
+    )
     return out.sort(keys)
 
 
