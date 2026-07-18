@@ -19,11 +19,12 @@ binning expression and so triggers a scoped collect of those quantiles (the
 
 import functools
 from collections.abc import Sequence
-from typing import Literal
+from typing import Literal, TypeAlias
 
 import polars as pl
 
 from polarbearings._common import (
+    ByInput,
     IntoExpr,
     PosLabel,
     WeightInput,
@@ -36,7 +37,7 @@ from polarbearings._common import (
     weight_suffix,
 )
 
-BinStrategy = Literal["uniform", "quantile"]
+BinStrategy: TypeAlias = Literal["uniform", "quantile"]
 
 
 @functools.cache
@@ -87,7 +88,7 @@ def _bin_edges(
     prob: IntoExpr,
     n_bins: int,
     strategy: BinStrategy,
-    bins: list[float] | None,
+    bins: Sequence[float] | None,
 ) -> list[float]:
     """Resolve the monotonic bin edges (length ``n_bins + 1``)."""
     if bins is not None:
@@ -110,7 +111,8 @@ def _bin_edges(
             .row(0)
         )
         if any(v is None for v in row):
-            raise ValueError("Cannot compute quantile bins on an empty column.")
+            msg = "Cannot compute quantile bins on an empty column."
+            raise ValueError(msg)
         return [float(v) for v in row]
     raise _unknown_strategy_error(strategy)
 
@@ -122,10 +124,10 @@ def calibration_curve(
     *,
     n_bins: int = 5,
     strategy: BinStrategy = "uniform",
-    bins: list[float] | None = None,
+    bins: Sequence[float] | None = None,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
-    by: IntoExpr | list[IntoExpr] | None = None,
+    by: ByInput = None,
 ) -> pl.LazyFrame:
     """Compute calibration-curve data, one row per non-empty bin.
 
@@ -234,7 +236,7 @@ def _bin_setup(
     prob: IntoExpr,
     n_bins: int,
     strategy: BinStrategy,
-    bins: list[float] | None,
+    bins: Sequence[float] | None,
     pos_label: PosLabel,
 ) -> tuple[pl.Expr, pl.Expr, pl.Expr, int]:
     """Shared binning setup: ``(prob_f, is_pos, bin_id, n_used)``.
@@ -332,7 +334,7 @@ def expected_calibration_error(
     *,
     n_bins: int = 10,
     strategy: BinStrategy = "uniform",
-    bins: list[float] | None = None,
+    bins: Sequence[float] | None = None,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -406,7 +408,7 @@ def maximum_calibration_error(
     *,
     n_bins: int = 10,
     strategy: BinStrategy = "uniform",
-    bins: list[float] | None = None,
+    bins: Sequence[float] | None = None,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:

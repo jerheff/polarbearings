@@ -76,6 +76,13 @@ easily match:
 Because every metric is just an expression, a full report is one `df.select(...)`
 — Polars reads each column once and fans the work across the independent outputs:
 
+<!--- invisible-code-block: python
+df = pl.DataFrame({
+    "label": [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+    "prob": [0.1, 0.9, 0.2, 0.8, 0.15, 0.85, 0.3, 0.7, 0.25, 0.75, 0.4, 0.6],
+})
+--->
+
 ```python
 from polarbearings import (
     precision, recall, f1_score, roc_auc, average_precision,
@@ -117,6 +124,14 @@ semantics, edge cases, and scikit-learn correspondence.
 | **Calibration** | `calibration_curve`, `expected_calibration_error` (ECE), `maximum_calibration_error` (MCE) |
 | **Weights & CIs** | `balanced_sample_weight`, `balanced_class_weights`, `bootstrap_ci`, `bootstrap_weight` |
 | **Splitting** | `hash_split`, `hash_splits`, `hash_fold`, `hash_uniform` |
+
+<!--- invisible-code-block: python
+reg = pl.DataFrame({
+    "y": [1.0, 2.0, 3.0, 4.0, 5.0],
+    "pred": [1.1, 1.9, 3.2, 3.8, 5.5],
+    "w": [1.0, 1.0, 1.0, 2.0, 1.0],
+})
+--->
 
 ```python
 from polarbearings import roc_auc, f1_score, mae, calibration_curve
@@ -160,6 +175,14 @@ Polarbearings is a good fit for:
 2. **Group-wise metrics** — per-segment analysis via Polars' `group_by`
 3. **Streaming / out-of-core** — lazy expressions over `LazyFrame`s
 4. **Composed evaluation reports** — a whole metric suite in one pass
+
+<!--- invisible-code-block: python
+df = pl.DataFrame({
+    "segment": ["A", "A", "B", "B"],
+    "label": [0, 1, 0, 1],
+    "score": [0.1, 0.9, 0.5, 0.5],
+})
+--->
 
 ```python
 from polarbearings import roc_auc

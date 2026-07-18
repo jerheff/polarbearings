@@ -257,9 +257,10 @@ def median_absolute_error(target: IntoExpr, pred: IntoExpr) -> pl.Expr:
     Example:
         >>> import polars as pl
         >>> from polarbearings import median_absolute_error
-        >>> df = pl.DataFrame({"y": [1.0, 2.0, 3.0, 4.0], "pred": [1.0, 2.0, 3.0, 7.0]})
+        >>> # Errors are [1, 1, 1, 96]; the median (1.0) ignores the outlier.
+        >>> df = pl.DataFrame({"y": [1.0, 2.0, 3.0, 4.0], "pred": [2.0, 3.0, 4.0, 100.0]})
         >>> df.select(median_absolute_error("y", "pred")).to_series()[0]
-        0.5
+        1.0
     """
     abs_err = (col_expr(target).cast(pl.Float64) - col_expr(pred).cast(pl.Float64)).abs()
     return guarded(abs_err.median(), values=[target, pred]).alias(

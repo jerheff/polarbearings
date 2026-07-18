@@ -4,6 +4,7 @@ import polars as pl
 
 from polarbearings._common import (
     IntoExpr,
+    PosLabel,
     WeightInput,
     col_expr,
     col_name,
@@ -19,7 +20,7 @@ def brier_score(
     prob: IntoExpr,
     *,
     weight: WeightInput = None,
-    pos_label: int | float | str | bool = 1,
+    pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute Brier score for binary classification.
 

@@ -50,6 +50,7 @@ then bucket).
 """
 
 from collections.abc import Sequence
+from typing import Final
 
 import polars as pl
 
@@ -59,12 +60,12 @@ from polarbearings._common import IntoExpr, col_expr
 # it instead of ``Expr.hash`` because it is expressible entirely in *defined*
 # wrapping-``UInt64`` arithmetic (add/multiply/XOR/right-shift), whose results are
 # identical on every Polars version; ``Expr.hash`` explicitly does not promise that.
-_GOLDEN_GAMMA = 0x9E3779B97F4A7C15  # odd increment ≈ 2**64 / golden ratio
-_MIX_1 = 0xBF58476D1CE4E5B9
-_MIX_2 = 0x94D049BB133111EB
-_U64_MASK = (1 << 64) - 1
+_GOLDEN_GAMMA: Final = 0x9E3779B97F4A7C15  # odd increment ≈ 2**64 / golden ratio
+_MIX_1: Final = 0xBF58476D1CE4E5B9
+_MIX_2: Final = 0x94D049BB133111EB
+_U64_MASK: Final = (1 << 64) - 1
 # Divisor mapping a UInt64 mix into a (0, 1] uniform.
-_U64_SCALE = 2.0**64
+_U64_SCALE: Final = 2.0**64
 
 
 def _u64(value: int) -> pl.Expr:

@@ -22,7 +22,7 @@ just setup           # Install dependencies + prek hooks
 just test            # Run full test suite
 just test-fast       # Quick test run
 just quality         # Run linting and type checking
-just check           # Fast local check: lint + type-check + tests (not full CI)
+just check           # Fast local check: lint + type-check + doctests + tests (not full CI)
 just bench           # Run performance benchmarks
 just pre-commit      # Quick pre-commit check (auto-fix + format + test)
 ```
@@ -114,8 +114,8 @@ When implementing a new metric:
 3. Write unit tests in `tests/test_<metric_name>.py`
 4. Add property-based tests with Hypothesis
 5. Add compatibility tests against scikit-learn
-6. Update README.md with examples and documentation
-7. Run `just check` (lint + type-check + tests) before pushing; full CI (coverage gate, compat matrix, test-highest, test-memory) runs on the PR
+6. Update README.md with examples and documentation. Docstring `>>>` examples (exact Polars output asserted) and the README's Python blocks are executed as tests via `just doctest` — a wrong result or renamed arg fails there. README blocks reuse shared `df`/`reg` frames seeded from `<!--- invisible-code-block --->` HTML comments (invisible on GitHub); the root `conftest.py` runs them through Sybil.
+7. Run `just check` (lint + type-check + doctests + tests) before pushing; full CI (coverage gate, compat matrix, test-highest, test-memory, doctests) runs on the PR
 
 ## Dependencies
 
@@ -172,7 +172,7 @@ just pre-commit  # Auto-fixes lint issues, formats code, runs fast tests
 
 **Fast local check (not full CI):**
 ```bash
-just check  # Runs quality checks + full test suite
+just check  # Runs quality checks + doctests + full test suite
 ```
 
 **Test compatibility:**

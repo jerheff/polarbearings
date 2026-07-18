@@ -47,13 +47,21 @@ dev = [
     # tools, not stale ones. NB: numpy and scikit-learn are dev-only test/parity
     # deps, NOT package dependencies (the wheel depends only on polars) — there is
     # no support promise for them, so bump them forward like any other tool.
-    "ty>=0.0.51",
-    "ruff>=0.15.18",
+    "ty>=0.0.61",
+    "ruff>=0.15.22",
     "pytest>=9.1.1",
     "pytest-cov>=7.1",
     "pytest-benchmark>=5.2.3",
     "pytest-timeout>=2.4",
-    "hypothesis[numpy]>=6.155.7",
+    # Randomizes test order each run (and seeds stdlib/numpy RNGs) to surface
+    # hidden inter-test state coupling. Reproduce a run with `-p randomly
+    # --randomly-seed=<n>` (the seed is printed in the pytest header).
+    "pytest-randomly>=4.1",
+    "hypothesis[numpy]>=6.156.6",
+    # Runs the README's Python code blocks as tests (via the root conftest), so a
+    # renamed metric or changed signature in the docs fails CI. Shared setup frames
+    # live in `<!--- invisible-code-block --->` HTML comments (invisible on GitHub).
+    "sybil>=10",
     "mutmut>=3.6",
     "numpy>=2.4.6",
     "scikit-learn>=1.9",
@@ -128,6 +136,15 @@ select = [
     "PERF", # perflint
     "FURB", # refurb — modernizing rewrites
     "T10",  # flake8-debugger — no stray breakpoint()/pdb
+    "A",    # flake8-builtins — don't shadow builtins (min, max, id, type, ...)
+    "EM",   # flake8-errmsg — assign exception messages to a var before raising
+    "ISC",  # flake8-implicit-str-concat — catch accidental adjacent-string concat
+    "FLY",  # flynt — prefer f-strings over str.join of a static sequence
+    "PGH",  # pygrep-hooks — no blanket `# noqa` / `# type: ignore` (require a code)
+    "RSE",  # flake8-raise — no needless parens on `raise Exc()` from `raise Exc`
+    "TID",  # flake8-tidy-imports — import hygiene (no parent-relative imports)
+    "PLE",  # pylint errors — real bugs (bad format strings, `return` in __init__)
+    "PLW",  # pylint warnings — likely-wrong constructs (loop-var shadowing, ...)
 ]
 ignore = [
     "E501",    # line length — handled by the formatter
@@ -158,23 +175,41 @@ exclude = ["notebooks"]
 [tool.ty.environment]
 python-version = "3.11"
 
-[tool.ty.terminal]
-# Fail on warning-level diagnostics too, not just errors — keep the whole tree
-# (src, tests, benchmarks) type-clean. ty checks the full project by default.
-error-on-warning = true
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "bench_*.py"]
 python_functions = ["test_*"]
+# --strict-markers: an unregistered/typo'd marker is an error, not a silent no-op.
+# --strict-config: an unknown key or parse error in this section fails loudly.
+addopts = ["--strict-markers", "--strict-config"]
+# A test marked xfail that unexpectedly PASSES becomes a failure, so a stale
+# "known failure" can't silently mask a since-fixed (then re-broken) test.
+xfail_strict = true
+# Assert the pytest plugins the suite relies on are installed, so a broken env
+# fails loudly instead of silently dropping coverage, random ordering, timeouts,
+# etc. memray is intentionally excluded (memory-only group, Linux/macOS); sybil
+# hooks in via the root conftest, not as a pytest plugin. The doctest run uses
+# `--randomly-dont-reorganize` (not `-p no:randomly`) so pytest-randomly stays
+# loaded and this check still holds there.
+required_plugins = [
+    "hypothesis",
+    "pytest-benchmark",
+    "pytest-cov",
+    "pytest-randomly",
+    "pytest-timeout",
+]
 markers = [
     "hypothesis: property-based tests using Hypothesis (slow)",
     "limit_memory: pytest-memray per-test peak-memory ceiling (enforced under --memray)",
     "limit_leaks: pytest-memray per-test leak ceiling (enforced under --memray)",
 ]
-# Escalate deprecations to test failures so the highest-resolution job flags an
-# API polars/sklearn is phasing out the moment it appears, not when it's removed.
-filterwarnings = ["error::DeprecationWarning"]
+# Escalate EVERY warning to a test failure — most importantly the numpy/polars
+# RuntimeWarnings (divide-by-zero, overflow, invalid value) that silently yield
+# NaN/inf, the exact bug class this library exists to get right. Deprecations are
+# included, so the highest-resolution job still flags a phasing-out polars/sklearn
+# API on sight. Add a narrow `"ignore::..."` entry only if a benign third-party
+# warning ever appears.
+filterwarnings = ["error"]
 
 [tool.coverage.run]
 source = ["polarbearings"]

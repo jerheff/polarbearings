@@ -1,12 +1,13 @@
 """Threshold-based classification metrics implemented as Polars expressions."""
 
-from typing import Protocol
+from typing import Final, Protocol
 
 import polars as pl
 
 from polarbearings._common import (
     IntoExpr,
     PosLabel,
+    ThresholdValue,
     WeightInput,
     any_missing,
     col_expr,
@@ -23,13 +24,13 @@ class _MetricFn(Protocol):
         target: IntoExpr,
         prob: IntoExpr,
         *,
-        threshold: float | pl.Expr = ...,
+        threshold: ThresholdValue = ...,
         weight: WeightInput = ...,
         pos_label: PosLabel = ...,
     ) -> pl.Expr: ...
 
 
-def _threshold_token(threshold: float | pl.Expr) -> str:
+def _threshold_token(threshold: ThresholdValue) -> str:
     """Alias token for a threshold — its value for floats, a placeholder for exprs.
 
     Expression thresholds (e.g. a data-derived quantile) have no static value, so
@@ -47,7 +48,7 @@ def _pos_suffix(pos_label: PosLabel) -> str:
 def _confusion_components(
     target: IntoExpr,
     prob: IntoExpr,
-    threshold: float | pl.Expr,
+    threshold: ThresholdValue,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> tuple[pl.Expr, pl.Expr, pl.Expr, pl.Expr]:
@@ -90,7 +91,7 @@ def _alias(
     name: str,
     target: IntoExpr,
     prob: IntoExpr,
-    threshold: float | pl.Expr,
+    threshold: ThresholdValue,
     weight: WeightInput,
     pos_label: PosLabel = 1,
 ) -> str:
@@ -108,7 +109,7 @@ def confusion_matrix(
     target: IntoExpr,
     prob: IntoExpr,
     *,
-    threshold: float | pl.Expr = 0.5,
+    threshold: ThresholdValue = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -180,7 +181,7 @@ def precision(
     target: IntoExpr,
     prob: IntoExpr,
     *,
-    threshold: float | pl.Expr = 0.5,
+    threshold: ThresholdValue = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -205,7 +206,7 @@ def recall(
     target: IntoExpr,
     prob: IntoExpr,
     *,
-    threshold: float | pl.Expr = 0.5,
+    threshold: ThresholdValue = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -230,7 +231,7 @@ def f1_score(
     target: IntoExpr,
     prob: IntoExpr,
     *,
-    threshold: float | pl.Expr = 0.5,
+    threshold: ThresholdValue = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -255,7 +256,7 @@ def jaccard_score(
     target: IntoExpr,
     prob: IntoExpr,
     *,
-    threshold: float | pl.Expr = 0.5,
+    threshold: ThresholdValue = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -287,7 +288,7 @@ def accuracy(
     target: IntoExpr,
     prob: IntoExpr,
     *,
-    threshold: float | pl.Expr = 0.5,
+    threshold: ThresholdValue = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -312,7 +313,7 @@ def balanced_accuracy(
     target: IntoExpr,
     prob: IntoExpr,
     *,
-    threshold: float | pl.Expr = 0.5,
+    threshold: ThresholdValue = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -342,7 +343,7 @@ def specificity(
     target: IntoExpr,
     prob: IntoExpr,
     *,
-    threshold: float | pl.Expr = 0.5,
+    threshold: ThresholdValue = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -368,7 +369,7 @@ def fbeta_score(
     prob: IntoExpr,
     *,
     beta: float,
-    threshold: float | pl.Expr = 0.5,
+    threshold: ThresholdValue = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -397,7 +398,7 @@ def matthews_corrcoef(
     target: IntoExpr,
     prob: IntoExpr,
     *,
-    threshold: float | pl.Expr = 0.5,
+    threshold: ThresholdValue = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -425,7 +426,7 @@ def cohens_kappa(
     target: IntoExpr,
     prob: IntoExpr,
     *,
-    threshold: float | pl.Expr = 0.5,
+    threshold: ThresholdValue = 0.5,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -454,7 +455,7 @@ def cohens_kappa(
 
 
 # Probe threshold used only to learn a metric's alias shape; never emitted.
-_ALIAS_PROBE = 0.123457
+_ALIAS_PROBE: Final = 0.123457
 
 
 def threshold_sweep(
@@ -497,7 +498,16 @@ def threshold_sweep(
         >>>
         >>> df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
         >>> df.select(*threshold_sweep(f1_score, "label", "prob", [0.3, 0.5, 0.7]))
-        >>> df.select(*threshold_sweep(f1_score, "label", "prob", quantiles(10)))
+        shape: (1, 3)
+        ┌─────────────────────────┬─────────────────────────┬─────────────────────────┐
+        │ f1_score_label_prob_0.3 ┆ f1_score_label_prob_0.5 ┆ f1_score_label_prob_0.7 │
+        │ ---                     ┆ ---                     ┆ ---                     │
+        │ f64                     ┆ f64                     ┆ f64                     │
+        ╞═════════════════════════╪═════════════════════════╪═════════════════════════╡
+        │ 0.8                     ┆ 1.0                     ┆ 0.666667                │
+        └─────────────────────────┴─────────────────────────┴─────────────────────────┘
+        >>> # `thresholds` also accepts a spec, e.g. decile cut points:
+        >>> _ = df.select(*threshold_sweep(f1_score, "label", "prob", quantiles(10)))
     """
     spec: ThresholdsLike = quantiles(100) if thresholds is None else thresholds
     resolved = resolve_thresholds(spec, prob)

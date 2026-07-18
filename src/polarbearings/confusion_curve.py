@@ -16,10 +16,14 @@ call ``.collect()`` to materialize, or compose it directly in a larger lazy quer
 and let the optimizer plan it all at collect time.
 """
 
+from collections.abc import Sequence
+from typing import Final
+
 import polars as pl
 
 from polarbearings._common import (
     EXPLODE_KW,
+    ByInput,
     IntoExpr,
     PosLabel,
     WeightInput,
@@ -40,7 +44,7 @@ from polarbearings.thresholds import ResolvedThreshold, ThresholdsLike, resolve_
 # laptop it was first tuned on was throttling). Whole-frame only — the grouped
 # (``by``) ``join_asof`` emits an unsuppressable "sortedness cannot be checked"
 # notice at collect time on newer Polars.
-_GRID_EXACT_CUTOVER = 30
+_GRID_EXACT_CUTOVER: Final = 30
 
 
 def confusion_curve(
@@ -51,7 +55,7 @@ def confusion_curve(
     thresholds: ThresholdsLike | None = None,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
-    by: IntoExpr | list[IntoExpr] | None = None,
+    by: ByInput = None,
     endpoints: bool = True,
 ) -> pl.LazyFrame:
     """Confusion-matrix cells across score thresholds.
@@ -278,7 +282,7 @@ def _grid_via_exact(
     lf: pl.LazyFrame,
     target: IntoExpr,
     score: IntoExpr,
-    resolved: list[ResolvedThreshold],
+    resolved: Sequence[ResolvedThreshold],
     weight: WeightInput,
     pos_label: PosLabel,
 ) -> pl.LazyFrame:

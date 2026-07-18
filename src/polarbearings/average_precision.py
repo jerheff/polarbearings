@@ -4,6 +4,7 @@ import polars as pl
 
 from polarbearings._common import (
     IntoExpr,
+    PosLabel,
     WeightInput,
     col_expr,
     col_name,
@@ -18,7 +19,7 @@ def average_precision(
     score: IntoExpr,
     *,
     weight: WeightInput = None,
-    pos_label: int | float | str | bool = 1,
+    pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute average precision (non-interpolated) for binary classification.
 
@@ -44,6 +45,14 @@ def average_precision(
         ...     "score": [0.1, 0.4, 0.35, 0.8]
         ... })
         >>> df.select(average_precision("label", "score"))
+        shape: (1, 1)
+        ┌───────────────────────────────┐
+        │ average_precision_label_score │
+        │ ---                           │
+        │ f64                           │
+        ╞═══════════════════════════════╡
+        │ 0.833333                      │
+        └───────────────────────────────┘
 
     Notes:
         - Returns null when no positive examples exist (AP is undefined).

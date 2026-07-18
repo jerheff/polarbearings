@@ -117,7 +117,7 @@ def _gini_unweighted(
 def _gini_weighted(
     target: IntoExpr,
     score: IntoExpr,
-    weight: str | pl.Expr,
+    weight: IntoExpr,
     pos_label: PosLabel | None,
     alias: str,
 ) -> pl.Expr:

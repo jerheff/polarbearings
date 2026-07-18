@@ -1,6 +1,6 @@
 [[repos]]
 repo = "https://github.com/astral-sh/ruff-pre-commit"
-rev = "77039ccbba72c8aede339c5f8ae29b42aced0a2e"  # frozen: v0.15.18
+rev = "2700fd5671c633760d912769c041bfcde2b9a01b"  # frozen: v0.15.22
 hooks = [
   { id = "ruff-check", args = ["--fix"] },
   { id = "ruff-format" },
@@ -8,17 +8,27 @@ hooks = [
 
 [[repos]]
 repo = "https://github.com/astral-sh/ty-pre-commit"
-rev = "7497ec26e8331cf0bc6afbdaa94b6a14127ab8f2"  # frozen: v0.0.51
+rev = "1395c6934313bf0c086f3034f10c10747e7efc10"  # frozen: v0.0.61
 hooks = [
   { id = "ty" },
 ]
 
 [[repos]]
 repo = "https://github.com/astral-sh/uv-pre-commit"
-rev = "6745231e78ec1a8495af44560a6dba91f05bf56e"  # frozen: 0.11.22
+rev = "b7359babf83a050dcd7bf892538f3df09c3d4ba6"  # frozen: 0.11.29
 hooks = [
   # Fail if uv.lock is out of sync with pyproject.toml (we commit the lock).
   { id = "uv-lock" },
+]
+
+[[repos]]
+repo = "https://github.com/zizmorcore/zizmor-pre-commit"
+rev = "64a97fb7fa63188393d3215c6e312f5f9c6d0f78"  # frozen: v1.27.0
+hooks = [
+  # Static security analysis of the GitHub Actions workflows (the ruff of CI):
+  # catches credential persistence, template injection, over-broad permissions.
+  # Runs offline for determinism; the online-only audits need no token here.
+  { id = "zizmor" },
 ]
 
 [[repos]]

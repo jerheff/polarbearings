@@ -65,6 +65,11 @@ class TestSpecs:
         resolved = resolve_thresholds([0.3, 0.5, 0.7], "p")
         assert resolved == [("0.3", 0.3), ("0.5", 0.5), ("0.7", 0.7)]
 
+    def test_tuple_matches_list(self):
+        # ThresholdsLike accepts any Sequence[float]: a tuple must resolve identically
+        # to the equivalent list (guards the isinstance(Sequence) dispatch branch).
+        assert resolve_thresholds((0.3, 0.5, 0.7), "p") == resolve_thresholds([0.3, 0.5, 0.7], "p")
+
     @pytest.mark.parametrize("factory", [quantiles, equal_width, linspace])
     def test_zero_raises(self, factory):
         with pytest.raises(ValueError, match=">= 1"):
