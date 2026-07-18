@@ -1,0 +1,25 @@
+# EditorConfig — https://editorconfig.org
+# Mirrors ruff/formatter + the prek hygiene hooks so your editor matches them
+# while you type, cutting on-save churn. NOT a gate: `ruff format` and the prek
+# hooks remain the enforced source of truth at commit. Honored natively by Zed
+# (and JetBrains); VS Code needs the "EditorConfig for VS Code" extension.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.py]
+max_line_length = 100
+
+# YAML and JSON conventionally use 2-space indent (matches the workflows and
+# .mcp.json). TOML is left at the 4-space default to match pyproject.toml.
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.json]
+indent_size = 2

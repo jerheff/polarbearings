@@ -1,0 +1,13 @@
+# Normalize line endings: store LF in the repo, and check out LF everywhere.
+# Every tracked file is already LF, so this is a no-op today and a guard against a
+# CRLF creeping in from a Windows checkout hereafter.
+* text=auto eol=lf
+
+# uv.lock is generated (349 KB). Mark it so GitHub collapses it in PR diffs and
+# leaves it out of the repo's language statistics.
+uv.lock linguist-generated=true
+
+# The diagnostics notebooks are narrative documentation, not source (they're
+# excluded from ruff/ty too). Keep them out of GitHub's language breakdown so the
+# repo reads as Python, not Jupyter Notebook.
+*.ipynb linguist-documentation

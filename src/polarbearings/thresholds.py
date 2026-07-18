@@ -19,27 +19,26 @@ Factories evenly space their thresholds on the *interior* of the range
 every prediction falls on one side.
 """
 
-from collections.abc import Callable
-from typing import cast
+from collections.abc import Callable, Sequence
+from typing import TypeAlias, cast
 
-import polars as pl
-
-from polarbearings._common import IntoExpr, col_expr
+from polarbearings._common import IntoExpr, ThresholdValue, col_expr
 
 # (label, value): ``value`` is a fixed float or an expression evaluated against
 # the data when the metric is computed.
-ResolvedThreshold = tuple[str, float | pl.Expr]
+ResolvedThreshold: TypeAlias = tuple[str, ThresholdValue]
 # A spec maps the score column reference (name or expression) to its thresholds.
-ThresholdSpec = Callable[[IntoExpr], list[ResolvedThreshold]]
+ThresholdSpec: TypeAlias = Callable[[IntoExpr], list[ResolvedThreshold]]
 # What ``threshold_sweep`` accepts for its ``thresholds`` argument. A bare ``int``
-# ``N`` is shorthand for ``quantiles(N)``.
-ThresholdsLike = int | list[float] | ThresholdSpec
+# ``N`` is shorthand for ``quantiles(N)``; a sequence of floats gives fixed thresholds.
+ThresholdsLike: TypeAlias = int | Sequence[float] | ThresholdSpec
 
 
 def _interior_fractions(n: int) -> list[float]:
     """Return ``n`` evenly spaced fractions strictly inside ``(0, 1)``."""
     if n < 1:
-        raise ValueError("number of thresholds must be >= 1.")
+        msg = "number of thresholds must be >= 1."
+        raise ValueError(msg)
     return [i / (n + 1) for i in range(1, n + 1)]
 
 
@@ -115,15 +114,15 @@ def linspace(n: int, lo: float = 0.0, hi: float = 1.0) -> ThresholdSpec:
 
 
 def resolve_thresholds(thresholds: ThresholdsLike, score: IntoExpr) -> list[ResolvedThreshold]:
-    """Resolve an int, a spec, or a plain ``list[float]`` to ``(label, threshold)`` pairs.
+    """Resolve an int, a spec, or a sequence of floats to ``(label, threshold)`` pairs.
 
     An ``int`` ``N`` is shorthand for ``quantiles(N)`` — ``N`` data-driven score
-    quantiles. A ``list[float]`` becomes fixed-value thresholds labeled by their
+    quantiles. A sequence of floats becomes fixed-value thresholds labeled by their
     value, so the resulting column names match the pre-spec behavior exactly.
 
     Args:
-        thresholds: A count ``N`` (``quantiles(N)``), a threshold spec, or a list of
-            fixed thresholds.
+        thresholds: A count ``N`` (``quantiles(N)``), a threshold spec, or a sequence
+            of fixed thresholds.
         score: Score/probability column (name or expression) the spec resolves against.
 
     Returns:
@@ -134,9 +133,14 @@ def resolve_thresholds(thresholds: ThresholdsLike, score: IntoExpr) -> list[Reso
             valid threshold count).
     """
     if isinstance(thresholds, bool):
-        raise TypeError("`thresholds` must be an int, a list of floats, or a spec, not a bool.")
+        msg = "`thresholds` must be an int, a sequence of floats, or a spec, not a bool."
+        raise TypeError(msg)
     if isinstance(thresholds, int):
         return quantiles(thresholds)(score)
-    if isinstance(thresholds, list):
-        return [(f"{v:g}", v) for v in (float(t) for t in cast("list[float]", thresholds))]
+    # A sequence of fixed float thresholds (any sequence — tuple, list, ...). Peeling
+    # it off here leaves the spec (the only callable member) for the final branch,
+    # which then type-checks as a call. The cast pins the element type: isinstance
+    # against the ``Sequence`` ABC doesn't preserve the ``[float]`` parameter.
+    if isinstance(thresholds, Sequence):
+        return [(f"{v:g}", v) for v in (float(t) for t in cast("Sequence[float]", thresholds))]
     return thresholds(score)

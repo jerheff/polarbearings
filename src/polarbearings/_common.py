@@ -2,7 +2,7 @@
 
 import inspect
 from collections.abc import Sequence
-from typing import TypeAlias
+from typing import Final, TypeAlias
 
 import polars as pl
 
@@ -13,7 +13,7 @@ import polars as pl
 # default (``False``) where the parameter exists and omit it on the 1.0.0 floor (where
 # it does not), silencing the deprecation without changing behavior on any Polars.
 # Splat into any ``explode`` call: ``frame.explode(cols, **EXPLODE_KW)``.
-EXPLODE_KW: dict[str, bool] = (
+EXPLODE_KW: Final[dict[str, bool]] = (
     {"empty_as_null": False}
     if "empty_as_null" in inspect.signature(pl.LazyFrame.explode).parameters
     else {}
@@ -31,6 +31,14 @@ WeightInput: TypeAlias = IntoExpr | None
 # A positive-class label: any scalar value comparable to the target column
 # (e.g. 1, 100, "cancer", True). Defaults to 1 for backward compatibility.
 PosLabel: TypeAlias = int | float | str | bool
+
+# A ``by=`` grouping argument: one column reference, a sequence of them, or None
+# (no grouping). Accepts any sequence — ``by_columns`` only iterates it.
+ByInput: TypeAlias = IntoExpr | Sequence[IntoExpr] | None
+
+# A classification threshold: a fixed float, or an expression (e.g. a data-derived
+# quantile evaluated in-engine, so each group can threshold at its own value).
+ThresholdValue: TypeAlias = float | pl.Expr
 
 
 def col_expr(col: IntoExpr) -> pl.Expr:
@@ -103,6 +111,23 @@ def resolve_weight(weight: WeightInput) -> pl.Expr | None:
         A ``Float64``-cast Polars expression, or ``None`` when ``weight`` is None.
     """
     return None if weight is None else weight_expr(weight)
+
+
+def weighted_mean(values: pl.Expr, weight: pl.Expr | None) -> pl.Expr:
+    """Mean of ``values``, weighted by ``weight`` (unweighted ``.mean()`` when None).
+
+    Returns null when the total weight is zero: a zero-total-weight average is
+    undefined, and nulling it keeps the whole weighted-metric family on the library's
+    null-for-undefined convention instead of leaking a ``0/0 = NaN``.
+    """
+    if weight is None:
+        return values.mean()
+    total = weight.sum()
+    # Guard on ``weight.sum()`` — the exact denominator, reused from the division — so
+    # it costs nothing over a bare ``(values * weight).sum() / total``. Verified within
+    # noise of, and on Polars 1.42 marginally faster than, a separate ``(w > 0).any()``
+    # pass, which cannot short-circuit in the vectorized engine anyway.
+    return pl.when(total > 0).then((values * weight).sum() / total).otherwise(None)
 
 
 def weight_suffix(weight: WeightInput) -> str:

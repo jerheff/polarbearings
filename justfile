@@ -33,6 +33,18 @@ test:
 test-fast:
     uv run pytest tests/ -q
 
+# Execute the doc examples as tests: the docstring examples in src/ (exact Polars
+# table output is asserted) plus the README's Python blocks (run via Sybil — see
+# the root conftest.py). Version-stable across the supported Polars range, so it
+# runs in the plain dev env; mirrors the `doctest` CI job. A renamed arg or a
+# changed result fails here.
+# `--randomly-dont-reorganize`: the README's Sybil examples share one namespace
+# and must run in document order, so pytest-randomly's shuffling is disabled here
+# (doctests are order-independent). Unlike `-p no:randomly` this keeps the plugin
+# loaded, so the `required_plugins` check still holds.
+doctest:
+    uv run pytest --randomly-dont-reorganize --doctest-modules src/polarbearings/ README.md -q
+
 # Deep property-based fuzz: the Hypothesis-marked tests at 2500 examples each
 # (~3.5 min). For local use — `just ci` already runs these at the default ~100
 # examples, so this is the on-demand extended pass, not a CI gate.
@@ -183,8 +195,9 @@ mutant:
     rm -rf mutants/
     uv run mutmut run
 
-# Run all CI checks locally (quality + tests)
-ci: quality test
+# Fast local check (lint + type-check + doctests + tests) — NOT full CI (no
+# coverage gate, compat matrix, test-highest, or test-memory; run those for the rest)
+check: quality doctest test
 
 # Report available updates: pyproject deps, prek hooks, and pinned GitHub Actions
 outdated:

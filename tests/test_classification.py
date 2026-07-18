@@ -35,7 +35,6 @@ from polarbearings import (
     f1_score,
     fbeta_score,
     matthews_corrcoef,
-    percentile_thresholds,
     precision,
     recall,
     specificity,
@@ -246,32 +245,6 @@ class TestThresholdSweep:
             .sort("group")
         )
         assert result.shape == (2, 3)
-
-
-class TestPercentileThresholds:
-    def test_basic(self):
-        scores = pl.Series([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
-        result = percentile_thresholds(scores, [25, 50, 75])
-        assert len(result) == 3
-        assert result[0] < result[1] < result[2]
-        assert result[1] == pytest.approx(0.5, rel=1e-5)
-
-    def test_with_sweep(self):
-        """End-to-end: compute percentile thresholds and sweep."""
-        df = pl.DataFrame(
-            {
-                "label": [0, 0, 1, 1, 0, 1, 0, 1],
-                "prob": [0.1, 0.2, 0.3, 0.5, 0.4, 0.7, 0.6, 0.9],
-            }
-        )
-        thresholds = percentile_thresholds(df["prob"], [25, 50, 75])
-        result = df.select(*threshold_sweep(precision, "label", "prob", thresholds))
-        assert result.shape == (1, 3)
-
-    def test_empty_series_raises(self):
-        """An empty series has no quantile, so a clear error beats float(None)."""
-        with pytest.raises(ValueError, match="empty series"):
-            percentile_thresholds(pl.Series("prob", [], dtype=pl.Float64), [50])
 
 
 class TestClassificationGroupBy:

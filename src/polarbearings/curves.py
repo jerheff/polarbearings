@@ -15,9 +15,12 @@ operating points, useful for monitoring across models. Rows with a missing
 score/target/weight are dropped on the curve, matching ``confusion_curve``.
 """
 
+from collections.abc import Mapping
+
 import polars as pl
 
 from polarbearings._common import (
+    ByInput,
     IntoExpr,
     PosLabel,
     WeightInput,
@@ -46,7 +49,7 @@ def roc_curve(
     thresholds: ThresholdsLike | None = None,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
-    by: IntoExpr | list[IntoExpr] | None = None,
+    by: ByInput = None,
     endpoints: bool = True,
 ) -> pl.LazyFrame:
     """Receiver-operating-characteristic curve: false vs true positive rate.
@@ -107,7 +110,7 @@ def pr_curve(
     thresholds: ThresholdsLike | None = None,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
-    by: IntoExpr | list[IntoExpr] | None = None,
+    by: ByInput = None,
     endpoints: bool = True,
 ) -> pl.LazyFrame:
     """Precision-recall curve.
@@ -170,7 +173,7 @@ def det_curve(
     thresholds: ThresholdsLike | None = None,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
-    by: IntoExpr | list[IntoExpr] | None = None,
+    by: ByInput = None,
     endpoints: bool = False,
 ) -> pl.LazyFrame:
     """Detection-error-tradeoff curve: false-positive vs false-negative rate.
@@ -228,13 +231,13 @@ def expected_cost(
     frame: pl.DataFrame | pl.LazyFrame,
     target: IntoExpr,
     score: IntoExpr,
-    costs: dict[str, float],
+    costs: Mapping[str, float],
     *,
     thresholds: ThresholdsLike | None = None,
     normalize: bool = False,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
-    by: IntoExpr | list[IntoExpr] | None = None,
+    by: ByInput = None,
     endpoints: bool = True,
 ) -> pl.LazyFrame:
     """Total decision cost swept across thresholds.
@@ -276,9 +279,8 @@ def expected_cost(
     """
     unknown = set(costs) - set(_COST_CELLS)
     if unknown:
-        raise ValueError(
-            f"Unknown cost cell(s) {sorted(unknown)}; use a subset of {list(_COST_CELLS)}."
-        )
+        msg = f"Unknown cost cell(s) {sorted(unknown)}; use a subset of {list(_COST_CELLS)}."
+        raise ValueError(msg)
     by_names = [col_name(b) for b in by_columns(by)]
     cells = confusion_curve(
         frame,

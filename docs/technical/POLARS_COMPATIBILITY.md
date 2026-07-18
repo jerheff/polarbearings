@@ -7,28 +7,17 @@
 
 ## Syntax Compatibility Analysis
 
-### Methods Used by Polarbearings
+### Expression APIs
 
-Our implementation uses the following Polars expression methods:
+Polarbearings is built entirely from Polars expression methods that are **stable
+since Polars 1.0.0** — arithmetic and casts, aggregations (`sum`, `mean`, `median`,
+`var`, `quantile`), `rank`/`sort`/`cum_sum`/`shift`, `clip`/`log`/`sqrt`/`abs`, null
+handling, and the reshape/asof/window operators the curve helpers use (`explode`,
+`concat_list`, `join_asof`, `over`, `set_sorted`, `reinterpret`).
 
-1. **`Expr.cast(dtype)`** - Standard casting, stable since early versions
-2. **`Expr.sum()`** - Aggregation, stable since early versions
-3. **`Expr.len()`** - Length calculation, stable since early versions
-4. **`Expr.var()`** - Variance calculation, stable since early versions
-5. **`Expr.rank(method='average')`** - Ranking with ties handling
-6. **`Expr.clip(lower, upper)`** - Clipping values to range
-7. **`Expr.log()`** - Natural logarithm
-8. **`Expr.mean()`** - Mean aggregation
-9. **`Expr.median()`** - Median aggregation
-10. **`Expr.alias(name)`** - Expression aliasing
-11. **`Expr.sort()`** / **`Expr.sort_by()`** - Sorting
-12. **`Expr.cum_sum()`** - Cumulative sum
-13. **`Expr.shift()`** - Shifting values
-14. **`Expr.fill_null()`** / **`Expr.backward_fill()`** - Null handling
-15. **`Expr.sqrt()`** - Square root
-16. **`Expr.abs()`** - Absolute value
-
-All of these are stable since Polars 1.0.
+This inventory is **non-exhaustive and not hand-maintained** — the **floor CI leg**
+(the full suite run against polars 1.0.0 on every push) is the living guarantee that
+no newer API slips in.
 
 ### Polars 1.0+ Breaking Changes Review
 
@@ -45,8 +34,8 @@ After reviewing Polars 1.0 breaking changes, **none affect our implementation**:
 
 ### Version-gated fast paths (feature-detected)
 
-Everything works on `polars>=1.0.0`. A few hot paths additionally detect a newer
-Polars capability at runtime and switch to a faster implementation when present,
+Everything works on `polars>=1.0.0`. One hot path additionally detects a newer
+Polars capability at runtime and switches to a faster implementation when present,
 falling back to the floor-compatible form otherwise. Detection is by probing the
 operation (not by parsing the version), so dev builds behave correctly. Both
 branches are exercised by the CI matrix (the floor/mid legs hit the fallback, the
@@ -54,7 +43,6 @@ latest leg hits the fast path).
 
 | Capability | Added in | Fallback (< version) | Fast path (>= version) |
 |---|---|---|---|
-| `_supports_list_agg` — reduce a list built from aggregations in one pass (pola-rs/polars#22249) | 1.28.0 | materialization boundary between building and reducing the bootstrap distribution | single fused lazy plan |
 | `_supports_over_in_agg` — elementwise `Expr.over` inside `group_by().agg()` (pola-rs/polars#25402) | 1.36.0 | ECE/MCE per-bin `filter` aggregations, `O(n · n_bins)` | ECE/MCE windowed bin means, single `O(n)` pass (≈4.5x at `n_bins=10`, ≈40x at `n_bins=50`) |
 
 ECE/MCE remain composable inside `group_by().agg()` on every supported version —

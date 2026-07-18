@@ -4,12 +4,14 @@ import polars as pl
 
 from polarbearings._common import (
     IntoExpr,
+    PosLabel,
     WeightInput,
     col_expr,
     col_name,
     guarded,
     resolve_weight,
     weight_suffix,
+    weighted_mean,
 )
 
 
@@ -19,7 +21,7 @@ def log_loss(
     *,
     eps: float = 1e-15,
     weight: WeightInput = None,
-    pos_label: int | float | str | bool = 1,
+    pos_label: PosLabel = 1,
 ) -> pl.Expr:
     """Compute log loss (binary cross-entropy) for binary classification.
 
@@ -37,6 +39,21 @@ def log_loss(
         - Lower is better (0 is perfect).
         - Heavily penalizes confident wrong predictions.
         - Probabilities are clipped to [eps, 1-eps] for numerical stability.
+
+    Examples:
+        >>> import polars as pl
+        >>> from polarbearings import log_loss
+        >>>
+        >>> df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
+        >>> df.select(log_loss("label", "prob"))
+        shape: (1, 1)
+        ┌─────────────────────┐
+        │ log_loss_label_prob │
+        │ ---                 │
+        │ f64                 │
+        ╞═════════════════════╡
+        │ 0.308093            │
+        └─────────────────────┘
     """
     target_float = (col_expr(target) == pos_label).cast(pl.Float64)
 
@@ -46,8 +63,7 @@ def log_loss(
 
     per_sample = -(target_float * log_prob + (1 - target_float) * log_1_minus_prob)
 
-    w = resolve_weight(weight)
-    loss = (per_sample * w).sum() / w.sum() if w is not None else per_sample.mean()
+    loss = weighted_mean(per_sample, resolve_weight(weight))
 
     alias = f"log_loss_{col_name(target)}_{col_name(prob)}"
     alias += weight_suffix(weight)

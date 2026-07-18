@@ -18,11 +18,13 @@ binning expression and so triggers a scoped collect of those quantiles (the
 """
 
 import functools
-from typing import Literal
+from collections.abc import Sequence
+from typing import Literal, TypeAlias
 
 import polars as pl
 
 from polarbearings._common import (
+    ByInput,
     IntoExpr,
     PosLabel,
     WeightInput,
@@ -35,7 +37,7 @@ from polarbearings._common import (
     weight_suffix,
 )
 
-BinStrategy = Literal["uniform", "quantile"]
+BinStrategy: TypeAlias = Literal["uniform", "quantile"]
 
 
 @functools.cache
@@ -59,21 +61,43 @@ def _supports_over_in_agg() -> bool:
     return True  # Polars >= 1.36 (latest CI; #25402)
 
 
+# Shared validation messages (raised from both the eager-edge and lazy-setup paths).
+_BINS_MIN_EDGES_MSG = "`bins` must contain at least two edges."
+_NBINS_MIN_MSG = "`n_bins` must be >= 1."
+
+
+def _unknown_strategy_error(strategy: object) -> ValueError:
+    """The shared 'unknown strategy' error for both binning paths."""
+    return ValueError(f"Unknown strategy {strategy!r}; use 'uniform' or 'quantile'.")
+
+
+def _bin_id(prob_f: pl.Expr, interior: Sequence[float | pl.Expr]) -> pl.Expr:
+    """Per-row bin id: the number of interior edges strictly below the prediction.
+
+    Reproduces numpy's ``searchsorted(interior, p, side="left")`` exactly, and works
+    for both fixed float edges and lazy per-context quantile expressions.
+    """
+    binid: pl.Expr = pl.lit(0, dtype=pl.Int64)
+    for edge in interior:
+        binid = binid + (prob_f > edge).cast(pl.Int64)
+    return binid
+
+
 def _bin_edges(
     lf: pl.LazyFrame,
     prob: IntoExpr,
     n_bins: int,
     strategy: BinStrategy,
-    bins: list[float] | None,
+    bins: Sequence[float] | None,
 ) -> list[float]:
     """Resolve the monotonic bin edges (length ``n_bins + 1``)."""
     if bins is not None:
         edges = sorted(float(b) for b in bins)
         if len(edges) < 2:
-            raise ValueError("`bins` must contain at least two edges.")
+            raise ValueError(_BINS_MIN_EDGES_MSG)
         return edges
     if n_bins < 1:
-        raise ValueError("`n_bins` must be >= 1.")
+        raise ValueError(_NBINS_MIN_MSG)
     if strategy == "uniform":
         return [i / n_bins for i in range(n_bins + 1)]
     if strategy == "quantile":
@@ -87,9 +111,10 @@ def _bin_edges(
             .row(0)
         )
         if any(v is None for v in row):
-            raise ValueError("Cannot compute quantile bins on an empty column.")
+            msg = "Cannot compute quantile bins on an empty column."
+            raise ValueError(msg)
         return [float(v) for v in row]
-    raise ValueError(f"Unknown strategy {strategy!r}; use 'uniform' or 'quantile'.")
+    raise _unknown_strategy_error(strategy)
 
 
 def calibration_curve(
@@ -99,10 +124,10 @@ def calibration_curve(
     *,
     n_bins: int = 5,
     strategy: BinStrategy = "uniform",
-    bins: list[float] | None = None,
+    bins: Sequence[float] | None = None,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
-    by: IntoExpr | list[IntoExpr] | None = None,
+    by: ByInput = None,
 ) -> pl.LazyFrame:
     """Compute calibration-curve data, one row per non-empty bin.
 
@@ -159,11 +184,7 @@ def calibration_curve(
     by_proj = [col_expr(b).alias(name) for b, name in zip(by_list, by_names, strict=True)]
 
     prob_f = col_expr(prob).cast(pl.Float64)
-    # bin id = number of interior edges strictly below the prediction; this
-    # reproduces numpy's ``searchsorted(edges[1:-1], p, side="left")`` exactly.
-    binid: pl.Expr = pl.lit(0, dtype=pl.Int64)
-    for e in interior:
-        binid = binid + (prob_f > e).cast(pl.Int64)
+    binid = _bin_id(prob_f, interior)
     is_pos = (col_expr(target) == pos_label).cast(pl.Float64)
 
     w = resolve_weight(weight)
@@ -215,7 +236,7 @@ def _bin_setup(
     prob: IntoExpr,
     n_bins: int,
     strategy: BinStrategy,
-    bins: list[float] | None,
+    bins: Sequence[float] | None,
     pos_label: PosLabel,
 ) -> tuple[pl.Expr, pl.Expr, pl.Expr, int]:
     """Shared binning setup: ``(prob_f, is_pos, bin_id, n_used)``.
@@ -232,25 +253,24 @@ def _bin_setup(
     if bins is not None:
         edges = sorted(float(b) for b in bins)
         if len(edges) < 2:
-            raise ValueError("`bins` must contain at least two edges.")
+            raise ValueError(_BINS_MIN_EDGES_MSG)
         n_used = len(edges) - 1
         interior: list[float | pl.Expr] = list(edges[1:-1])
     elif n_bins < 1:
-        raise ValueError("`n_bins` must be >= 1.")
+        raise ValueError(_NBINS_MIN_MSG)
     elif strategy == "uniform":
         n_used = n_bins
         interior = [i / n_bins for i in range(1, n_bins)]
     elif strategy == "quantile":
+        # Lazy per-context quantile edges: under group_by().agg() they resolve within
+        # each group, so ECE/MCE bin every group at its OWN quantiles — unlike
+        # calibration_curve, which shares whole-frame edges across by= groups.
         n_used = n_bins
         interior = [prob_f.quantile(i / n_bins, interpolation="linear") for i in range(1, n_bins)]
     else:
-        raise ValueError(f"Unknown strategy {strategy!r}; use 'uniform' or 'quantile'.")
+        raise _unknown_strategy_error(strategy)
 
-    # bin id = number of interior edges strictly below the prediction.
-    binid: pl.Expr = pl.lit(0, dtype=pl.Int64)
-    for edge in interior:
-        binid = binid + (prob_f > edge).cast(pl.Int64)
-    return prob_f, is_pos, binid, n_used
+    return prob_f, is_pos, _bin_id(prob_f, interior), n_used
 
 
 def _gap_over(prob_f: pl.Expr, is_pos: pl.Expr, binid: pl.Expr, w: pl.Expr | None) -> pl.Expr:
@@ -314,7 +334,7 @@ def expected_calibration_error(
     *,
     n_bins: int = 10,
     strategy: BinStrategy = "uniform",
-    bins: list[float] | None = None,
+    bins: Sequence[float] | None = None,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -329,6 +349,14 @@ def expected_calibration_error(
     Rows with a missing (null/NaN) ``prob``, ``target``, or ``weight`` make the whole
     result null — like the other scalar metrics, and unlike :func:`calibration_curve`,
     which drops incomplete rows.
+
+    Under ``group_by().agg()`` with ``strategy="quantile"``, each group is binned at
+    its **own** quantile edges (the edges are lazy per-context expressions), whereas
+    :func:`calibration_curve` computes a single set of whole-frame quantile edges and
+    shares them across ``by=`` groups. Both are defensible but not interchangeable, so
+    a per-group ECE and a ``by=`` calibration curve on the same segments can use
+    different bins. ``strategy="uniform"`` and explicit ``bins`` are identical either
+    way.
 
     Args:
         target: Column with class labels.
@@ -380,7 +408,7 @@ def maximum_calibration_error(
     *,
     n_bins: int = 10,
     strategy: BinStrategy = "uniform",
-    bins: list[float] | None = None,
+    bins: Sequence[float] | None = None,
     weight: WeightInput = None,
     pos_label: PosLabel = 1,
 ) -> pl.Expr:
@@ -388,7 +416,8 @@ def maximum_calibration_error(
 
     The worst bin's absolute calibration gap: ``max_b |pred_b - true_b|`` over the
     non-empty bins (0 is perfectly calibrated). Shares all binning options and
-    semantics with :func:`expected_calibration_error`, and likewise composes in
+    semantics with :func:`expected_calibration_error` — including per-group quantile
+    edges under ``group_by().agg()`` (see its note) — and likewise composes in
     ``select`` and ``group_by().agg()``.
 
     Args:

@@ -4,9 +4,10 @@ The complete catalogue of polarbearings metrics, with per-metric semantics,
 edge cases, and scikit-learn correspondences. For a quick overview and one
 example per family, see the [README](../../README.md).
 
-Cross-cutting behaviour shared by every metric — **sample weights**, **custom
-positive class** (`pos_label`), and **missing-value handling** — is documented
-once at the [end of this file](#cross-cutting-behaviour), not repeated per metric.
+Cross-cutting behaviour shared across the metrics — **output naming**, **sample
+weights**, **custom positive class** (`pos_label`), and **missing-value handling**
+— is documented once at the [end of this file](#cross-cutting-behaviour), not
+repeated per metric.
 
 ## Contents
 
@@ -18,7 +19,7 @@ once at the [end of this file](#cross-cutting-behaviour), not repeated per metri
 - [Class weights](#class-weights)
 - [Confidence intervals (bootstrap)](#confidence-intervals-bootstrap)
 - [Data splitting](#data-splitting-deterministic-id-keyed)
-- [Cross-cutting behaviour](#cross-cutting-behaviour) — weights, `pos_label`, missing values
+- [Cross-cutting behaviour](#cross-cutting-behaviour) — output names, weights, `pos_label`, missing values
 
 ## Ranking Metrics
 
@@ -112,6 +113,11 @@ df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.2, 0.8, 0.9]})
 df.select(log_loss("label", "prob"))
 ```
 
+- Lower is better (0 is perfect). Probabilities are clipped to `[eps, 1-eps]`
+  (`eps=1e-15`) for numerical stability, so a confident wrong prediction is
+  penalized heavily but not infinitely.
+- Matches `sklearn.metrics.log_loss`.
+
 ### Brier Score
 
 ```python
@@ -120,6 +126,10 @@ from polarbearings import brier_score
 df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.2, 0.8, 0.9]})
 df.select(brier_score("label", "prob"))
 ```
+
+- `mean((prob − outcome)²)` — a proper scoring rule, so it rewards calibrated
+  probabilities (lower is better).
+- Matches `sklearn.metrics.brier_score_loss`.
 
 ## Classification Metrics (Threshold-Based)
 
@@ -204,7 +214,7 @@ df.select(pl.concat_list(threshold_sweep(confusion_matrix, "label", "score", qua
 # -> columns: threshold, tp, fp, fn, tn  (then tpr/fpr/precision/recall are column math)
 ```
 
-### Diagnostic curves: ROC, PR, DET, cost
+### Diagnostic curves: ROC, PR, DET (detection error tradeoff), cost
 
 One call each, returning tidy, plot-ready `LazyFrame`s:
 
@@ -270,20 +280,6 @@ df.group_by("segment").agg(*threshold_sweep(f1_score, "label", "prob", quantiles
 
 Metrics also accept a Polars **expression** as the threshold directly, e.g.
 `precision("label", "prob", threshold=pl.col("prob").quantile(0.9))`.
-
-### Percentile Thresholds
-
-`percentile_thresholds` materializes concrete threshold values from a score
-series (eager) — complements the in-graph `quantiles` spec when you need the
-numbers themselves:
-
-```python
-from polarbearings import f1_score, percentile_thresholds, threshold_sweep
-
-scores = df["prob"]
-thresholds = percentile_thresholds(scores, [10, 25, 50, 75, 90])
-df.select(*threshold_sweep(f1_score, "label", "prob", thresholds))
-```
 
 ## Regression Metrics
 
@@ -429,8 +425,8 @@ high}` for the whole frame, or one row per group with `by=`:
 ```python
 from polarbearings import bootstrap_ci, roc_auc
 
-bootstrap_ci(df, roc_auc, "label", "score", n_resamples=1000, method="bc")
-bootstrap_ci(df, roc_auc, "label", "score", by="segment")   # one CI per segment
+bootstrap_ci(df, roc_auc, "label", "score", n_resamples=1000, method="bc")  # "bc" is whole-frame only
+bootstrap_ci(df, roc_auc, "label", "score", by="segment")   # one CI per segment (bc not supported with by=)
 ```
 
 `bootstrap_weight` exposes a single replicate as a weight **expression**, so it
@@ -457,15 +453,36 @@ Hashing a stable record id to a uniform gives split assignments that are
 always lands in the same split. All are plain expressions (drop into
 `with_columns`, `group_by`, lazy):
 
+```python
+from polarbearings import hash_split, hash_fold, hash_splits
+
+df.with_columns(holdout=hash_split(1, "id", fraction=0.2))  # bool: ~20% holdout
+df.with_columns(fold=hash_fold(0, "id", k=5))               # CV fold id 0..4
+df.with_columns(                                            # named multi-way
+    split=hash_splits(2, "id", [("test", 0.15), ("val", 0.15)], remainder="train")
+)
+```
+
+`seed` is the **first, required** argument — it *is* the split's identity, and
+independent splits must use different seeds (sharing one correlates them, since the
+assignment is a pure function of `id` and `seed`).
+
+`hash_split` is **consistent**: growing `fraction` only *adds* rows to the holdout
+(no churn). `hash_splits` gives each split its own seed and a residual-conditional
+fraction, so resizing one split leaves the **upstream** splits' membership unchanged
+— unlike cumulative-threshold schemes that reshuffle neighbours. Order is priority;
+put the long-lived holdout first.
+
+### Stability & string ids
+
 The mixing is a fixed SplitMix64 finalizer (wrapping-`UInt64` arithmetic), **not**
 Polars' `Expr.hash` — so a holdout stays pinned to the same rows even after a Polars
-upgrade. (`Expr.hash` only promises stability within one Polars version, and its
-result did change between 1.24 and 1.42.)
+upgrade (`Expr.hash` only promises stability within one Polars version, and its
+result did change between 1.24 and 1.42).
 
-`id` must be an **integer** column. This keeps the package's only dependency `polars`;
-for **string / UUID** ids, materialize a stable `Int64` key once and split on that
-column. Use a *fixed* hash so the key is reproducible — **not** Polars' `Expr.hash`,
-the version-unstable function this whole section exists to avoid.
+`id` must be an **integer** column (this keeps the package's only dependency
+`polars`). For **string / UUID** ids, materialize a stable `Int64` key once — with a
+*fixed* hash, never `Expr.hash` — and split on that column:
 
 ```python
 # Option A — the polars-hash plugin (fixed wyhash), reinterpreted into Int64:
@@ -485,27 +502,9 @@ keyed.with_columns(holdout=hash_split(1, "id_key", fraction=0.2))
 Do this once and persist `id_key` if the split must stay pinned long-term — then even
 the string→int step can never drift.
 
-`seed` is the **first, required** argument — it *is* the split's identity, and
-independent splits must use different seeds (sharing one correlates them, since the
-assignment is a pure function of `id` and `seed`):
+### Stratification
 
-```python
-from polarbearings import hash_split, hash_fold, hash_splits
-
-df.with_columns(holdout=hash_split(1, "id", fraction=0.2))  # bool: ~20% holdout
-df.with_columns(fold=hash_fold(0, "id", k=5))               # CV fold id 0..4
-df.with_columns(                                            # named multi-way
-    split=hash_splits(2, "id", [("test", 0.15), ("val", 0.15)], remainder="train")
-)
-```
-
-`hash_split` is **consistent**: growing `fraction` only *adds* rows to the holdout
-(no churn). `hash_splits` gives each split its own seed and a residual-conditional
-fraction, so resizing one split leaves the **upstream** splits' membership unchanged
-— unlike cumulative-threshold schemes that reshuffle neighbours. Order is priority;
-put the long-lived holdout first.
-
-**Stratification** is free in expectation (the hash ignores labels, so each class is
+Stratification is free in expectation (the hash ignores labels, so each class is
 sampled at `~fraction`). For an *exact* per-class split, rank within the stratum on
 the shared uniform:
 
@@ -518,7 +517,18 @@ df.with_columns(holdout=u.rank("ordinal").over("class") <= (0.2 * pl.len()).over
 
 ## Cross-cutting behaviour
 
-These three behaviours are shared by the metrics above rather than specific to any one.
+These behaviours are shared by the metrics above rather than specific to any one.
+
+### Output names
+
+Every metric expression is pre-aliased, so results carry stable, descriptive column
+names: `<metric>_<target>_<score>`, with suffixes appended for a weight (`_<col>`,
+or `_w` for an expression), a non-default `pos_label` (`_pos<label>`), and a
+threshold (`_<value>`). So `roc_auc("label", "score")` yields a `roc_auc_label_score`
+column and `precision("label", "prob", threshold=0.7)` a `precision_label_prob_0.7`.
+This is what lets a whole `select` of metrics land as one tidy, labelled row, and
+what you `unnest`/join on for struct-valued metrics like `confusion_matrix` — chain
+`.alias("auc")` to rename.
 
 ### Sample weights
 

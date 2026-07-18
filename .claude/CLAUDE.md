@@ -22,7 +22,7 @@ just setup           # Install dependencies + prek hooks
 just test            # Run full test suite
 just test-fast       # Quick test run
 just quality         # Run linting and type checking
-just ci              # Run all CI checks locally
+just check           # Fast local check: lint + type-check + doctests + tests (not full CI)
 just bench           # Run performance benchmarks
 just pre-commit      # Quick pre-commit check (auto-fix + format + test)
 ```
@@ -66,7 +66,7 @@ just bench                  # Run benchmarks against scikit-learn
 - `src/polarbearings/brier_score.py` - Brier score
 - `src/polarbearings/gini.py` - Normalized Gini coefficient
 - `src/polarbearings/ranking.py` - Ranking quality (DCG / NDCG)
-- `src/polarbearings/classification.py` - Threshold-based classification metrics (precision, recall, F1, fbeta, specificity, accuracy, balanced accuracy, MCC, Cohen's kappa, jaccard, confusion matrix, threshold sweep, percentile thresholds)
+- `src/polarbearings/classification.py` - Threshold-based classification metrics (precision, recall, F1, fbeta, specificity, accuracy, balanced accuracy, MCC, Cohen's kappa, jaccard, confusion matrix, threshold sweep)
 - `src/polarbearings/regression.py` - Regression metrics (MAE, MSE, RMSE, R², MAPE, MSLE/RMSLE, pinball, smape, huber, log-cosh, tweedie/poisson/gamma deviance, d2 scores, max/median error)
 - `src/polarbearings/calibration.py` - Calibration curve + ECE / MCE
 - `src/polarbearings/curves.py` - Diagnostic curves (ROC, PR, DET, expected cost)
@@ -87,7 +87,7 @@ All metrics are implemented as Polars expressions that:
 - Unit tests for basic functionality
 - Property-based tests with Hypothesis for random data
 - Compatibility tests against scikit-learn
-- Multi-version Polars compatibility tests (1.0.0, 1.24.0, 1.41.2)
+- Multi-version Polars compatibility tests (1.0.0, 1.24.0, 1.42.0)
 
 ## Important Files
 
@@ -114,8 +114,8 @@ When implementing a new metric:
 3. Write unit tests in `tests/test_<metric_name>.py`
 4. Add property-based tests with Hypothesis
 5. Add compatibility tests against scikit-learn
-6. Update README.md with examples and documentation
-7. Run `just ci` to verify all checks pass
+6. Update README.md with examples and documentation. Docstring `>>>` examples (exact Polars output asserted) and the README's Python blocks are executed as tests via `just doctest` — a wrong result or renamed arg fails there. README blocks reuse shared `df`/`reg` frames seeded from `<!--- invisible-code-block --->` HTML comments (invisible on GitHub); the root `conftest.py` runs them through Sybil.
+7. Run `just check` (lint + type-check + doctests + tests) before pushing; full CI (coverage gate, compat matrix, test-highest, test-memory, doctests) runs on the PR
 
 ## Dependencies
 
@@ -170,9 +170,9 @@ removed since our floors:
 just pre-commit  # Auto-fixes lint issues, formats code, runs fast tests
 ```
 
-**Full CI check locally:**
+**Fast local check (not full CI):**
 ```bash
-just ci  # Runs quality checks + full test suite
+just check  # Runs quality checks + doctests + full test suite
 ```
 
 **Test compatibility:**

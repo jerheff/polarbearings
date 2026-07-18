@@ -42,13 +42,13 @@ def roc_auc(
         ... })
         >>> df.select(roc_auc("label", "score"))
         shape: (1, 1)
-        ┌──────────────────────┐
-        │ roc_auc_label_score  │
-        │ ---                  │
-        │ f64                  │
-        ╞══════════════════════╡
-        │ 1.0                  │
-        └──────────────────────┘
+        ┌─────────────────────┐
+        │ roc_auc_label_score │
+        │ ---                 │
+        │ f64                 │
+        ╞═════════════════════╡
+        │ 1.0                 │
+        └─────────────────────┘
 
     Notes:
         - Returns null when only one class is present (ROC AUC is undefined).
@@ -95,7 +95,7 @@ def _roc_auc_unweighted(
 
 
 def _roc_auc_weighted(
-    target: IntoExpr, score: IntoExpr, weight: str | pl.Expr, pos_label: PosLabel, alias: str
+    target: IntoExpr, score: IntoExpr, weight: IntoExpr, pos_label: PosLabel, alias: str
 ) -> pl.Expr:
     """Trapezoidal rule on weighted ROC curve."""
     is_pos = (col_expr(target) == pos_label).cast(pl.Float64)

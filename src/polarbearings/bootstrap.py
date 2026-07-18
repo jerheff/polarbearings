@@ -18,9 +18,10 @@ Interval methods (``method=``):
 Entry points:
     - :func:`bootstrap` returns the full distribution as a ``List[f64]`` column
       (composable; works in ``select`` and ``group_by().agg()``).
-    - :func:`bootstrap_ci` computes a whole-frame ``{estimate, low, high}`` CI. It
-      takes the frame, materializes the (small) distribution, and reduces it in
-      Python — so all four methods, including ``bc``, are exact and cheap.
+    - :func:`bootstrap_ci` computes a whole-frame ``{estimate, low, high}`` CI, or
+      one CI per group when given ``by=``. It takes the frame, materializes the
+      (small) distribution, and reduces it in Python — so all four methods are exact
+      and cheap (``bc`` is whole-frame only).
     - :func:`ci_from_distribution` derives ``{low, high}`` from an already
       *materialized* distribution column (the per-group two-step). Supports
       ``percentile``/``basic``/``normal``; ``bc`` is whole-frame only because a
@@ -29,9 +30,9 @@ Entry points:
 
 import inspect
 import math
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from statistics import NormalDist, stdev
-from typing import Literal, TypedDict, get_args, overload
+from typing import Final, Literal, TypedDict, get_args, overload
 
 import polars as pl
 
@@ -50,14 +51,14 @@ _VALID_WEIGHT_KINDS = get_args(_WeightKind)
 # Poisson(1) CDF ``P(X <= k)`` for ``k = 0..10``. The inverse-CDF count of a uniform
 # is the number of these levels it exceeds; ``P(X > 10) ~ 1e-8``, negligible as a
 # bootstrap multiplicity, so unrolling to 10 is exact for all practical purposes.
-_POISSON1_CDF = tuple(
+_POISSON1_CDF: Final = tuple(
     sum(math.exp(-1.0) / math.factorial(j) for j in range(k + 1)) for k in range(11)
 )
 
 # Salt mixed into the seed to derive a second independent uniform from the same row
 # id (the Box-Muller normal behind the Gamma draw for frequency weights).
-_NORMAL_SALT = 0x9E3779B1
-_TWO_PI = 2.0 * math.pi
+_NORMAL_SALT: Final = 0x9E3779B1
+_TWO_PI: Final = 2.0 * math.pi
 
 
 class BootstrapCI(TypedDict):
@@ -73,7 +74,7 @@ class BootstrapCI(TypedDict):
     high: float | None
 
 
-_PPF_CLAMP = 1e-12
+_PPF_CLAMP: Final = 1e-12
 
 
 def _metric_name(metric: Callable[..., pl.Expr]) -> str:
@@ -122,18 +123,19 @@ def bootstrap_weight(
     - ``kind="poisson"``: a ``Poisson(1)`` integer multiplicity — the classic
       with-replacement bootstrap (exact in the large-``n`` limit).
 
-    Pass ``id_col`` — the name (or expression) of a **stable integer row
-    identifier** — to hash that instead of row position. This makes the resample
-    **reproducible across runs and row orderings**, and — because it is an ordinary
-    column rather than ``int_range`` — lets the weight be used inside
-    ``group_by``/``by=`` (a positional ``int_range`` goes list-valued there). With no
-    ``id_col``, row position is used, which is fine in a whole-frame ``select`` or the
-    default (exact) curves but not inside a grouped aggregation: add one with
-    ``df.with_row_index("id")`` and pass ``id_col="id"``. The hashing (via
-    :func:`~polarbearings.split.hash_uniform`) uses a fixed SplitMix64 mix, so a given
-    ``(id, seed)`` yields the same draw on every supported Polars version. ``id_col``
-    must be an **integer** column; for a string/UUID id, materialize a stable integer
-    key first (see :func:`~polarbearings.split.hash_uniform`).
+    Pass ``id_col`` — a **stable integer row identifier** (column name or
+    expression) — to hash that instead of row position:
+
+    - **Reproducible** — a given ``(id, seed)`` yields the same draw across runs, row
+      orderings, and every supported Polars version (the hash uses a fixed SplitMix64
+      mix, via :func:`~polarbearings.split.hash_uniform`).
+    - **Survives ``group_by``** — an ordinary id column can be hashed inside a grouped
+      aggregation, where the positional ``int_range`` fallback goes list-valued. With
+      no ``id_col``, row position is used: fine in a whole-frame ``select`` or the
+      default (exact) curves, but inside ``group_by``/``by=`` add one with
+      ``df.with_row_index("id")`` and pass ``id_col="id"``.
+    - **Integer only** — for a string/UUID id, materialize a stable integer key first
+      (see :func:`~polarbearings.split.hash_uniform`).
 
     ``weight_kind`` says what an existing ``weight`` *means*:
 
@@ -173,6 +175,14 @@ def bootstrap_weight(
         >>>
         >>> df = pl.DataFrame({"y": [0, 0, 1, 1], "p": [0.1, 0.4, 0.6, 0.9]}).with_row_index("id")
         >>> df.select(roc_auc("y", "p", weight=bootstrap_weight("id", seed=3)))
+        shape: (1, 1)
+        ┌───────────────┐
+        │ roc_auc_y_p_w │
+        │ ---           │
+        │ f64           │
+        ╞═══════════════╡
+        │ 1.0           │
+        └───────────────┘
     """
     if kind not in _VALID_KINDS:
         msg = f"kind must be one of {_VALID_KINDS}, got {kind!r}."
@@ -214,7 +224,7 @@ def bootstrap_weight(
     return draw if base_expr is None else base_expr * draw
 
 
-def _boot_weight(base: WeightInput, seed: int, row_index: str | None = None) -> pl.Expr:
+def _boot_weight(base: WeightInput, seed: int, row_index: IntoExpr | None = None) -> pl.Expr:
     """Internal Bayesian replicate weight (see :func:`bootstrap_weight`).
 
     Thin wrapper kept for the existing call sites: ``row_index=None`` hashes row
@@ -245,7 +255,7 @@ def bootstrap(
     weight: WeightInput = None,
     n_resamples: int = 200,
     seed: int = 0,
-    row_index: str | None = None,
+    row_index: IntoExpr | None = None,
     **metric_kwargs: object,
 ) -> pl.Expr:
     """Bootstrap a metric's sampling distribution as a ``List[f64]`` expression.
@@ -317,7 +327,7 @@ def _quantile_py(sorted_vals: list[float], q: float) -> float:
 
 
 def _reduce_ci(
-    dist: list[float], estimate: float, level: float, method: _Method
+    dist: Sequence[float], estimate: float, level: float, method: _Method
 ) -> tuple[float, float]:
     """Compute (low, high) from a materialized distribution in pure Python."""
     s = sorted(dist)
@@ -351,7 +361,7 @@ def _bootstrap_ci_by(
     method: _Method,
     by: Sequence[str],
     seed: int,
-    metric_kwargs: dict[str, object],
+    metric_kwargs: Mapping[str, object],
 ) -> pl.DataFrame:
     """Per-group confidence intervals, returned as a DataFrame.
 
@@ -446,8 +456,9 @@ def bootstrap_ci(
     data; ``low``/``high`` are the interval bounds at confidence ``level`` using
     ``method`` (see the module docstring). The distribution is materialized and the
     interval reduced in Python, so all four methods are exact and cheap. For
-    **per-group** intervals, compute the distribution inside ``group_by().agg()``
-    with :func:`bootstrap` and apply :func:`ci_from_distribution` afterward.
+    **per-group** intervals, pass ``by=``; the manual two-step (:func:`bootstrap`
+    inside ``group_by().agg()`` then :func:`ci_from_distribution`) stays available for
+    custom pipelines.
 
     Args:
         data: The DataFrame or LazyFrame to bootstrap over.
@@ -459,10 +470,9 @@ def bootstrap_ci(
         method: Interval method — ``"percentile"``, ``"basic"``, ``"normal"``, or
             ``"bc"`` (bias-corrected). ``"bc"`` is whole-frame only.
         by: Optional grouping column(s). When given, returns one CI per group as a
-            DataFrame instead of a single whole-frame dict. The per-group reduction
-            is a single vectorized expression over all groups (no Python loop); on
-            Polars >= 1.28 it fuses into one ``agg``, on older Polars it materializes
-            the per-group distribution first (same result either way).
+            DataFrame instead of a single whole-frame dict. The per-group distribution
+            is materialized once, then reduced by a single vectorized expression over
+            all groups (no Python loop).
         seed: Base seed; replicate ``b`` uses ``seed + b``.
         **metric_kwargs: Extra keyword arguments forwarded to ``metric``.
 
@@ -527,11 +537,11 @@ def bootstrap_ci(
 
 
 def ci_from_distribution(
-    distribution: str | pl.Expr,
+    distribution: IntoExpr,
     *,
     level: float = 0.95,
     method: _Method = "percentile",
-    estimate: str | pl.Expr | None = None,
+    estimate: IntoExpr | None = None,
 ) -> pl.Expr:
     """Build a ``{low, high}`` confidence-interval struct from a bootstrap distribution.
 

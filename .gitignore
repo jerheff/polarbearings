@@ -38,9 +38,11 @@ htmlcov/
 *.cover
 .tox/
 
-# IDEs
+# IDEs / editor tooling
 .vscode/
 .idea/
+# rope refactoring-library project state
+.ropeproject/
 *.swp
 *.swo
 *~
@@ -51,6 +53,9 @@ Thumbs.db
 
 # Ruff
 .ruff_cache/
+
+# uv (project-local cache, if UV_CACHE_DIR is ever pointed here)
+.uv-cache/
 
 # Mutation testing
 mutants/
