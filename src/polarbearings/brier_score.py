@@ -10,6 +10,7 @@ from polarbearings._common import (
     guarded,
     resolve_weight,
     weight_suffix,
+    weighted_mean,
 )
 
 
@@ -39,8 +40,7 @@ def brier_score(
     target_float = (col_expr(target) == pos_label).cast(pl.Float64)
     per_sample = (col_expr(prob) - target_float) ** 2
 
-    w = resolve_weight(weight)
-    brier = (per_sample * w).sum() / w.sum() if w is not None else per_sample.mean()
+    brier = weighted_mean(per_sample, resolve_weight(weight))
 
     alias = f"brier_score_{col_name(target)}_{col_name(prob)}"
     alias += weight_suffix(weight)

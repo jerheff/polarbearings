@@ -12,6 +12,7 @@ from polarbearings._common import (
     guarded,
     resolve_weight,
     weight_suffix,
+    weighted_mean,
 )
 
 
@@ -42,12 +43,15 @@ def r2_score(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) ->
         y_mean = (y * w).sum() / w_sum
         ss_res = ((y - p) ** 2 * w).sum()
         ss_tot = ((y - y_mean) ** 2 * w).sum()
+        # w_sum <= 0 makes the weighted means NaN; null it like a zero-total mean.
+        degenerate = (w_sum <= 0) | (ss_tot == 0)
     else:
         y_mean = y.mean()
         ss_res = ((y - p) ** 2).sum()
         ss_tot = ((y - y_mean) ** 2).sum()
+        degenerate = ss_tot == 0
 
-    result = pl.when(ss_tot == 0).then(None).otherwise(1 - ss_res / ss_tot)
+    result = pl.when(degenerate).then(None).otherwise(1 - ss_res / ss_tot)
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("r2_score", target, pred, weight)
     )
@@ -68,15 +72,11 @@ def mape(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) -> pl.
     p = col_expr(pred).cast(pl.Float64)
     pct_error = (y - p).abs() / y.abs()
 
+    # Filter out y==0 rows (division by zero) by nulling both the value and weight.
     w = resolve_weight(weight)
-    if w is not None:
-        # Filter out y==0 rows by setting their weight to null
-        w_valid = pl.when(y == 0).then(None).otherwise(w)
-        pct_valid = pl.when(y == 0).then(None).otherwise(pct_error)
-        result = (pct_valid * w_valid).sum() / w_valid.sum()
-    else:
-        pct_valid = pl.when(y == 0).then(None).otherwise(pct_error)
-        result = pct_valid.mean()
+    pct_valid = pl.when(y == 0).then(None).otherwise(pct_error)
+    w_valid = None if w is None else pl.when(y == 0).then(None).otherwise(w)
+    result = weighted_mean(pct_valid, w_valid)
 
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("mape", target, pred, weight)
@@ -95,8 +95,7 @@ def mae(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) -> pl.E
     """
     diff = (col_expr(target).cast(pl.Float64) - col_expr(pred).cast(pl.Float64)).abs()
 
-    w = resolve_weight(weight)
-    result = (diff * w).sum() / w.sum() if w is not None else diff.mean()
+    result = weighted_mean(diff, resolve_weight(weight))
 
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("mae", target, pred, weight)
@@ -115,8 +114,7 @@ def mse(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) -> pl.E
     """
     diff_sq = (col_expr(target).cast(pl.Float64) - col_expr(pred).cast(pl.Float64)) ** 2
 
-    w = resolve_weight(weight)
-    result = (diff_sq * w).sum() / w.sum() if w is not None else diff_sq.mean()
+    result = weighted_mean(diff_sq, resolve_weight(weight))
 
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("mse", target, pred, weight)
@@ -135,8 +133,7 @@ def rmse(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) -> pl.
     """
     diff_sq = (col_expr(target).cast(pl.Float64) - col_expr(pred).cast(pl.Float64)) ** 2
 
-    w = resolve_weight(weight)
-    result = ((diff_sq * w).sum() / w.sum()).sqrt() if w is not None else diff_sq.mean().sqrt()
+    result = weighted_mean(diff_sq, resolve_weight(weight)).sqrt()
 
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("rmse", target, pred, weight)
@@ -172,8 +169,7 @@ def mean_squared_log_error(
         col_expr(target).cast(pl.Float64).log1p() - col_expr(pred).cast(pl.Float64).log1p()
     ) ** 2
 
-    w = resolve_weight(weight)
-    result = (sq_log_err * w).sum() / w.sum() if w is not None else sq_log_err.mean()
+    result = weighted_mean(sq_log_err, resolve_weight(weight))
 
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("mean_squared_log_error", target, pred, weight)
@@ -207,11 +203,7 @@ def root_mean_squared_log_error(
         col_expr(target).cast(pl.Float64).log1p() - col_expr(pred).cast(pl.Float64).log1p()
     ) ** 2
 
-    w = resolve_weight(weight)
-    if w is not None:
-        result = ((sq_log_err * w).sum() / w.sum()).sqrt()
-    else:
-        result = sq_log_err.mean().sqrt()
+    result = weighted_mean(sq_log_err, resolve_weight(weight)).sqrt()
 
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("root_mean_squared_log_error", target, pred, weight)
@@ -308,13 +300,16 @@ def explained_variance_score(
         y_mean = (y * w).sum() / w_sum
         var_diff = ((diff - diff_mean) ** 2 * w).sum() / w_sum
         var_y = ((y - y_mean) ** 2 * w).sum() / w_sum
+        # w_sum <= 0 makes the weighted means NaN; null it like a zero-total mean.
+        degenerate = (w_sum <= 0) | (var_y == 0)
     else:
         diff_mean = diff.mean()
         y_mean = y.mean()
         var_diff = ((diff - diff_mean) ** 2).mean()
         var_y = ((y - y_mean) ** 2).mean()
+        degenerate = var_y == 0
 
-    result = pl.when(var_y == 0).then(None).otherwise(1 - var_diff / var_y)
+    result = pl.when(degenerate).then(None).otherwise(1 - var_diff / var_y)
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("explained_variance_score", target, pred, weight)
     )
@@ -346,8 +341,7 @@ def mean_pinball_loss(
     err = col_expr(target).cast(pl.Float64) - col_expr(pred).cast(pl.Float64)
     loss = pl.when(err >= 0).then(alpha * err).otherwise((alpha - 1) * err)
 
-    w = resolve_weight(weight)
-    result = (loss * w).sum() / w.sum() if w is not None else loss.mean()
+    result = weighted_mean(loss, resolve_weight(weight))
 
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("mean_pinball_loss", target, pred, weight)
@@ -381,8 +375,7 @@ def smape(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = None) -> pl
     denom = y.abs() + p.abs()
     per_sample = pl.when(denom == 0).then(0.0).otherwise(2.0 * (y - p).abs() / denom)
 
-    w = resolve_weight(weight)
-    result = (per_sample * w).sum() / w.sum() if w is not None else per_sample.mean()
+    result = weighted_mean(per_sample, resolve_weight(weight))
 
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("smape", target, pred, weight)
@@ -417,8 +410,7 @@ def huber_loss(
         pl.when(abs_err <= delta).then(0.5 * abs_err**2).otherwise(delta * (abs_err - 0.5 * delta))
     )
 
-    w = resolve_weight(weight)
-    result = (loss * w).sum() / w.sum() if w is not None else loss.mean()
+    result = weighted_mean(loss, resolve_weight(weight))
 
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("huber_loss", target, pred, weight)
@@ -451,8 +443,7 @@ def log_cosh_loss(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput = Non
     abs_err = (col_expr(pred).cast(pl.Float64) - col_expr(target).cast(pl.Float64)).abs()
     per_sample = abs_err + (-2.0 * abs_err).exp().log1p() - math.log(2.0)
 
-    w = resolve_weight(weight)
-    result = (per_sample * w).sum() / w.sum() if w is not None else per_sample.mean()
+    result = weighted_mean(per_sample, resolve_weight(weight))
 
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("log_cosh_loss", target, pred, weight)
@@ -532,8 +523,7 @@ def mean_tweedie_deviance(
     p = col_expr(pred).cast(pl.Float64)
     dev = _tweedie_unit_deviance(y, p, power)
 
-    w = resolve_weight(weight)
-    result = (dev * w).sum() / w.sum() if w is not None else dev.mean()
+    result = weighted_mean(dev, resolve_weight(weight))
 
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("mean_tweedie_deviance", target, pred, weight)
@@ -565,8 +555,7 @@ def mean_poisson_deviance(
     p = col_expr(pred).cast(pl.Float64)
     dev = _tweedie_unit_deviance(y, p, 1.0)
 
-    w = resolve_weight(weight)
-    result = (dev * w).sum() / w.sum() if w is not None else dev.mean()
+    result = weighted_mean(dev, resolve_weight(weight))
 
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("mean_poisson_deviance", target, pred, weight)
@@ -596,8 +585,7 @@ def mean_gamma_deviance(target: IntoExpr, pred: IntoExpr, *, weight: WeightInput
     p = col_expr(pred).cast(pl.Float64)
     dev = _tweedie_unit_deviance(y, p, 2.0)
 
-    w = resolve_weight(weight)
-    result = (dev * w).sum() / w.sum() if w is not None else dev.mean()
+    result = weighted_mean(dev, resolve_weight(weight))
 
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("mean_gamma_deviance", target, pred, weight)
@@ -644,12 +632,15 @@ def d2_tweedie_score(
         y_mean = (y * w).sum() / w_sum
         num = (_tweedie_unit_deviance(y, p, power) * w).sum()
         den = (_tweedie_unit_deviance(y, y_mean, power) * w).sum()
+        # w_sum <= 0 makes the weighted baseline NaN; null it like a zero-total mean.
+        degenerate = (w_sum <= 0) | (den == 0)
     else:
         y_mean = y.mean()
         num = _tweedie_unit_deviance(y, p, power).sum()
         den = _tweedie_unit_deviance(y, y_mean, power).sum()
+        degenerate = den == 0
 
-    result = pl.when(den == 0).then(None).otherwise(1.0 - num / den)
+    result = pl.when(degenerate).then(None).otherwise(1.0 - num / den)
     return guarded(result, values=[target, pred], weight=weight).alias(
         _regression_alias("d2_tweedie_score", target, pred, weight)
     )

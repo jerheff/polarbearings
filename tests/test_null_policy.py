@@ -163,3 +163,11 @@ def test_scalar_metric_null_policy(name, fn, kind, weighted) -> None:
             .to_series()[0]
         )
         assert got is not None, "expected non-null on clean weighted data"
+
+        # A zero total weight makes the metric undefined -> null, never a 0/0 = NaN.
+        got = (
+            pl.DataFrame({"t": t, "v": v, "w": [0.0] * n})
+            .select(fn("t", "v", weight="w"))
+            .to_series()[0]
+        )
+        assert got is None, "expected null on all-zero weights (undefined, not NaN)"

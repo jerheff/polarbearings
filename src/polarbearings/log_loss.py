@@ -10,6 +10,7 @@ from polarbearings._common import (
     guarded,
     resolve_weight,
     weight_suffix,
+    weighted_mean,
 )
 
 
@@ -46,8 +47,7 @@ def log_loss(
 
     per_sample = -(target_float * log_prob + (1 - target_float) * log_1_minus_prob)
 
-    w = resolve_weight(weight)
-    loss = (per_sample * w).sum() / w.sum() if w is not None else per_sample.mean()
+    loss = weighted_mean(per_sample, resolve_weight(weight))
 
     alias = f"log_loss_{col_name(target)}_{col_name(prob)}"
     alias += weight_suffix(weight)
