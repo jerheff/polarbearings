@@ -39,7 +39,7 @@ from polarbearings import (
 from polarbearings.bootstrap import _reduce_ci
 
 # The submodule is shadowed by the same-named function in the package namespace, so
-# reach the real module via sys.modules to monkeypatch the version feature flag.
+# reach the real module via sys.modules to get at internals like ``_boot_weight``.
 _BMOD = sys.modules["polarbearings.bootstrap"]
 
 
@@ -218,16 +218,18 @@ class TestBootstrapCi:
         assert low <= est <= high
 
     def test_all_methods_run_and_bracket(self):
+        # Structural check (each method brackets), not a statistical one — a small
+        # resample count is plenty and keeps the four bootstrap runs cheap.
         df, *_ = _binary_df()
         for method in ("percentile", "basic", "normal", "bc"):
-            ci = bootstrap_ci(df, roc_auc, "y", "p", n_resamples=300, method=method, seed=0)
+            ci = bootstrap_ci(df, roc_auc, "y", "p", n_resamples=120, method=method, seed=0)
             low, _, high = _ordered(ci)
             assert low <= high
 
     def test_higher_level_is_wider(self):
         df, *_ = _binary_df()
-        c90 = bootstrap_ci(df, roc_auc, "y", "p", n_resamples=400, level=0.90, seed=5)
-        c99 = bootstrap_ci(df, roc_auc, "y", "p", n_resamples=400, level=0.99, seed=5)
+        c90 = bootstrap_ci(df, roc_auc, "y", "p", n_resamples=150, level=0.90, seed=5)
+        c99 = bootstrap_ci(df, roc_auc, "y", "p", n_resamples=150, level=0.99, seed=5)
         lo90, _, hi90 = _ordered(c90)
         lo99, _, hi99 = _ordered(c99)
         assert lo99 <= lo90
@@ -287,14 +289,15 @@ class TestWeights:
 class TestPerGroupTwoStep:
     def test_group_by_distribution_then_ci(self):
         # Manual composable pattern. Inside group_by, bootstrap needs a materialized
-        # row_index (int_range is unstable in agg on some Polars versions).
-        df = _binary_df(n=6000, seed=1)[0]
+        # row_index (int_range is unstable in agg on some Polars versions). Sizes kept
+        # small for speed.
+        df = _binary_df(n=900, seed=1)[0]
         df = df.with_columns(g=pl.Series(np.arange(df.height) % 3)).with_row_index("ridx")
         out = (
             df.group_by("g")
             .agg(
                 roc_auc("y", "p").alias("est"),
-                bootstrap(roc_auc, "y", "p", n_resamples=300, seed=4, row_index="ridx").alias(
+                bootstrap(roc_auc, "y", "p", n_resamples=100, seed=4, row_index="ridx").alias(
                     "dist"
                 ),
             )
@@ -313,14 +316,16 @@ class TestPerGroupTwoStep:
 class TestPerGroupHelper:
     """bootstrap_ci(..., by=) — the version-transparent per-group helper."""
 
+    # 900 rows (300/group) is plenty to exercise the per-group path and the bracket
+    # assertions; kept small purely for speed.
     @staticmethod
-    def _segmented(n=6000):
+    def _segmented(n=900):
         df = _binary_df(n=n, seed=1)[0]
         return df.with_columns(seg=pl.Series(np.arange(df.height) % 3))
 
     def test_returns_dataframe_per_group(self):
         out = bootstrap_ci(
-            self._segmented(), roc_auc, "y", "p", by="seg", n_resamples=200, method="basic", seed=0
+            self._segmented(), roc_auc, "y", "p", by="seg", n_resamples=100, method="basic", seed=0
         )
         assert isinstance(out, pl.DataFrame)
         assert set(out.columns) == {"seg", "estimate", "low", "high"}
@@ -350,30 +355,30 @@ class TestPerGroupHelper:
         assert rows["a"]["high"] is None
         assert rows["b"]["low"] <= rows["b"]["estimate"] <= rows["b"]["high"]
 
-    def test_fused_equals_materialized(self, monkeypatch):
-        # Within one Polars version the default branch (fused on >=1.28) must equal
-        # the forced-materialized branch exactly (identical hash + reduction).
+    def test_by_matches_manual_two_step(self):
+        # The helper must equal the documented manual pattern (group_by().agg the
+        # distribution, then ci_from_distribution) — same seed, same result.
         df = self._segmented()
-        default = bootstrap_ci(df, roc_auc, "y", "p", by="seg", n_resamples=200, seed=0)
-        monkeypatch.setattr(_BMOD, "_supports_list_agg", lambda: False)
-        materialized = bootstrap_ci(df, roc_auc, "y", "p", by="seg", n_resamples=200, seed=0)
-        assert_frame_equal(default, materialized)
-
-    @pytest.mark.skipif(
-        not _BMOD._supports_list_agg(),
-        reason="fused reduce-in-agg requires Polars >= 1.28.0 (pola-rs/polars#22249)",
-    )
-    def test_fused_branch_executes(self):
-        # Runs only on Polars >= 1.28 (skipped on the floor) — explicit fused coverage.
-        out = bootstrap_ci(self._segmented(), roc_auc, "y", "p", by="seg", n_resamples=200, seed=0)
-        assert out.height == 3
-        for row in out.iter_rows(named=True):
-            assert row["low"] <= row["estimate"] <= row["high"]
-
-
-class TestFeatureFlag:
-    def test_returns_bool(self):
-        assert isinstance(_BMOD._supports_list_agg(), bool)
+        helper = bootstrap_ci(
+            df, roc_auc, "y", "p", by="seg", n_resamples=100, method="basic", seed=0
+        )
+        manual = (
+            df.with_row_index("__pb_row_index")
+            .group_by("seg")
+            .agg(
+                roc_auc("y", "p").alias("estimate"),
+                bootstrap(
+                    roc_auc, "y", "p", n_resamples=100, seed=0, row_index="__pb_row_index"
+                ).alias("_d"),
+            )
+            .with_columns(
+                ci_from_distribution("_d", method="basic", estimate="estimate").alias("_ci")
+            )
+            .drop("_d")
+            .unnest("_ci")
+            .sort("seg")
+        )
+        assert_frame_equal(helper, manual)
 
 
 class TestBootstrapWeight:
