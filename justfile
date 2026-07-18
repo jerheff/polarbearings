@@ -183,8 +183,9 @@ mutant:
     rm -rf mutants/
     uv run mutmut run
 
-# Run all CI checks locally (quality + tests)
-ci: quality test
+# Fast local check (lint + type-check + tests) — NOT full CI (no coverage gate,
+# compat matrix, test-highest, or test-memory; run those recipes for the rest)
+check: quality test
 
 # Report available updates: pyproject deps, prek hooks, and pinned GitHub Actions
 outdated:

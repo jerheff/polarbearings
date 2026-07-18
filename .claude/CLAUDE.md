@@ -22,7 +22,7 @@ just setup           # Install dependencies + prek hooks
 just test            # Run full test suite
 just test-fast       # Quick test run
 just quality         # Run linting and type checking
-just ci              # Run all CI checks locally
+just check           # Fast local check: lint + type-check + tests (not full CI)
 just bench           # Run performance benchmarks
 just pre-commit      # Quick pre-commit check (auto-fix + format + test)
 ```
@@ -115,7 +115,7 @@ When implementing a new metric:
 4. Add property-based tests with Hypothesis
 5. Add compatibility tests against scikit-learn
 6. Update README.md with examples and documentation
-7. Run `just ci` to verify all checks pass
+7. Run `just check` (lint + type-check + tests) before pushing; full CI (coverage gate, compat matrix, test-highest, test-memory) runs on the PR
 
 ## Dependencies
 
@@ -170,9 +170,9 @@ removed since our floors:
 just pre-commit  # Auto-fixes lint issues, formats code, runs fast tests
 ```
 
-**Full CI check locally:**
+**Fast local check (not full CI):**
 ```bash
-just ci  # Runs quality checks + full test suite
+just check  # Runs quality checks + full test suite
 ```
 
 **Test compatibility:**
