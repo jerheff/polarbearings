@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/jerheff/polarbearings/compare/v0.2.0...v0.2.1) (2026-07-19)
+
+
+### Continuous Integration
+
+* **release:** real PyPI publish (build-once, approval-gated) + release assets ([#21](https://github.com/jerheff/polarbearings/issues/21)) ([2c69222](https://github.com/jerheff/polarbearings/commit/2c69222893814c43311388e5f7ffb455e72a949e))
+
 ## [0.2.0](https://github.com/jerheff/polarbearings/compare/v0.1.0...v0.2.0) (2026-07-19)
 
 
