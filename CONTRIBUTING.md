@@ -27,16 +27,14 @@ Automation lives in [`.github/workflows/release-please.yml`](.github/workflows/r
 2. While that PR is open, every update publishes an **ephemeral alpha**
    (`X.Y.Za<run_number>`) of the pending release to **TestPyPI** — install it with
    `pip install --pre -i https://test.pypi.org/simple/ polarbearings`.
-3. **Merging** the release PR tags `vX.Y.Z`, cuts a GitHub Release, and publishes
-   the exact version to TestPyPI as a smoke test.
+3. **Merging** the release PR tags `vX.Y.Z` and cuts a GitHub Release. Then, built
+   once and published twice: the sdist + wheel are attached to the Release,
+   published to **TestPyPI** as a smoke test, and then published to **PyPI** —
+   gated behind the `pypi` environment's required reviewer (manual approval).
 
-> **PyPI is not wired up yet.** The `publish-pypi` job is a placeholder that only
-> logs what a real publish would do. Promoting it to a real publish is a
-> follow-up (add a `pypi` trusted publisher + a `pypi` environment with a required
-> reviewer, and swap the placeholder for `uv publish`).
+### One-time setup for real PyPI publishing
 
-### Known follow-ups
-
-- **Promote `publish-pypi` from placeholder** to a real, approval-gated
-  `uv publish` (see the note above). This is the only remaining stub — the
-  TestPyPI path and `uv.lock` sync are fully wired.
+- A **PyPI trusted publisher** (pypi.org → the project → Publishing): repo
+  `jerheff/polarbearings`, workflow `release-please.yml`, environment `pypi`.
+- A **`pypi` GitHub Environment** with a **required reviewer**, so the
+  `publish-pypi` job pauses for manual approval before uploading to PyPI.
