@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/jerheff/polarbearings/compare/v0.2.1...v0.2.2) (2026-07-19)
+
+
+### Continuous Integration
+
+* **release:** attach release artifacts best-effort (immutable releases off) ([#23](https://github.com/jerheff/polarbearings/issues/23)) ([2c2afa5](https://github.com/jerheff/polarbearings/commit/2c2afa55cdc7aa3c1551be2bdc9debf5aabf3a7d))
+
 ## [0.2.1](https://github.com/jerheff/polarbearings/compare/v0.2.0...v0.2.1) (2026-07-19)
 
 
