@@ -138,10 +138,11 @@ jobs:
           --trusted-publishing always
 
       - name: Comment the pinned install command on the release PR
-        # Fresh comment on every publish, pinning this build's exact alpha. The
-        # --extra-index-url is required so the `polars` dependency resolves from
-        # real PyPI (TestPyPI doesn't mirror it). TESTPYPI_VERSION was exported to
-        # $GITHUB_ENV by the stamp step above.
+        # Fresh comment on every publish, pinning this build's exact alpha.
+        # TESTPYPI_VERSION was exported to $GITHUB_ENV by the stamp step above.
+        # The `explicit = true` index + source pin scope TestPyPI to polarbearings
+        # only, so `polars` (which TestPyPI hosts a stale 0.19.5 of) still resolves
+        # from real PyPI — a plain extra-index would hit dependency-confusion.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -153,15 +154,30 @@ jobs:
           cat > "${RUNNER_TEMP}/testpypi-comment.md" <<EOF
           🧪 Published \`polarbearings==${TESTPYPI_VERSION}\` to [TestPyPI](https://test.pypi.org/project/polarbearings/${TESTPYPI_VERSION}/).
 
-          Install this exact pre-release build:
+          **Add to a uv project** — pins only \`polarbearings\` to TestPyPI; \`polars\` and everything else still resolve from PyPI:
+
+          \`\`\`toml
+          # pyproject.toml
+          [[tool.uv.index]]
+          name = "testpypi"
+          url = "https://test.pypi.org/simple/"
+          explicit = true
+
+          [tool.uv.sources]
+          polarbearings = { index = "testpypi" }
+          \`\`\`
+          \`\`\`bash
+          uv add polarbearings==${TESTPYPI_VERSION}
+          \`\`\`
+
+          _\`explicit = true\` is what keeps TestPyPI scoped to \`polarbearings\`; without it uv tries to pull \`polars\` from TestPyPI's stale copy and resolution fails._
+
+          <details><summary>Throwaway install (nothing written to your project)</summary>
 
           \`\`\`bash
           uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ polarbearings==${TESTPYPI_VERSION}
-          # or with pip:
-          pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ polarbearings==${TESTPYPI_VERSION}
           \`\`\`
-
-          _The extra index resolves the \`polars\` dependency from real PyPI._
+          </details>
           EOF
           gh pr comment "${PR}" --body-file "${RUNNER_TEMP}/testpypi-comment.md"
 
