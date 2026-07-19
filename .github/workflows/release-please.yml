@@ -135,7 +135,6 @@ jobs:
           uv publish
           --index testpypi
           --trusted-publishing always
-          --check-url https://test.pypi.org/simple/
 
   release-testpypi:
     name: Release smoke test to TestPyPI
@@ -169,7 +168,6 @@ jobs:
           uv publish
           --index testpypi
           --trusted-publishing always
-          --check-url https://test.pypi.org/simple/
 
   publish-pypi:
     name: Publish to PyPI (PLACEHOLDER — logs only)
