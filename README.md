@@ -1,4 +1,4 @@
-# Polarbearings 🐻‍❄️
+# Polarbearings 🐻‍❄️🧭
 
 High-performance machine learning metrics implemented as native Polars expressions.
 
@@ -13,11 +13,9 @@ High-performance machine learning metrics implemented as native Polars expressio
 
 ## Installation
 
-> **Note:** Not yet published to PyPI. Install from source until the first release.
-
 ```bash
-uv add git+https://github.com/jerheff/polarbearings.git
-# or: pip install git+https://github.com/jerheff/polarbearings.git
+uv add polarbearings
+# or: pip install polarbearings
 ```
 
 The only runtime dependency is Polars.
@@ -115,7 +113,7 @@ df.select(
 ~40 metrics across ranking, probabilistic, classification, calibration, and
 regression families, plus curve generators, bootstrap CIs, deterministic splitting,
 and threshold utilities. The **[full metrics reference →
-docs/guides/METRICS.md](docs/guides/METRICS.md)** documents every metric's
+docs/guides/METRICS.md](https://github.com/jerheff/polarbearings/blob/main/docs/guides/METRICS.md)** documents every metric's
 semantics, edge cases, and scikit-learn correspondence.
 
 | Family | What's in it |
@@ -154,7 +152,7 @@ calibration_curve(df, "label", "prob", n_bins=10, strategy="quantile").collect()
 ### Cross-cutting behaviour
 
 Four behaviours are shared by the metrics rather than specific to one — full
-details in the [metrics reference](docs/guides/METRICS.md#cross-cutting-behaviour):
+details in the [metrics reference](https://github.com/jerheff/polarbearings/blob/main/docs/guides/METRICS.md#cross-cutting-behaviour):
 
 - **Output names** — each expression is pre-aliased `<metric>_<target>_<score>`
   (plus suffixes for a weight, non-default `pos_label`, or threshold), so
@@ -216,7 +214,7 @@ polarbearings time; higher = faster), median of clean benchmark runs.
 
 **Where polarbearings wins big** — grouped, probabilistic, and ranking metrics.
 Ranges span polars 1.0.0 and 1.41.2; see
-[PERFORMANCE.md](docs/technical/PERFORMANCE.md) for the per-version, per-size matrix.
+[PERFORMANCE.md](https://github.com/jerheff/polarbearings/blob/main/docs/technical/PERFORMANCE.md) for the per-version, per-size matrix.
 
 | Metric | 100k rows | 10M rows |
 |--------|:---:|:---:|
@@ -233,7 +231,7 @@ very large array, where NumPy's tight single-threaded loop beats one Polars
 expression. Reach for polarbearings on grouped/composed pipelines and the
 probabilistic metrics; for a one-off MAE over a giant array, NumPy is fine.
 
-See [docs/technical/PERFORMANCE.md](docs/technical/PERFORMANCE.md) for the full
+See [docs/technical/PERFORMANCE.md](https://github.com/jerheff/polarbearings/blob/main/docs/technical/PERFORMANCE.md) for the full
 per-metric breakdown, the size-scaling curve, and the ceteris-paribus Polars
 version comparison.
 
@@ -254,7 +252,7 @@ just bench             # benchmarks vs scikit-learn
 
 Testing combines unit tests, property-based tests (Hypothesis), and
 scikit-learn compatibility tests across multiple Polars versions — see
-[docs/guides/TESTING.md](docs/guides/TESTING.md).
+[docs/guides/TESTING.md](https://github.com/jerheff/polarbearings/blob/main/docs/guides/TESTING.md).
 
 ## Requirements
 
@@ -263,14 +261,14 @@ scikit-learn compatibility tests across multiple Polars versions — see
 
 ## Roadmap
 
-- [ ] Publish to PyPI (first tagged release)
+- [x] Publish to PyPI (first tagged release)
 - [ ] KS statistic & lift/gain curves (churn / credit workflows)
 - [ ] Ranking metrics: precision@k, recall@k, MRR, MAP
 - [ ] Weighted (linear / quadratic) Cohen's kappa for ordinal targets
 - [ ] `.metrics` Polars expression namespace (`pl.col(...).metrics.roc_auc(...)`)
 
 More candidate metrics and their implementation notes live in
-[docs/FUTURE_IDEAS.md](docs/FUTURE_IDEAS.md).
+[docs/FUTURE_IDEAS.md](https://github.com/jerheff/polarbearings/blob/main/docs/FUTURE_IDEAS.md).
 
 ## Contributing
 
