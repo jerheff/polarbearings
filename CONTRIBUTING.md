@@ -28,13 +28,18 @@ Automation lives in [`.github/workflows/release-please.yml`](.github/workflows/r
    (`X.Y.Za<run_number>`) of the pending release to **TestPyPI** — install it with
    `pip install --pre -i https://test.pypi.org/simple/ polarbearings`.
 3. **Merging** the release PR tags `vX.Y.Z` and cuts a GitHub Release. Then, built
-   once and published twice: the sdist + wheel are attached to the Release,
-   published to **TestPyPI** as a smoke test, and then published to **PyPI** —
-   gated behind the `pypi` environment's required reviewer (manual approval).
+   once and published twice: the sdist + wheel are attached to the Release, then
+   published to **TestPyPI** as a smoke test, and then to **PyPI** — gated behind
+   the `pypi` environment's required reviewer (manual approval).
 
 ### One-time setup for real PyPI publishing
 
 - A **PyPI trusted publisher** (pypi.org → the project → Publishing): repo
   `jerheff/polarbearings`, workflow `release-please.yml`, environment `pypi`.
 - A **`pypi` GitHub Environment** with a **required reviewer**, so the
-  `publish-pypi` job pauses for manual approval before uploading to PyPI.
+  `publish-pypi` job pauses for manual approval before uploading to PyPI. Its
+  deployment-branch policy must allow **`main`** (the workflow runs on the
+  release-PR merge to `main`, not on the tag).
+- The repo's **"immutable releases" setting OFF** (Settings → General) so
+  `build-release` can attach the sdist + wheel to each Release. The immutable
+  **tags** ruleset (`version-tags`) stays on — that's the important guarantee.
