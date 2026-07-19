@@ -1,0 +1,198 @@
+name: Release Please
+
+# Release automation, TestPyPI-only for now.
+#
+# Flow:
+#   1. `release-please` keeps a rolling "release X.Y.Z" PR updated on every push
+#      to main (version bump + CHANGELOG from Conventional Commits).
+#   2. While that PR is open, `prerelease-testpypi` publishes an *ephemeral* alpha
+#      (`X.Y.Za<run_number>`) of the pending release to TestPyPI on every update —
+#      a continuously fresh, installable pre-release tied to the next version.
+#   3. When the PR is merged, release-please tags `vX.Y.Z` and cuts a GitHub
+#      Release; `release-testpypi` then publishes the exact release version to
+#      TestPyPI as a final smoke test, and `publish-pypi` is a PLACEHOLDER that
+#      only logs what a real PyPI publish would do (no real PyPI upload yet).
+#
+# Why the publish steps live in THIS workflow (not a separate `on: release` /
+# `on: push` one): release-please pushes with the default GITHUB_TOKEN, and
+# GITHUB_TOKEN-authored events do not trigger other workflows. Gating jobs on the
+# action's outputs keeps everything in one run and sidesteps that entirely.
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Maintain release PR / cut release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      # `pr` is set whenever there is an open release PR (created or updated this run).
+      pr: ${{ steps.rp.outputs.pr }}
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+      version: ${{ steps.rp.outputs.version }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  relock:
+    name: Sync uv.lock on the release PR
+    needs: release-please
+    if: ${{ needs.release-please.outputs.pr }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the uv.lock sync commit onto the release PR branch
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: release-please--branches--main
+          # Credentials are intentionally persisted: this job pushes a commit back
+          # to the release PR branch. The push uses GITHUB_TOKEN, whose events do
+          # not trigger workflows, so this cannot loop.
+          persist-credentials: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Re-lock and commit uv.lock if it changed
+        # release-please bumped [project].version in pyproject.toml on this branch,
+        # so uv.lock's own `polarbearings` version is now stale. `uv lock` is
+        # preference-preserving (transitive pins are kept), so the only change is
+        # that version line. Commit it so merging the PR lands a synced lockfile.
+        run: |
+          uv lock
+          if git diff --quiet -- uv.lock; then
+            echo "uv.lock already in sync; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          git commit -m "chore: sync uv.lock"
+          git push origin HEAD:release-please--branches--main
+
+  prerelease-testpypi:
+    name: Pre-release alpha to TestPyPI
+    needs: release-please
+    if: ${{ needs.release-please.outputs.pr }}
+    runs-on: ubuntu-latest
+    # Trusted publishing target. Register a TestPyPI trusted publisher for this
+    # repo with workflow `release-please.yml` and environment `testpypi`.
+    environment: testpypi
+    permissions:
+      id-token: write # OIDC token for trusted publishing
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # The version bump lives on the release PR branch, not main yet.
+          ref: release-please--branches--main
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Stamp an ephemeral alpha version
+        # Base version is whatever release-please put on the PR branch (the *next*
+        # release). `github.run_number` is globally monotonic, so every branch
+        # update yields a unique, ever-increasing alpha — never collides on
+        # TestPyPI. `--frozen` edits pyproject only; the lockfile is left alone and
+        # this edit is never committed (throwaway build).
+        run: |
+          BASE="$(uv version --short)"
+          ALPHA="${BASE}a${{ github.run_number }}"
+          uv version --frozen "${ALPHA}"
+          echo "TESTPYPI_VERSION=${ALPHA}" >> "${GITHUB_ENV}"
+          echo "::notice::Publishing pre-release ${ALPHA} to TestPyPI"
+
+      - name: Build sdist + wheel
+        run: uv build
+
+      - name: Validate package metadata
+        run: uvx twine check dist/*
+
+      - name: Publish to TestPyPI (trusted publishing)
+        run: >
+          uv publish
+          --index testpypi
+          --trusted-publishing always
+          --check-url https://test.pypi.org/simple/
+
+  release-testpypi:
+    name: Release smoke test to TestPyPI
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Build the exact release version
+        run: uv build
+
+      - name: Validate package metadata
+        run: uvx twine check dist/*
+
+      - name: Publish release to TestPyPI (trusted publishing)
+        run: >
+          uv publish
+          --index testpypi
+          --trusted-publishing always
+          --check-url https://test.pypi.org/simple/
+
+  publish-pypi:
+    name: Publish to PyPI (PLACEHOLDER — logs only)
+    needs: [release-please, release-testpypi]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Describe what a real PyPI publish would do
+        env:
+          # Passed via env (not interpolated into the script) so the shell quotes
+          # them as data — satisfies zizmor's template-injection audit.
+          VERSION: ${{ needs.release-please.outputs.version }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          echo "::notice::PLACEHOLDER — no real PyPI publish is wired up yet."
+          {
+            echo "## PyPI publish (placeholder)"
+            echo ""
+            echo "Would publish version **${VERSION}** "
+            echo "(tag \`${TAG}\`) to PyPI."
+            echo ""
+            echo "The real job, when enabled, will:"
+            echo "1. Run under \`environment: pypi\` with a required reviewer (manual approval)."
+            echo "2. Reuse the artifacts smoke-tested on TestPyPI by \`release-testpypi\`."
+            echo "3. \`uv build && uv publish --trusted-publishing always\` (no index → real PyPI)."
+          } >> "${GITHUB_STEP_SUMMARY}"
