@@ -98,6 +98,7 @@ jobs:
     permissions:
       id-token: write # OIDC token for trusted publishing
       contents: read
+      pull-requests: write # comment the pinned install command on the release PR
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -135,6 +136,34 @@ jobs:
           uv publish
           --index testpypi
           --trusted-publishing always
+
+      - name: Comment the pinned install command on the release PR
+        # Fresh comment on every publish, pinning this build's exact alpha. The
+        # --extra-index-url is required so the `polars` dependency resolves from
+        # real PyPI (TestPyPI doesn't mirror it). TESTPYPI_VERSION was exported to
+        # $GITHUB_ENV by the stamp step above.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR=$(gh pr list --head release-please--branches--main --state open --json number --jq '.[0].number')
+          if [ -z "${PR}" ]; then
+            echo "No open release PR found; skipping comment."
+            exit 0
+          fi
+          cat > "${RUNNER_TEMP}/testpypi-comment.md" <<EOF
+          🧪 Published \`polarbearings==${TESTPYPI_VERSION}\` to [TestPyPI](https://test.pypi.org/project/polarbearings/${TESTPYPI_VERSION}/).
+
+          Install this exact pre-release build:
+
+          \`\`\`bash
+          uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ polarbearings==${TESTPYPI_VERSION}
+          # or with pip:
+          pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ polarbearings==${TESTPYPI_VERSION}
+          \`\`\`
+
+          _The extra index resolves the \`polars\` dependency from real PyPI._
+          EOF
+          gh pr comment "${PR}" --body-file "${RUNNER_TEMP}/testpypi-comment.md"
 
   release-testpypi:
     name: Release smoke test to TestPyPI
