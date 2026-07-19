@@ -137,12 +137,12 @@ jobs:
           --index testpypi
           --trusted-publishing always
 
-      - name: Comment the pinned install command on the release PR
-        # Fresh comment on every publish, pinning this build's exact alpha.
-        # TESTPYPI_VERSION was exported to $GITHUB_ENV by the stamp step above.
-        # The `explicit = true` index + source pin scope TestPyPI to polarbearings
-        # only, so `polars` (which TestPyPI hosts a stale 0.19.5 of) still resolves
-        # from real PyPI — a plain extra-index would hit dependency-confusion.
+      - name: Comment the install command on the release PR
+        # Fresh comment on every publish. A direct wheel URL sidesteps indexes
+        # entirely: uv/pip fetch polarbearings from the URL and resolve polars from
+        # PyPI as normal — no index config, no dependency-confusion. uv publish
+        # doesn't emit the hosted URL (its path is a content hash), so poll the
+        # TestPyPI JSON API for it. TESTPYPI_VERSION comes from $GITHUB_ENV.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -151,33 +151,29 @@ jobs:
             echo "No open release PR found; skipping comment."
             exit 0
           fi
+          WHEEL_URL=""
+          for _ in $(seq 1 10); do
+            WHEEL_URL=$(curl -sf "https://test.pypi.org/pypi/polarbearings/${TESTPYPI_VERSION}/json" 2>/dev/null \
+              | jq -r '.urls[]? | select(.packagetype=="bdist_wheel") | .url' 2>/dev/null || true)
+            if [ -n "${WHEEL_URL}" ]; then break; fi
+            sleep 3
+          done
+          if [ -z "${WHEEL_URL}" ]; then
+            echo "::warning::Could not resolve the wheel URL from TestPyPI; skipping PR comment."
+            exit 0
+          fi
           cat > "${RUNNER_TEMP}/testpypi-comment.md" <<EOF
           🧪 Published \`polarbearings==${TESTPYPI_VERSION}\` to [TestPyPI](https://test.pypi.org/project/polarbearings/${TESTPYPI_VERSION}/).
 
-          **Add to a uv project** — pins only \`polarbearings\` to TestPyPI; \`polars\` and everything else still resolve from PyPI:
-
-          \`\`\`toml
-          # pyproject.toml
-          [[tool.uv.index]]
-          name = "testpypi"
-          url = "https://test.pypi.org/simple/"
-          explicit = true
-
-          [tool.uv.sources]
-          polarbearings = { index = "testpypi" }
-          \`\`\`
-          \`\`\`bash
-          uv add polarbearings==${TESTPYPI_VERSION}
-          \`\`\`
-
-          _\`explicit = true\` is what keeps TestPyPI scoped to \`polarbearings\`; without it uv tries to pull \`polars\` from TestPyPI's stale copy and resolution fails._
-
-          <details><summary>Throwaway install (nothing written to your project)</summary>
+          Install this exact build — \`polars\` resolves from PyPI as normal, no index config needed:
 
           \`\`\`bash
-          uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ polarbearings==${TESTPYPI_VERSION}
+          # throwaway (ephemeral venv)
+          uv pip install ${WHEEL_URL}
+
+          # or pin it into a uv project
+          uv add "polarbearings @ ${WHEEL_URL}"
           \`\`\`
-          </details>
           EOF
           gh pr comment "${PR}" --body-file "${RUNNER_TEMP}/testpypi-comment.md"
 
