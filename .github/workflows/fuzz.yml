@@ -65,4 +65,7 @@ jobs:
         run: uv sync
 
       - name: Run thorough Hypothesis profile
-        run: uv run pytest -m hypothesis --hypothesis-profile=thorough --hypothesis-seed=0 -q
+        # No fixed --hypothesis-seed: each nightly run draws fresh randomness so
+        # coverage accumulates over time rather than re-checking identical inputs.
+        # A failure prints the falsifying example (+ a @seed hint) to reproduce.
+        run: uv run pytest -m hypothesis --hypothesis-profile=thorough -q
