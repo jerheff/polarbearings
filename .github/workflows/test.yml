@@ -54,10 +54,11 @@ jobs:
         run: uv pip install polars==${{ matrix.polars-version }}
 
       - name: Run tests
+        # Property tests run here at the default (fast) Hypothesis budget on every
+        # matrix leg. The deep `thorough` profile (max_examples=2500) is expensive
+        # and largely Polars-version-independent, so it moved off the PR critical
+        # path to the nightly `fuzz.yml` workflow.
         run: uv run pytest -v --tb=short
-
-      - name: Run hypothesis tests with more examples
-        run: uv run pytest -m hypothesis --hypothesis-profile=thorough --hypothesis-seed=0 -q
 
   test-highest:
     name: Upper bounds — Py ${{ matrix.python-version }} / latest deps
