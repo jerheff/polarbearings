@@ -1,8 +1,10 @@
 name: Benchmark
 
+# Manual-only: benchmarks produce informational numbers (no regression gate),
+# and shared-runner perf is too noisy to diff per-PR — so run on demand from the
+# Actions tab (or `gh workflow run Benchmark`) when you want a perf snapshot.
 on:
-  pull_request:
-    branches: [main]
+  workflow_dispatch: {}
 
 permissions:
   contents: read
