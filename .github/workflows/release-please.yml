@@ -10,9 +10,10 @@ name: Release Please
 #      a continuously fresh, installable pre-release tied to the next version.
 #   3. When the PR is merged, release-please tags `vX.Y.Z` and cuts a GitHub
 #      Release, then (build once, publish twice): `build-release` builds the sdist
-#      + wheel and attaches them to the Release; `release-testpypi` publishes those
-#      exact artifacts to TestPyPI as a smoke test; and `publish-pypi` publishes the
-#      same artifacts to real PyPI, gated behind the `pypi` environment's required
+#      + wheel and attaches them to the Release (best-effort; needs the repo's
+#      "immutable releases" setting OFF); `release-testpypi` publishes those exact
+#      artifacts to TestPyPI as a smoke test; and `publish-pypi` publishes the same
+#      artifacts to real PyPI, gated behind the `pypi` environment's required
 #      reviewer (manual approval).
 #
 # Why the publish steps live in THIS workflow (not a separate `on: release` /
@@ -204,11 +205,17 @@ jobs:
       - name: Validate package metadata
         run: uvx twine check dist/*
 
-      - name: Attach the built artifacts to the GitHub Release
+      - name: Attach the built artifacts to the GitHub Release (best-effort)
+        # Requires the repo's "immutable releases" setting to be OFF — immutable
+        # *tags* stay on via the version-tags ruleset. Best-effort on purpose: a
+        # failed attach (e.g. immutable releases left on) only warns; it must never
+        # block the TestPyPI/PyPI publish jobs below.
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.release-please.outputs.tag_name }}
-        run: gh release upload "${TAG}" dist/* --clobber
+        run: >
+          gh release upload "${TAG}" dist/* --clobber
+          || echo "::warning::Could not attach artifacts to ${TAG} — is the 'immutable releases' repo setting still on?"
 
       # Build once, publish the *same* artifacts to both indexes below, so PyPI
       # gets byte-for-byte what was smoke-tested on TestPyPI.
@@ -272,7 +279,11 @@ jobs:
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           version: "latest"
-          enable-cache: true
+          # This job has no repo checkout and installs no dependencies — it only
+          # runs `uv publish` on pre-built artifacts. Skip the cache (nothing to
+          # key on) and silence the empty-workdir warning.
+          enable-cache: false
+          ignore-empty-workdir: true
 
       - name: Download the built artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
