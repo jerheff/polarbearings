@@ -1,4 +1,4 @@
-# Polarbearings 🐻‍❄️
+# Polarbearings 🐻‍❄️🧭
 
 High-performance machine learning metrics implemented as native Polars expressions.
 
