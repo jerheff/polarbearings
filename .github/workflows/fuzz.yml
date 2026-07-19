@@ -1,0 +1,68 @@
+name: Nightly Fuzz
+
+# Deep property-based fuzzing (Hypothesis `thorough` profile, max_examples=2500).
+# Too slow for the per-PR test matrix, so it runs once nightly on the locked deps
+# — and only when something was actually committed in the last 24h, so idle days
+# don't burn a runner. Trigger manually via the Actions tab to force a run.
+
+on:
+  schedule:
+    - cron: "0 8 * * *" # 08:00 UTC daily
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-fuzz
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Recent activity check
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Was there a commit in the last 24h?
+        id: check
+        # Scheduled runs check out the default branch's latest commit, so its
+        # timestamp answers "any activity today?" — depth 1 is enough. A manual
+        # dispatch always runs.
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "${EVENT}" = "workflow_dispatch" ] || [ -n "$(git log -1 --since='24 hours ago' --format=%H)" ]; then
+            echo "should_run=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "should_run=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice::No commits in the last 24h — skipping nightly fuzz."
+          fi
+
+  fuzz:
+    name: Deep property fuzzing (locked deps, Py 3.11)
+    needs: gate
+    if: ${{ needs.gate.outputs.should_run == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.11"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Install locked dependencies
+        run: uv sync
+
+      - name: Run thorough Hypothesis profile
+        run: uv run pytest -m hypothesis --hypothesis-profile=thorough --hypothesis-seed=0 -q
