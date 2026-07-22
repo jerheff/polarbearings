@@ -25,16 +25,16 @@ jobs:
         # Dev deps resolve to their floors (lowest-direct, the repo default).
         # Polars is then pinned across its supported range: floor, ~1yr old, recent.
         python-version: ["3.11", "3.14"]
-        polars-version: ["1.0.0", "1.24.0", "1.42.0"]
+        polars-version: ["1.0.0", "1.24.0", "1.43.0"]
         include:
           - python-version: "3.12"
             polars-version: "1.0.0"
           - python-version: "3.12"
-            polars-version: "1.42.0"
+            polars-version: "1.43.0"
           - python-version: "3.13"
             polars-version: "1.0.0"
           - python-version: "3.13"
-            polars-version: "1.42.0"
+            polars-version: "1.43.0"
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -121,7 +121,7 @@ jobs:
       - name: Coverage gate (combined floor + 1.36+, branch, 100%)
         run: |
           uv run --with 'polars==1.0.0' coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
-          uv run --with 'polars==1.42.0' coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
+          uv run --with 'polars==1.43.0' coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
           uv run coverage combine
           uv run coverage report --show-missing
 
@@ -149,7 +149,7 @@ jobs:
       - name: Install dependencies + memray
         run: |
           uv sync --group memory
-          uv pip install polars==1.42.0
+          uv pip install polars==1.43.0
 
       # Enforces tests/conftest.py's default per-test memory ceiling (+ any per-test
       # overrides). A regression that pushes a test over its ceiling fails here

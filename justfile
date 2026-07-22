@@ -59,7 +59,7 @@ test-polars version:
 test-compat:
     just test-polars 1.0.0
     just test-polars 1.24.0
-    just test-polars 1.42.0
+    just test-polars 1.43.0
 
 # Thorough LOCAL Polars sweep (not a CI gate): every minor from the last 12 months,
 # one per year for older releases, plus the floor — the version list is pulled live
@@ -131,7 +131,7 @@ publish: build
 test-cov:
     rm -f .coverage .coverage.*
     uv run --with polars==1.0.0 coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
-    uv run --with polars==1.42.0 coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
+    uv run --with polars==1.43.0 coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
     uv run coverage combine
     uv run coverage report --show-missing
 
@@ -139,7 +139,7 @@ test-cov:
 # recent Polars where the memory pathologies show up. Mirrors the CI memory-limits job.
 test-memory:
     uv sync --group memory
-    uv run --with polars==1.42.0 pytest -m 'not hypothesis' --memray -q
+    uv run --with polars==1.43.0 pytest -m 'not hypothesis' --memray -q
 
 # Cap the size sweep with BENCH_MAX_N (e.g. `BENCH_MAX_N=100000 just bench`).
 # Run performance benchmarks against the current/dev env
@@ -164,7 +164,7 @@ bench-polars version:
 bench-compare:
     rm -rf .benchmarks
     uv run python benchmarks/cooldown.py baseline
-    just bench-polars 1.42.0
+    just bench-polars 1.43.0
     uv run python benchmarks/cooldown.py wait
     just bench-polars 1.0.0
     uv run pytest-benchmark compare --group-by=name --sort=name --columns=median,iqr
