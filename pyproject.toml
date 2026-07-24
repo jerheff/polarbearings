@@ -48,7 +48,7 @@ dev = [
     # deps, NOT package dependencies (the wheel depends only on polars) — there is
     # no support promise for them, so bump them forward like any other tool.
     "ty>=0.0.61",
-    "ruff>=0.15.22",
+    "ruff>=0.16.0",
     "pytest>=9.1.1",
     "pytest-cov>=7.1",
     "pytest-benchmark>=5.2.3",
@@ -166,6 +166,11 @@ convention = "google"
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+# ruff >= 0.16 also formats Python code blocks inside Markdown (README, docs/).
+# We keep that on: the README's blocks are executed as tests (Sybil, see
+# conftest.py), so they are real code and should match the formatter that shapes
+# the rest of the package. Use `<!-- fmt: off -->` / `<!-- fmt: on -->` around a
+# block whose hand-wrapping is deliberate.
 
 [tool.ty.src]
 # Notebooks are narrative docs, not part of the typed package (mirrors the ruff

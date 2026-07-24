@@ -26,10 +26,7 @@ The only runtime dependency is Polars.
 import polars as pl
 from polarbearings import roc_auc
 
-df = pl.DataFrame({
-    "label": [0, 0, 1, 1, 1],
-    "score": [0.1, 0.4, 0.35, 0.8, 0.9]
-})
+df = pl.DataFrame({"label": [0, 0, 1, 1, 1], "score": [0.1, 0.4, 0.35, 0.8, 0.9]})
 
 # Every metric is a Polars expression — use it anywhere an expression is allowed.
 df.select(roc_auc("label", "score"))
@@ -81,8 +78,14 @@ df = pl.DataFrame({
 
 ```python
 from polarbearings import (
-    precision, recall, f1_score, roc_auc, average_precision,
-    log_loss, brier_score, confusion_matrix,
+    precision,
+    recall,
+    f1_score,
+    roc_auc,
+    average_precision,
+    log_loss,
+    brier_score,
+    confusion_matrix,
 )
 
 df.select(
@@ -93,7 +96,7 @@ df.select(
     average_precision("label", "prob"),
     log_loss("label", "prob"),
     brier_score("label", "prob"),
-    confusion_matrix("label", "prob"),   # struct {threshold, tp, fp, fn, tn}
+    confusion_matrix("label", "prob"),  # struct {threshold, tp, fp, fn, tn}
 )
 # One tidy row, one column per metric (8 columns; abbreviated):
 # shape: (1, 8)

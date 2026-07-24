@@ -312,11 +312,13 @@ BENCH_MAX_N=100000 just bench
    ```
 3. **Filter first** to reduce work, and **stay lazy** for complex pipelines:
    ```python
-   (df.lazy()
-      .filter(pl.col("label").is_not_null())
-      .group_by("segment")
-      .agg(roc_auc("label", "score"))
-      .collect())
+   (
+       df.lazy()
+       .filter(pl.col("label").is_not_null())
+       .group_by("segment")
+       .agg(roc_auc("label", "score"))
+       .collect()
+   )
    ```
 4. **For a one-off metric over a single giant array**, NumPy/scikit-learn is a
    fine choice — that's the one shape where a single Polars expression doesn't win.
