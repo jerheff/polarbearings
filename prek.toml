@@ -1,21 +1,25 @@
 [[repos]]
 repo = "https://github.com/astral-sh/ruff-pre-commit"
-rev = "2700fd5671c633760d912769c041bfcde2b9a01b"  # frozen: v0.15.22
+rev = "cb8c523fd4835aba42af70f4cad5568db4df0b6c"  # frozen: v0.16.0
 hooks = [
   { id = "ruff-check", args = ["--fix"] },
-  { id = "ruff-format" },
+  # ruff 0.16 formats Python code blocks inside Markdown, but the upstream hook's
+  # types_or is python/pyi/jupyter — add markdown so the hook covers what a bare
+  # `ruff format` (and `just format`) already does. Keeps README/docs examples
+  # from drifting away from the formatter that shapes the rest of the codebase.
+  { id = "ruff-format", types_or = ["python", "pyi", "jupyter", "markdown"] },
 ]
 
 [[repos]]
 repo = "https://github.com/astral-sh/ty-pre-commit"
-rev = "1395c6934313bf0c086f3034f10c10747e7efc10"  # frozen: v0.0.61
+rev = "73d9ef74d17f01127e8a495a7e77ce9941aae703"  # frozen: v0.0.63
 hooks = [
   { id = "ty" },
 ]
 
 [[repos]]
 repo = "https://github.com/astral-sh/uv-pre-commit"
-rev = "b7359babf83a050dcd7bf892538f3df09c3d4ba6"  # frozen: 0.11.29
+rev = "e3e6ef7d9bda544b2e795782dbd7d2a4fbd7eb6d"  # frozen: 0.11.32
 hooks = [
   # Fail if uv.lock is out of sync with pyproject.toml (we commit the lock).
   { id = "uv-lock" },
@@ -23,7 +27,7 @@ hooks = [
 
 [[repos]]
 repo = "https://github.com/zizmorcore/zizmor-pre-commit"
-rev = "64a97fb7fa63188393d3215c6e312f5f9c6d0f78"  # frozen: v1.27.0
+rev = "067260dc5fe6ea86b7551bfd6f8b3ba4e6c93129"  # frozen: v1.28.0
 hooks = [
   # Static security analysis of the GitHub Actions workflows (the ruff of CI):
   # catches credential persistence, template injection, over-broad permissions.

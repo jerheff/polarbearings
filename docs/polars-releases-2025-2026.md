@@ -104,10 +104,14 @@ The `Decimal` type moved from `unstable` to stable. It uses 128-bit fixed-point 
 
 ```python
 # Create a Decimal column
-df = pl.DataFrame({
-    "price": [pl.lit("0.1").cast(pl.Decimal(precision=10, scale=2)),
-              pl.lit("0.2").cast(pl.Decimal(precision=10, scale=2))]
-})
+df = pl.DataFrame(
+    {
+        "price": [
+            pl.lit("0.1").cast(pl.Decimal(precision=10, scale=2)),
+            pl.lit("0.2").cast(pl.Decimal(precision=10, scale=2)),
+        ]
+    }
+)
 
 # 0.1 + 0.2 == 0.3, not 0.30000000000000004
 ```
@@ -195,9 +199,7 @@ Computes the rank of each value within a rolling window.
 - **API:** [`Expr.rolling_rank()`](https://docs.pola.rs/api/python/stable/reference/expressions/api/polars.Expr.rolling_rank.html)
 
 ```python
-df.with_columns(
-    pl.col("score").rolling_rank(window_size=100).alias("rank_in_window")
-)
+df.with_columns(pl.col("score").rolling_rank(window_size=100).alias("rank_in_window"))
 ```
 
 **How to use it in data science:**
@@ -244,11 +246,7 @@ Returns the value of one column at the row where another column is minimized/max
 
 ```python
 # Find the threshold that maximizes F1 score
-best_threshold = (
-    threshold_sweep_df
-    .select(pl.col("threshold").max_by(pl.col("f1_score")))
-    .item()
-)
+best_threshold = threshold_sweep_df.select(pl.col("threshold").max_by(pl.col("f1_score"))).item()
 ```
 
 **How this changes threshold optimization:** Previously, finding the optimal threshold required either a sort + tail or an `arg_max` + indexing two-step. `max_by` collapses this into a single, readable expression that works inside group-by and streaming contexts.
@@ -261,9 +259,7 @@ The `quantile()` expression gained the ability to compute multiple quantiles in 
 
 ```python
 # Compute multiple quantiles efficiently
-quantiles = df.select(
-    pl.col("score").quantile([0.1, 0.25, 0.5, 0.75, 0.9])
-)
+quantiles = df.select(pl.col("score").quantile([0.1, 0.25, 0.5, 0.75, 0.9]))
 ```
 
 **Why this matters for metrics:** Percentile-based thresholds (e.g., "classify as positive if score is above the 90th percentile") previously required one pass per quantile. Multi-quantile computes them all at once — important when you're sweeping across many percentile thresholds to build a precision-recall curve.
@@ -276,9 +272,7 @@ Filter elements within list columns using a boolean mask or predicate.
 
 ```python
 # Keep only positive predictions within each group's prediction list
-df.with_columns(
-    pl.col("predictions").list.filter(pl.element() > 0.5).alias("positive_preds")
-)
+df.with_columns(pl.col("predictions").list.filter(pl.element() > 0.5).alias("positive_preds"))
 ```
 
 **Data science use case:** When working with recommendation systems or multi-label classification, predictions are often stored as list columns. `list.filter()` lets you apply thresholds, remove nulls, or select top-k within each row's list without exploding the DataFrame.
@@ -308,8 +302,7 @@ Pivot (reshape from long to wide) is now available in lazy mode, meaning it work
 ```python
 # Build a confusion matrix lazily
 confusion = (
-    predictions_lf
-    .with_columns((pl.col("score") > threshold).cast(pl.Int8).alias("predicted"))
+    predictions_lf.with_columns((pl.col("score") > threshold).cast(pl.Int8).alias("predicted"))
     .group_by("actual", "predicted")
     .agg(pl.len().alias("count"))
     .pivot(on="predicted", index="actual", values="count")
@@ -337,9 +330,7 @@ df.with_columns(pl.col("score").rank().over().alias("global_rank"))
 
 ```python
 # Information gain with variable base
-df.with_columns(
-    pl.col("probability").log(pl.col("base_value")).alias("log_prob")
-)
+df.with_columns(pl.col("probability").log(pl.col("base_value")).alias("log_prob"))
 ```
 
 Useful for information-theoretic metrics where the log base varies (bits vs nats vs custom).
@@ -576,12 +567,14 @@ df.select(pb.roc_auc("target", "score"))
 ```python
 # Compute 4 metrics with a single data scan
 lf = pl.scan_parquet("predictions.parquet")
-results = pl.collect_all([
-    lf.select(pb.roc_auc("target", "score")),
-    lf.select(pb.average_precision("target", "score")),
-    lf.select(pb.log_loss("target", "prob")),
-    lf.select(pb.brier_score("target", "prob")),
-])
+results = pl.collect_all(
+    [
+        lf.select(pb.roc_auc("target", "score")),
+        lf.select(pb.average_precision("target", "score")),
+        lf.select(pb.log_loss("target", "prob")),
+        lf.select(pb.brier_score("target", "prob")),
+    ]
+)
 ```
 
 ### Tier 2 — Moderate version bump (polars >= 1.35.0)
@@ -597,26 +590,23 @@ These changes require raising the minimum Polars version from 1.0.0 to 1.35.0. T
 **Current code:**
 ```python
 def percentile_thresholds(series: pl.Series, percentiles: list[float]) -> list[float]:
-    return [
-        float(series.quantile(p / 100, interpolation="linear"))
-        for p in percentiles
-    ]
+    return [float(series.quantile(p / 100, interpolation="linear")) for p in percentiles]
 ```
 
 **Proposed change:** A new expression-based version that computes all quantiles in one pass and works in lazy/streaming mode.
 
 ```python
-def percentile_thresholds_expr(
-    col_name: str, percentiles: list[float]
-) -> pl.Expr:
+def percentile_thresholds_expr(col_name: str, percentiles: list[float]) -> pl.Expr:
     """Compute threshold values from percentiles as a lazy expression.
 
     Returns a struct expression with one field per percentile.
     """
-    return pl.struct([
-        pl.col(col_name).quantile(p / 100, interpolation="linear").alias(f"p{p:g}")
-        for p in percentiles
-    ]).alias("percentile_thresholds")
+    return pl.struct(
+        [
+            pl.col(col_name).quantile(p / 100, interpolation="linear").alias(f"p{p:g}")
+            for p in percentiles
+        ]
+    ).alias("percentile_thresholds")
 ```
 
 **Minimum Polars:** 1.35.0 (multi-quantile optimization for single-pass computation). The expression itself works on earlier versions but won't get the single-pass optimization.
@@ -650,10 +640,12 @@ def threshold_sweep_df(
         row = df.select(*exprs).collect()
     else:
         row = df.select(*exprs)
-    return pl.DataFrame({
-        "threshold": thresholds,
-        "value": [row[0, i] for i in range(len(thresholds))],
-    })
+    return pl.DataFrame(
+        {
+            "threshold": thresholds,
+            "value": [row[0, i] for i in range(len(thresholds))],
+        }
+    )
 ```
 
 **Minimum Polars:** 1.35.0 (for `.item()` availability in downstream user code and documentation).
@@ -699,9 +691,7 @@ def optimal_threshold(
 **How it would work:** This can't use `rolling_rank()` directly for AUC (the Mann-Whitney statistic requires a custom rolling computation), but it can use the new `list.agg()` pattern:
 
 ```python
-def rolling_roc_auc(
-    target: str, score: str, window_size: int
-) -> pl.Expr:
+def rolling_roc_auc(target: str, score: str, window_size: int) -> pl.Expr:
     """Compute ROC AUC over a rolling window.
 
     Returns a column with one AUC value per row, computed over the
@@ -766,9 +756,7 @@ These changes require raising the minimum to 1.37.0 or later. This drops support
 
 **Proposed implementation:**
 ```python
-def confusion_matrix(
-    target: str, prob: str, threshold: float = 0.5
-) -> pl.LazyFrame:
+def confusion_matrix(target: str, prob: str, threshold: float = 0.5) -> pl.LazyFrame:
     """Compute a confusion matrix as a LazyFrame.
 
     Returns a 2×2 DataFrame with actual classes as rows, predicted as columns.
@@ -776,9 +764,7 @@ def confusion_matrix(
     """
     return (
         pl.LazyFrame()  # would need the source data
-        .with_columns(
-            (pl.col(prob) >= threshold).cast(pl.Int8).alias("predicted")
-        )
+        .with_columns((pl.col(prob) >= threshold).cast(pl.Int8).alias("predicted"))
         .group_by(pl.col(target).alias("actual"), "predicted")
         .agg(pl.len().alias("count"))
         .pivot(on="predicted", index="actual", values="count")
@@ -801,14 +787,10 @@ def confusion_matrix(
 **Proposed API:**
 ```python
 # AUC per model version
-df.select(
-    pb.roc_auc("target", "score").over("model_version")
-)
+df.select(pb.roc_auc("target", "score").over("model_version"))
 
 # Classification metrics per demographic group
-df.select(
-    pb.precision("target", "prob").over("group")
-)
+df.select(pb.precision("target", "prob").over("group"))
 ```
 
 **Challenge:** Polarbearings's metrics are scalar aggregations (they reduce a column to a single value via `.sum()`, `.mean()`, etc.). The `.over()` modifier turns an aggregation into a window function that repeats the aggregated value for each row in the partition. This works naturally for simple aggregations like `sum().over("group")`, but polarbearings metrics use complex multi-expression compositions (e.g., ROC AUC uses `rank()`, `sort_by()`, `cum_sum()` in sequence).

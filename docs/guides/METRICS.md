@@ -87,8 +87,8 @@ Ranking quality for graded relevance, on **long-format** data: one row per
 from polarbearings import dcg_score, ndcg_score
 
 df = pl.DataFrame({"relevance": [3, 2, 3, 0, 1], "score": [3.0, 2.2, 3.5, 0.1, 1.0]})
-df.select(ndcg_score("relevance", "score"))          # normalized, in [0, 1]
-df.select(dcg_score("relevance", "score", k=3))      # raw DCG, top-3 only
+df.select(ndcg_score("relevance", "score"))  # normalized, in [0, 1]
+df.select(dcg_score("relevance", "score", k=3))  # raw DCG, top-3 only
 
 # One NDCG per query in a single pass:
 events.group_by("query_id").agg(ndcg_score("relevance", "score"))
@@ -209,8 +209,9 @@ reshaping to a tidy frame is one pass — every row is self-describing:
 from polarbearings import threshold_sweep, quantiles
 
 # wide (1 row, one struct column per threshold) -> tidy (one row per threshold)
-df.select(pl.concat_list(threshold_sweep(confusion_matrix, "label", "score", quantiles(100))).alias("cm")) \
-  .explode("cm").unnest("cm")
+df.select(
+    pl.concat_list(threshold_sweep(confusion_matrix, "label", "score", quantiles(100))).alias("cm")
+).explode("cm").unnest("cm")
 # -> columns: threshold, tp, fp, fn, tn  (then tpr/fpr/precision/recall are column math)
 ```
 
@@ -221,9 +222,9 @@ One call each, returning tidy, plot-ready `LazyFrame`s:
 ```python
 from polarbearings import roc_curve, pr_curve, det_curve, expected_cost
 
-roc_curve(df, "label", "score").collect()        # -> threshold, fpr, tpr
-pr_curve(df, "label", "score").collect()         # -> threshold, precision, recall
-det_curve(df, "label", "score").collect()        # -> threshold, fpr, fnr
+roc_curve(df, "label", "score").collect()  # -> threshold, fpr, tpr
+pr_curve(df, "label", "score").collect()  # -> threshold, precision, recall
+det_curve(df, "label", "score").collect()  # -> threshold, fpr, fnr
 expected_cost(df, "label", "score", {"fp": 1.0, "fn": 5.0}).collect()  # -> threshold, cost
 ```
 
@@ -243,9 +244,9 @@ Pass `thresholds=` for a fixed **grid** of comparable operating points instead �
 ```python
 from polarbearings import confusion_curve
 
-confusion_curve(df, "label", "score").collect()                  # exact, every distinct score
-confusion_curve(df, "label", "score", thresholds=20).collect()   # 20 quantile operating points
-confusion_curve(df, "label", "score", by="segment").collect()    # a separate curve per segment
+confusion_curve(df, "label", "score").collect()  # exact, every distinct score
+confusion_curve(df, "label", "score", thresholds=20).collect()  # 20 quantile operating points
+confusion_curve(df, "label", "score", by="segment").collect()  # a separate curve per segment
 # -> threshold, tp, fp, fn, tn   (then fpr = fp/(fp+tn), tpr = tp/(tp+fn), ... are column math)
 ```
 
@@ -271,8 +272,8 @@ from polarbearings import f1_score, threshold_sweep, quantiles
 df = pl.DataFrame({"label": [0, 0, 1, 1], "prob": [0.1, 0.4, 0.6, 0.9]})
 
 df.select(*threshold_sweep(f1_score, "label", "prob", [0.3, 0.5, 0.7]))  # fixed values
-df.select(*threshold_sweep(f1_score, "label", "prob", quantiles(10)))     # 10 quantile cuts
-df.select(*threshold_sweep(f1_score, "label", "prob"))                    # default quantiles(100)
+df.select(*threshold_sweep(f1_score, "label", "prob", quantiles(10)))  # 10 quantile cuts
+df.select(*threshold_sweep(f1_score, "label", "prob"))  # default quantiles(100)
 
 # Per-segment thresholds in one pass — each group uses its own score quantiles:
 df.group_by("segment").agg(*threshold_sweep(f1_score, "label", "prob", quantiles(20)))
@@ -315,21 +316,21 @@ df.select(
     rmse("y", "pred"),
     r2_score("y", "pred"),
     mape("y", "pred"),
-    mean_squared_log_error("y", "pred"),       # MSLE (inputs must be >= 0)
+    mean_squared_log_error("y", "pred"),  # MSLE (inputs must be >= 0)
     root_mean_squared_log_error("y", "pred"),  # RMSLE
-    max_error("y", "pred"),                     # worst-case |residual|
-    median_absolute_error("y", "pred"),         # robust central error
+    max_error("y", "pred"),  # worst-case |residual|
+    median_absolute_error("y", "pred"),  # robust central error
     explained_variance_score("y", "pred"),
     mean_pinball_loss("y", "pred", alpha=0.5),  # quantile loss
-    smape("y", "pred"),                          # symmetric MAPE
-    huber_loss("y", "pred", delta=1.0),          # robust, MSE/MAE hybrid
-    log_cosh_loss("y", "pred"),                  # smooth, numerically stable
-    mean_poisson_deviance("y", "pred"),          # Tweedie power=1 (counts)
-    mean_gamma_deviance("y", "pred"),            # Tweedie power=2 (positive, skewed)
+    smape("y", "pred"),  # symmetric MAPE
+    huber_loss("y", "pred", delta=1.0),  # robust, MSE/MAE hybrid
+    log_cosh_loss("y", "pred"),  # smooth, numerically stable
+    mean_poisson_deviance("y", "pred"),  # Tweedie power=1 (counts)
+    mean_gamma_deviance("y", "pred"),  # Tweedie power=2 (positive, skewed)
     mean_tweedie_deviance("y", "pred", power=1.5),
-    d2_tweedie_score("y", "pred", power=1),      # "explained deviance" (R²-like)
-    d2_absolute_error_score("y", "pred"),        # D² around the median
-    d2_pinball_score("y", "pred", alpha=0.5),    # D² around a quantile
+    d2_tweedie_score("y", "pred", power=1),  # "explained deviance" (R²-like)
+    d2_absolute_error_score("y", "pred"),  # D² around the median
+    d2_pinball_score("y", "pred", alpha=0.5),  # D² around a quantile
 )
 ```
 
@@ -425,8 +426,12 @@ high}` for the whole frame, or one row per group with `by=`:
 ```python
 from polarbearings import bootstrap_ci, roc_auc
 
-bootstrap_ci(df, roc_auc, "label", "score", n_resamples=1000, method="bc")  # "bc" is whole-frame only
-bootstrap_ci(df, roc_auc, "label", "score", by="segment")   # one CI per segment (bc not supported with by=)
+bootstrap_ci(
+    df, roc_auc, "label", "score", n_resamples=1000, method="bc"
+)  # "bc" is whole-frame only
+bootstrap_ci(
+    df, roc_auc, "label", "score", by="segment"
+)  # one CI per segment (bc not supported with by=)
 ```
 
 `bootstrap_weight` exposes a single replicate as a weight **expression**, so it
@@ -457,8 +462,8 @@ always lands in the same split. All are plain expressions (drop into
 from polarbearings import hash_split, hash_fold, hash_splits
 
 df.with_columns(holdout=hash_split(1, "id", fraction=0.2))  # bool: ~20% holdout
-df.with_columns(fold=hash_fold(0, "id", k=5))               # CV fold id 0..4
-df.with_columns(                                            # named multi-way
+df.with_columns(fold=hash_fold(0, "id", k=5))  # CV fold id 0..4
+df.with_columns(  # named multi-way
     split=hash_splits(2, "id", [("test", 0.15), ("val", 0.15)], remainder="train")
 )
 ```
@@ -490,9 +495,13 @@ keyed = df.with_columns(id_key=pl.col("uuid").nchash.wyhash().reinterpret(signed
 
 # Option B — dependency-free, a one-time hashlib pass materialized to a column:
 import hashlib
+
+
 def _key(s: str) -> int:
     d = hashlib.blake2b(s.encode(), digest_size=8).digest()
-    return int.from_bytes(d, "little") - 2**63          # center into Int64
+    return int.from_bytes(d, "little") - 2**63  # center into Int64
+
+
 keyed = df.with_columns(id_key=pl.col("uuid").map_elements(_key, return_dtype=pl.Int64))
 
 # Then split on the integer key as usual:
@@ -556,8 +565,8 @@ integers, strings, or booleans — with no need to remap your labels to `0`/`1`:
 df = pl.DataFrame({"outcome": ["cancer", "healthy", "cancer"], "p": [0.9, 0.2, 0.7]})
 df.select(precision("outcome", "p", pos_label="cancer"))
 
-df.select(roc_auc("y", "score", pos_label=100))     # integer labels {100, 200}
-df.select(f1_score("flag", "p", pos_label=True))     # boolean labels
+df.select(roc_auc("y", "score", pos_label=100))  # integer labels {100, 200}
+df.select(f1_score("flag", "p", pos_label=True))  # boolean labels
 ```
 
 Supported by the classification and binary metrics (ROC AUC, average precision,
@@ -576,7 +585,7 @@ comparison), and is **scoped to the evaluation context** — the whole frame in 
 
 ```python
 df = pl.DataFrame({"y": [0, 1, 1], "p": [0.2, None, 0.8]})
-df.select(precision("y", "p"))            # -> null (one missing score)
+df.select(precision("y", "p"))  # -> null (one missing score)
 
 g.group_by("seg").agg(roc_auc("y", "s"))  # only segments with a missing value are null
 ```
