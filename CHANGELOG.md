@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.3](https://github.com/jerheff/polarbearings/compare/v0.2.2...v0.2.3) (2026-07-24)
+
+
+### Continuous Integration
+
+* bump recent Polars leg 1.42.0 -&gt; 1.43.0 ([#27](https://github.com/jerheff/polarbearings/issues/27)) ([227fb53](https://github.com/jerheff/polarbearings/commit/227fb535249af494af76b9d6789b4468f6c3d489))
+* **fuzz:** let nightly fuzz vary its Hypothesis seed ([#13](https://github.com/jerheff/polarbearings/issues/13)) ([690eb77](https://github.com/jerheff/polarbearings/commit/690eb77030296ec5bbd741a3386c9faca273e9f8))
+* **release:** quiet setup-uv cache/workdir warnings in publish-pypi ([#25](https://github.com/jerheff/polarbearings/issues/25)) ([b2f74b7](https://github.com/jerheff/polarbearings/commit/b2f74b7b0169064290588649b203bd5837b140f2))
+
+
+### Miscellaneous Chores
+
+* **deps:** ruff 0.16 + dev tooling and pinned action bumps ([#28](https://github.com/jerheff/polarbearings/issues/28)) ([cad6149](https://github.com/jerheff/polarbearings/commit/cad6149cc1541b06a007ed46d00ca16f96b12e10))
+
 ## [0.2.2](https://github.com/jerheff/polarbearings/compare/v0.2.1...v0.2.2) (2026-07-19)
 
 
