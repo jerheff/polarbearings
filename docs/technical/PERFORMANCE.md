@@ -16,6 +16,15 @@ highest` which would move all three. Absolute times are hardware-specific; the
 leg; the CI test matrix has since moved to 1.42.0 (the benchmark pin lags because
 regenerating the numbers needs a controlled, idle machine).
 
+**Eager and lazy are benchmarked separately** where they differ. Polars runs
+common-subexpression elimination on the lazy plan only, so a suite of metrics that
+share subexpressions does materially less work via
+`df.lazy().select([...]).collect()` than via `df.select([...])`. Benchmarks that
+expose this carry a `__variant` suffix — `suite__lazy` vs `suite__eager`,
+`sweep__lazy` vs `sweep` — and all variants of a workload divide by the *same*
+scikit-learn baseline, so their speedup rows are directly comparable to each other
+(see `benchmarks/compare.py`).
+
 > **On rigor:** a scikit-learn "control" (identical code in both Polars sweeps)
 > is tracked to detect machine/thermal drift over long sequential runs. The
 > **speedup-vs-scikit-learn** ratios are drift-immune — numerator and
@@ -302,14 +311,27 @@ BENCH_MAX_N=100000 just bench
    ```python
    df.group_by("group").agg(roc_auc("label", "score"))
    ```
-2. **Batch metrics in one `select`** — share the scan across several metrics:
+2. **Batch metrics in one *lazy* `select`** — share the scan, and let
+   common-subexpression elimination share the work:
    ```python
-   df.select(
+   df.lazy().select(
        roc_auc("label", "score"),
        log_loss("label", "prob"),
        brier_score("label", "prob"),
-   )
+   ).collect()
    ```
+   CSE is a lazy-plan optimization — it does not run on `DataFrame.select`. That is
+   irrelevant for the three metrics above (they share no subexpressions), but it is
+   the whole game for the **threshold** family: precision, recall, F1, accuracy,
+   balanced accuracy, specificity, MCC, Cohen's kappa, Jaccard and `confusion_matrix`
+   are all derived from the same four confusion-matrix cells, and eager `select`
+   recomputes those cells once per metric. Same results either way; the lazy plan
+   just does the work once. `threshold_sweep` benefits for the same reason (every
+   threshold rebuilds the same label mask), and so does any metric passed a
+   *computed* `weight` expression — a `bootstrap_weight()` replicate, say, which the
+   eager path re-evaluates at each of its several use sites inside the metric.
+   Anything already inside `group_by().agg()` is unaffected: `group_by` runs through
+   the lazy engine regardless.
 3. **Filter first** to reduce work, and **stay lazy** for complex pipelines:
    ```python
    (

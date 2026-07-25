@@ -20,6 +20,11 @@ the documentation are always produced the same way:
     speedup(version)      = median(test_sklearn_<m>[n]) / median(test_polarbearings_<m>[n])
     version_ratio         = median(latest test_polarbearings_<m>[n]) / median(floor ...)
 
+A polarbearings benchmark named ``<base>__<variant>`` (e.g. ``suite__lazy``) is a
+second implementation of the same workload. It gets its own speedup row but borrows
+the scikit-learn baseline registered under ``<base>``, so variants are comparable to
+each other without duplicating a slow sklearn benchmark per variant.
+
 Usage::
 
     python benchmarks/compare.py [FLOOR.json] [LATEST.json]
@@ -42,6 +47,13 @@ PB_ONLY = "polarbearings-only-medians"
 
 _NAME_RE = re.compile(r"^test_(polarbearings|sklearn)_(.+?)\[(\d+)\]$")
 _VERSION_RE = re.compile(r"polars_(\d+)_(\d+)_(\d+)")
+
+# Separator marking a *variant* benchmark: a second polarbearings implementation of
+# the same workload (e.g. ``suite__lazy`` vs ``suite__eager``), which shares the one
+# scikit-learn baseline registered under the base name rather than duplicating a slow
+# sklearn benchmark per variant. Variants therefore appear as their own speedup rows,
+# all measured against the same denominator.
+_VARIANT_SEP = "__"
 
 
 def load_medians(path: Path) -> dict[str, float]:
@@ -78,6 +90,30 @@ def _metrics(medians: dict[str, float]) -> dict[tuple[str, int], dict[str, float
     return out
 
 
+def _sklearn_median(
+    index: dict[tuple[str, int], dict[str, float]], metric: str, n: int
+) -> float | None:
+    """The sklearn median for ``(metric, n)``, falling back to the base metric.
+
+    A metric named ``base__variant`` has no sklearn benchmark of its own; it borrows
+    the one registered under ``base`` (see :data:`_VARIANT_SEP`), so every variant of
+    a workload is divided by the same denominator and the ratios stay comparable.
+
+    Args:
+        index: Medians indexed by ``(metric, n)`` -> ``{kind: median}``.
+        metric: The metric name, possibly carrying a ``__variant`` suffix.
+        n: The sample size.
+
+    Returns:
+        The sklearn median in seconds, or ``None`` if there is no baseline.
+    """
+    direct = index.get((metric, n), {}).get("sklearn")
+    if direct is not None:
+        return direct
+    base = metric.split(_VARIANT_SEP, 1)[0]
+    return index.get((base, n), {}).get("sklearn")
+
+
 def _fmt_n(n: int) -> str:
     return f"{n:,}"
 
@@ -99,17 +135,19 @@ def render_speedup(
     latest_label: str,
 ) -> str:
     """Section A: speedup vs sklearn, one column per Polars version."""
-    keys = sorted(k for k in floor if "sklearn" in floor[k] and "polarbearings" in floor[k])
+    keys = sorted(
+        k
+        for k in floor
+        if "polarbearings" in floor[k] and _sklearn_median(floor, k[0], k[1]) is not None
+    )
     rows: list[list[str]] = []
     for metric, n in keys:
-        f = floor[(metric, n)]
-        f_sp = f"{f['sklearn'] / f['polarbearings']:.1f}x"
-        lat = latest.get((metric, n), {})
-        l_sp = (
-            f"{lat['sklearn'] / lat['polarbearings']:.1f}x"
-            if "sklearn" in lat and "polarbearings" in lat
-            else "—"
-        )
+        f_sk = _sklearn_median(floor, metric, n)
+        assert f_sk is not None  # guaranteed by the key filter above
+        f_sp = f"{f_sk / floor[(metric, n)]['polarbearings']:.1f}x"
+        l_sk = _sklearn_median(latest, metric, n)
+        l_pb = latest.get((metric, n), {}).get("polarbearings")
+        l_sp = f"{l_sk / l_pb:.1f}x" if l_sk is not None and l_pb is not None else "—"
         rows.append([metric, _fmt_n(n), f_sp, l_sp])
     caption = "Speedup vs scikit-learn = sklearn median ÷ polarbearings median (higher = polarbearings faster)."
     return _section(SPEEDUP, caption, ["Metric", "n", floor_label, latest_label], rows)
@@ -143,7 +181,11 @@ def render_pb_only(
     latest_label: str,
 ) -> str:
     """Section C: absolute medians for metrics with no sklearn baseline."""
-    keys = sorted(k for k in floor if "sklearn" not in floor[k] and "polarbearings" in floor[k])
+    keys = sorted(
+        k
+        for k in floor
+        if "polarbearings" in floor[k] and _sklearn_median(floor, k[0], k[1]) is None
+    )
     rows: list[list[str]] = []
     for metric, n in keys:
         f_ms = f"{floor[(metric, n)]['polarbearings'] * 1e3:.3f}"

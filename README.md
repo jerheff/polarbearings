@@ -49,9 +49,11 @@ easily match:
   and Polars parallelizes across groups (15–65x faster than a Python loop calling
   scikit-learn per segment).
 - **A whole metric suite in one pass** — bundle every metric into a single
-  `df.select([...])`; Polars shares the column scans and parallelizes across the
-  independent outputs. 13 metrics on 10M rows run in **~1.05 s vs scikit-learn's
-  ~6.1 s (5.8x)** — see [Performance](#performance).
+  `df.lazy().select([...]).collect()`; Polars parallelizes across the independent
+  outputs *and* — because subexpression elimination runs on the lazy plan — computes
+  the confusion cells shared by the threshold metrics once instead of once per
+  metric. 12 metrics on 10M rows run in **TBD s vs scikit-learn's ~6.1 s (TBDx)** —
+  see [Performance](#performance).
 - **Sample weights almost everywhere** — nearly every metric accepts an optional
   `weight` column, including ROC AUC, log loss, MCC, and Cohen's kappa (a few
   exceptions are noted per metric).
@@ -66,8 +68,12 @@ easily match:
 
 ### A whole evaluation report in one `select`
 
-Because every metric is just an expression, a full report is one `df.select(...)`
-— Polars reads each column once and fans the work across the independent outputs:
+Because every metric is just an expression, a full report is one `select` — Polars
+reads each column once and fans the work across the independent outputs. Run it on
+a `LazyFrame`: the threshold metrics below (`precision`, `recall`, `f1_score`,
+`confusion_matrix`) are all built from the *same* four confusion-matrix cells, and
+common-subexpression elimination — which only runs on the lazy plan, not on
+`DataFrame.select` — computes those cells once and shares them:
 
 <!--- invisible-code-block: python
 df = pl.DataFrame({
@@ -88,7 +94,7 @@ from polarbearings import (
     confusion_matrix,
 )
 
-df.select(
+df.lazy().select(
     precision("label", "prob"),
     recall("label", "prob"),
     f1_score("label", "prob"),
@@ -97,7 +103,7 @@ df.select(
     log_loss("label", "prob"),
     brier_score("label", "prob"),
     confusion_matrix("label", "prob"),  # struct {threshold, tp, fp, fn, tn}
-)
+).collect()
 # One tidy row, one column per metric (8 columns; abbreviated):
 # shape: (1, 8)
 # ┌──────────────────────────┬───────────────────────┬─────┬────────────────────────┐
@@ -226,7 +232,17 @@ Ranges span polars 1.0.0 and 1.41.2; see
 | Brier Score | ~9–10x | ~7–8x |
 | Log Loss | ~5–6x | ~4–5x |
 | ROC AUC | ~4.5–6x | ~5x |
-| 13 metrics in one `select` | — | **5.8x** |
+| 12 metrics in one lazy `select` | — | **TBDx** |
+| 12 metrics in one eager `select` | — | **TBDx** |
+
+**Eager vs lazy matters when metrics share work.** Common-subexpression elimination
+runs on the lazy plan only. Every threshold metric (precision, recall, F1, accuracy,
+specificity, MCC, Cohen's kappa, Jaccard, `confusion_matrix`) is built from the same
+four confusion-matrix cells, so an eager `df.select([...])` recomputes those cells
+once per metric while `df.lazy().select([...]).collect()` computes them once. The
+results are identical; only the work differs, and the gap widens as the suite grows.
+Single metrics, and anything already inside `group_by().agg()`, are unaffected —
+`group_by` goes through the lazy engine either way.
 
 **Where it's at parity or slower** — trivial reductions (MAE, MSE, MAPE, R²) are
 roughly even with scikit-learn at small-to-mid sizes and *slower* on a single

@@ -2,21 +2,36 @@
 
 The single-metric ``bench_*.py`` files isolate per-metric speed. This file tests
 the *composability* thesis instead: because every polarbearings metric is a plain
-``pl.Expr``, dropping a whole suite of them into ONE ``df.select([...])`` lets
-Polars parallelize across the independent output expressions and share the
-column scans / common subexpressions — the same structural win that powers the
-``group_by`` story, but along the "many metrics at once" axis.
+``pl.Expr``, a whole suite of them can be evaluated together, letting Polars
+parallelize across the independent output expressions and share the column scans
+and common subexpressions — the same structural win that powers the ``group_by``
+story, but along the "many metrics at once" axis.
 
-Three approaches are compared at each size on the shared binary-classification
+**Eager and lazy are not equivalent here, and the difference is the point.**
+Common-subexpression elimination (CSE) is a *lazy-plan* optimization: it does not
+run on ``DataFrame.select``. Eight of the twelve metrics below are threshold
+metrics built on the same four ``_confusion_components`` aggregations, so an eager
+``df.select([...])`` recomputes those cells once per metric, while
+``df.lazy().select([...]).collect()`` computes them once and reuses them (the plan
+shows ``__POLARS_CSER_*`` nodes). The results are identical; only the work differs.
+The lazy form is therefore the headline, and the eager form is kept as the
+contrast that quantifies what CSE is worth.
+
+Four approaches are compared at each size on the shared binary-classification
 fixtures:
 
-* ``polarbearings_one_select`` — every metric in a single ``df.select([...])`` (the
-  headline).
-* ``polarbearings_n_selects`` — the same metrics, each in its own ``df.select(...)``,
-  summed. Isolates the fuse/parallel benefit from raw per-metric speed by paying
-  N separate query-plan + scan overheads.
-* ``sklearn_sequence`` — the corresponding sklearn functions called one after
+* ``polarbearings_suite__lazy`` — every metric in one
+  ``df.lazy().select([...]).collect()`` (the headline).
+* ``polarbearings_suite__eager`` — the same metrics in one ``df.select([...])``.
+  Same results, but no CSE, so the shared confusion cells are recomputed per metric.
+* ``polarbearings_suite__n_selects`` — the same metrics, each in its own
+  ``df.select(...)``. Isolates the fuse/parallel benefit from raw per-metric speed
+  by paying N separate query-plan + scan overheads.
+* ``sklearn_suite`` — the corresponding sklearn functions called one after
   another, the way a typical evaluation script accumulates a report.
+
+The three ``polarbearings_*`` variants share the single ``sklearn_suite`` baseline
+as their speedup denominator; see ``compare.py``'s ``__variant`` convention.
 
 Metric suite (12 metrics, all with a sklearn analog so the three approaches are
 genuinely comparable):
@@ -127,9 +142,24 @@ class TestMultiMetricSuite:
     *computing* them, not their numbers.
     """
 
-    def test_polarbearings_one_select(
+    def test_polarbearings_suite__lazy(
         self, benchmark: BenchmarkFixture, binary_probs: tuple[Any, Any, int]
     ) -> None:
+        """The headline: one lazy select, so CSE shares the confusion cells."""
+        labels, probs, n = binary_probs
+        benchmark.group = f"Multi-metric suite (12) n={n}"
+        lf = pl.DataFrame({"label": labels, "prob": probs}).lazy()
+        exprs = [build() for _, build in _ALL_METRICS]
+
+        def compute() -> Any:
+            return lf.select(exprs).collect().row(0)
+
+        benchmark(compute)
+
+    def test_polarbearings_suite__eager(
+        self, benchmark: BenchmarkFixture, binary_probs: tuple[Any, Any, int]
+    ) -> None:
+        """The contrast: identical results, but no CSE on the eager path."""
         labels, probs, n = binary_probs
         benchmark.group = f"Multi-metric suite (12) n={n}"
         df = pl.DataFrame({"label": labels, "prob": probs})
@@ -140,9 +170,10 @@ class TestMultiMetricSuite:
 
         benchmark(compute)
 
-    def test_polarbearings_n_selects(
+    def test_polarbearings_suite__n_selects(
         self, benchmark: BenchmarkFixture, binary_probs: tuple[Any, Any, int]
     ) -> None:
+        """N separate selects: pays N query-plan + scan overheads, shares nothing."""
         labels, probs, n = binary_probs
         benchmark.group = f"Multi-metric suite (12) n={n}"
         df = pl.DataFrame({"label": labels, "prob": probs})
@@ -152,9 +183,10 @@ class TestMultiMetricSuite:
 
         benchmark(compute)
 
-    def test_sklearn_sequence(
+    def test_sklearn_suite(
         self, benchmark: BenchmarkFixture, binary_probs: tuple[Any, Any, int]
     ) -> None:
+        """The shared scikit-learn baseline for all three variants above."""
         labels, probs, n = binary_probs
         benchmark.group = f"Multi-metric suite (12) n={n}"
 
