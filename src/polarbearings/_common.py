@@ -145,6 +145,29 @@ def weight_suffix(weight: WeightInput) -> str:
     return f"_{weight}" if isinstance(weight, str) else "_w"
 
 
+def param_suffix(prefix: str, value: float, default: float) -> str:
+    """Build an alias suffix for a metric hyper-parameter, empty at its default.
+
+    Two calls to the same metric that differ only in a hyper-parameter — a pinball
+    loss at two quantiles, a Tweedie deviance at two powers — would otherwise
+    produce the same output name and collide with a ``DuplicateError`` inside one
+    ``select``. Encoding the parameter mirrors :func:`~polarbearings.fbeta_score`,
+    which has always carried its ``beta`` in the alias.
+
+    Returning ``""`` at the default keeps every existing column name unchanged, so
+    only the calls that would previously have collided get a new name.
+
+    Args:
+        prefix: Short parameter tag (e.g. ``"a"`` for alpha, ``"p"`` for power).
+        value: The parameter's value for this call.
+        default: The parameter's default; equal values produce no suffix.
+
+    Returns:
+        ``_<prefix><value>`` when ``value`` differs from ``default``, else ``""``.
+    """
+    return "" if value == default else f"_{prefix}{value:g}"
+
+
 def _value_missing(col: IntoExpr) -> pl.Expr:
     """Missing flag for a NUMERIC value column: null OR NaN.
 

@@ -28,6 +28,9 @@ def roc_auc(
         score: Column name or expression containing prediction scores (higher = more likely positive).
         weight: Optional name of the column containing sample weights.
         pos_label: Value in ``target`` treated as the positive class (default 1).
+            Every other value counts as negative (one-vs-rest), so a target with
+            more than two classes yields a one-vs-rest score rather than an error —
+            unlike scikit-learn, which raises on a multiclass target.
 
     Returns:
         A Polars expression that computes the ROC AUC score.
@@ -54,6 +57,11 @@ def roc_auc(
         - Returns null when only one class is present (ROC AUC is undefined).
         - Returns 0.5 when all scores are identical.
         - Handles tied scores correctly.
+        - Binary (one-vs-rest) only. A target with more than two classes is scored
+          ``pos_label`` against everything else and returns a number;
+          ``sklearn.metrics.roc_auc_score`` instead raises unless given
+          ``multi_class=``. Filter or binarize the target yourself if a multiclass
+          target would be a mistake in your pipeline.
     """
     alias = f"roc_auc_{col_name(target)}_{col_name(score)}"
     alias += weight_suffix(weight)

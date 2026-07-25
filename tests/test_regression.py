@@ -891,7 +891,7 @@ class TestMeanPinballLoss:
             }
         )
         result = df.group_by("group").agg(mean_pinball_loss("y", "pred", alpha=0.7)).sort("group")
-        col = "mean_pinball_loss_y_pred"
+        col = "mean_pinball_loss_a0.7_y_pred"
         assert result[col][0] == pytest.approx(
             sklearn_pinball([1.0, 2.0], [1.1, 2.2], alpha=0.7), rel=1e-6
         )

@@ -535,6 +535,18 @@ names: `<metric>_<target>_<score>`, with suffixes appended for a weight (`_<col>
 or `_w` for an expression), a non-default `pos_label` (`_pos<label>`), and a
 threshold (`_<value>`). So `roc_auc("label", "score")` yields a `roc_auc_label_score`
 column and `precision("label", "prob", threshold=0.7)` a `precision_label_prob_0.7`.
+
+A metric with a **hyper-parameter** also encodes it, right after the metric name,
+whenever it differs from the default — so a sweep over that parameter lands as
+distinct columns in one `select` instead of colliding on a duplicate name:
+`fbeta_score` (`beta` → `fbeta_2_…`, always present since `beta` is required),
+`mean_pinball_loss` / `d2_pinball_score` (`alpha` → `_a0.9`), `huber_loss`
+(`delta` → `_d2`), `mean_tweedie_deviance` / `d2_tweedie_score` (`power` → `_p1.5`),
+`dcg_score` / `ndcg_score` (`log_base` → `_lb10`, and `k` → trailing `_k5`), and the
+calibration errors (`n_bins` → `_b20`, `strategy="quantile"` → `_q`, explicit `bins`
+→ `_e<edge count>`). At the default value the fragment is empty, so ordinary calls
+keep the plain name. Two *different* explicit `bins` lists of the same length are
+the one remaining collision — alias those yourself.
 This is what lets a whole `select` of metrics land as one tidy, labelled row, and
 what you `unnest`/join on for struct-valued metrics like `confusion_matrix` — chain
 `.alias("auc")` to rename.
@@ -574,6 +586,15 @@ log loss, Brier score, precision/recall/F1/F-beta, accuracy, balanced accuracy,
 specificity, MCC, Cohen's kappa). `gini_coefficient` also takes an optional
 `pos_label` (to treat its target as a binary label instead of a magnitude).
 Regression metrics take continuous targets, so they don't have `pos_label`.
+
+**These are one-vs-rest, deliberately.** `pos_label` selects the positive class and
+*every other value* is negative, so a target with more than two classes returns a
+one-vs-rest score rather than raising. scikit-learn diverges here: `roc_auc_score`
+and `average_precision_score` reject a multiclass target unless told how to handle
+it. The one-vs-rest reading is what makes `pos_label` work uniformly across
+integer, string, and boolean labels, but it also means a target that is multiclass
+*by mistake* yields a plausible number instead of an error — binarize or filter
+upstream if that would be wrong in your pipeline.
 
 ### Missing values
 
