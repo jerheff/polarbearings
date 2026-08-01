@@ -128,6 +128,25 @@ class TestThresholdSweepPerformance:
 
         benchmark(compute)
 
+    def test_polarbearings_sweep__lazy(
+        self, benchmark: BenchmarkFixture, data: tuple[Any, Any, int]
+    ) -> None:
+        """The same sweep on the lazy path.
+
+        Every threshold rebuilds the same ``is_pos`` label mask and rescans the
+        same two columns, so CSE (lazy-only) has real work to share here — see
+        ``bench_multi_metric.py`` for the mechanism.
+        """
+        labels, probs, n = data
+        benchmark.group = f"Threshold Sweep (10 thresholds) n={n}"
+        lf = pl.DataFrame({"label": labels, "prob": probs}).lazy()
+        thresholds = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
+
+        def compute() -> Any:
+            return lf.select(*threshold_sweep(f1_score, "label", "prob", thresholds)).collect()
+
+        benchmark(compute)
+
     def test_sklearn_sweep(self, benchmark: BenchmarkFixture, data: tuple[Any, Any, int]) -> None:
         labels, probs, n = data
         benchmark.group = f"Threshold Sweep (10 thresholds) n={n}"
