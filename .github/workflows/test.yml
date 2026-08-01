@@ -14,27 +14,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Single source of truth for the "recent" Polars leg, exposed as an output so
+  # every job below (incl. the test matrix) references one value. GitHub Actions
+  # supports neither YAML anchors nor `env` inside `strategy.matrix`, so a job
+  # output consumed via the `needs` context is the one way to keep this in-file
+  # and DRY. Bump the version here and nowhere else.
+  config:
+    name: Config
+    runs-on: ubuntu-latest
+    outputs:
+      polars-recent: ${{ steps.set.outputs.polars-recent }}
+    steps:
+      - id: set
+        run: echo "polars-recent=1.43.2" >> "$GITHUB_OUTPUT"
+
   test:
     name: Lower bounds — Py ${{ matrix.python-version }} / Polars ${{ matrix.polars-version }}
     runs-on: ubuntu-latest
+    needs: config
     env:
       UV_PYTHON: ${{ matrix.python-version }}
     strategy:
       fail-fast: false
       matrix:
         # Dev deps resolve to their floors (lowest-direct, the repo default).
-        # Polars is then pinned across its supported range: floor, ~1yr old, recent.
+        # Polars is then pinned across its supported range: floor, ~1yr old, recent
+        # (recent from the `config` job's single-source output).
         python-version: ["3.11", "3.14"]
-        polars-version: ["1.0.0", "1.24.0", "1.43.2"]
+        polars-version: ["1.0.0", "1.24.0", "${{ needs.config.outputs.polars-recent }}"]
         include:
           - python-version: "3.12"
             polars-version: "1.0.0"
           - python-version: "3.12"
-            polars-version: "1.43.2"
+            polars-version: "${{ needs.config.outputs.polars-recent }}"
           - python-version: "3.13"
             polars-version: "1.0.0"
           - python-version: "3.13"
-            polars-version: "1.43.2"
+            polars-version: "${{ needs.config.outputs.polars-recent }}"
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,7 +67,10 @@ jobs:
         run: uv sync
 
       - name: Pin Polars version
-        run: uv pip install polars==${{ matrix.polars-version }}
+        # Pass through env (not inline `${{ }}` in run) to avoid template injection.
+        env:
+          POLARS_VERSION: ${{ matrix.polars-version }}
+        run: uv pip install "polars==$POLARS_VERSION"
 
       - name: Run tests
         # Property tests run here at the default (fast) Hypothesis budget on every
@@ -96,6 +115,7 @@ jobs:
   coverage:
     name: Coverage (100% gate)
     runs-on: ubuntu-latest
+    needs: config
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -119,15 +139,18 @@ jobs:
       # both arcs — no `# pragma: no cover` needed.
       # Both legs run in this one job/checkout so coverage paths align for combine.
       - name: Coverage gate (combined floor + 1.36+, branch, 100%)
+        env:
+          POLARS_RECENT: ${{ needs.config.outputs.polars-recent }}
         run: |
           uv run --with 'polars==1.0.0' coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
-          uv run --with 'polars==1.43.2' coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
+          uv run --with "polars==$POLARS_RECENT" coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
           uv run coverage combine
           uv run coverage report --show-missing
 
   memory-limits:
     name: Memory limits (per-test ceilings)
     runs-on: ubuntu-latest
+    needs: config
     env:
       UV_PYTHON: "3.11"
 
@@ -147,9 +170,11 @@ jobs:
       # pathologies this guards against (e.g. the fused per-group bootstrap blowup)
       # surface there, not on the floor.
       - name: Install dependencies + memray
+        env:
+          POLARS_RECENT: ${{ needs.config.outputs.polars-recent }}
         run: |
           uv sync --group memory
-          uv pip install polars==1.43.2
+          uv pip install "polars==$POLARS_RECENT"
 
       # Enforces tests/conftest.py's default per-test memory ceiling (+ any per-test
       # overrides). A regression that pushes a test over its ceiling fails here
@@ -193,7 +218,7 @@ jobs:
   tests-passed:
     name: All tests passed
     if: always()
-    needs: [test, test-highest, coverage, memory-limits, doctest]
+    needs: [config, test, test-highest, coverage, memory-limits, doctest]
     runs-on: ubuntu-latest
     steps:
       - name: Verify all required jobs succeeded

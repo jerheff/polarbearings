@@ -13,6 +13,10 @@ bench_flags := "--benchmark-only --benchmark-warmup=on --benchmark-disable-gc " 
     "--benchmark-min-rounds=5 --benchmark-calibration-precision=10 " + \
     "--benchmark-columns=median,iqr,ops,rounds --benchmark-sort=name --benchmark-group-by=group"
 
+# The "recent" Polars leg used by test-compat / coverage / memray / bench recipes.
+# Single source of truth — bump here to move the latest tested version.
+polars_recent := "1.43.2"
+
 # List all available commands
 default:
     @just --list
@@ -59,7 +63,7 @@ test-polars version:
 test-compat:
     just test-polars 1.0.0
     just test-polars 1.24.0
-    just test-polars 1.43.2
+    just test-polars {{polars_recent}}
 
 # Thorough LOCAL Polars sweep (not a CI gate): every minor from the last 12 months,
 # one per year for older releases, plus the floor — the version list is pulled live
@@ -131,7 +135,7 @@ publish: build
 test-cov:
     rm -f .coverage .coverage.*
     uv run --with polars==1.0.0 coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
-    uv run --with polars==1.43.2 coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
+    uv run --with polars=={{polars_recent}} coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
     uv run coverage combine
     uv run coverage report --show-missing
 
@@ -139,7 +143,7 @@ test-cov:
 # recent Polars where the memory pathologies show up. Mirrors the CI memory-limits job.
 test-memory:
     uv sync --group memory
-    uv run --with polars==1.43.2 pytest -m 'not hypothesis' --memray -q
+    uv run --with polars=={{polars_recent}} pytest -m 'not hypothesis' --memray -q
 
 # Cap the size sweep with BENCH_MAX_N (e.g. `BENCH_MAX_N=100000 just bench`).
 # Run performance benchmarks against the current/dev env
@@ -164,7 +168,7 @@ bench-polars version:
 bench-compare:
     rm -rf .benchmarks
     uv run python benchmarks/cooldown.py baseline
-    just bench-polars 1.43.2
+    just bench-polars {{polars_recent}}
     uv run python benchmarks/cooldown.py wait
     just bench-polars 1.0.0
     uv run pytest-benchmark compare --group-by=name --sort=name --columns=median,iqr
