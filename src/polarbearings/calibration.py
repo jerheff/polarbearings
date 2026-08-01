@@ -318,11 +318,48 @@ def _gap_terms_perbin(
     return counts, gaps
 
 
+def _bin_suffix(n_bins: int, strategy: BinStrategy, bins: Sequence[float] | None) -> str:
+    """Alias fragment distinguishing two calls that differ only in their binning.
+
+    Without it, an ECE at 10 bins and an ECE at 20 bins produce the same output name
+    and collide with a ``DuplicateError`` inside one ``select`` — which is exactly
+    how a bin-count sensitivity check is written.
+
+    Explicit ``bins`` override ``n_bins``/``strategy``, so they are tagged by edge
+    count alone (``_e<k>``); two *different* edge lists of the same length still
+    collide and need a manual ``.alias()``. Otherwise a non-default bin count gives
+    ``_b<n>`` and the quantile strategy adds ``_q``, so the default 10-bin uniform
+    binning keeps its existing column name.
+
+    Args:
+        n_bins: Bin count (ignored when ``bins`` is given).
+        strategy: ``"uniform"`` or ``"quantile"`` (ignored when ``bins`` is given).
+        bins: Explicit monotonic bin edges, or ``None``.
+
+    Returns:
+        The alias fragment, empty for the default binning.
+    """
+    if bins is not None:
+        return f"_e{len(bins) - 1}"
+    count = "" if n_bins == 10 else f"_b{n_bins}"
+    return count if strategy == "uniform" else f"{count}_q"
+
+
 def _calibration_alias(
-    name: str, target: IntoExpr, prob: IntoExpr, weight: WeightInput, pos_label: PosLabel
+    name: str,
+    target: IntoExpr,
+    prob: IntoExpr,
+    weight: WeightInput,
+    pos_label: PosLabel,
+    param: str = "",
 ) -> str:
-    """Build the output-column alias for a calibration-error metric."""
-    alias = f"{name}_{col_name(target)}_{col_name(prob)}{weight_suffix(weight)}"
+    """Build the output-column alias for a calibration-error metric.
+
+    ``param`` is the binning fragment from :func:`_bin_suffix`, placed right after
+    the metric name (matching ``fbeta_score``'s ``fbeta_2_y_p`` shape) and empty for
+    the default binning, so existing column names are unchanged.
+    """
+    alias = f"{name}{param}_{col_name(target)}_{col_name(prob)}{weight_suffix(weight)}"
     if pos_label != 1:
         alias += f"_pos{pos_label}"
     return alias
@@ -398,7 +435,14 @@ def expected_calibration_error(
             pl.when(c > 0).then(c * g).otherwise(0.0) for c, g in zip(counts, gaps, strict=True)
         ]
         ece = pl.when(total > 0).then(pl.sum_horizontal(terms) / total).otherwise(None)
-    alias = _calibration_alias("expected_calibration_error", target, prob, weight, pos_label)
+    alias = _calibration_alias(
+        "expected_calibration_error",
+        target,
+        prob,
+        weight,
+        pos_label,
+        _bin_suffix(n_bins, strategy, bins),
+    )
     return guarded(ece, values=[prob], labels=[target], weight=weight).alias(alias)
 
 
@@ -453,5 +497,12 @@ def maximum_calibration_error(
         counts, gaps = _gap_terms_perbin(prob_f, is_pos, binid, n_used, w)
         terms = [pl.when(c > 0).then(g).otherwise(None) for c, g in zip(counts, gaps, strict=True)]
         mce = pl.max_horizontal(terms)
-    alias = _calibration_alias("maximum_calibration_error", target, prob, weight, pos_label)
+    alias = _calibration_alias(
+        "maximum_calibration_error",
+        target,
+        prob,
+        weight,
+        pos_label,
+        _bin_suffix(n_bins, strategy, bins),
+    )
     return guarded(mce, values=[prob], labels=[target], weight=weight).alias(alias)
