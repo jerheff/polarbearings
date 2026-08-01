@@ -3,7 +3,7 @@
 ## Current Requirements
 
 **Minimum Polars Version**: `1.0.0`
-**CI Tested Versions**: `1.0.0`, `1.24.0`, `1.43.0`
+**CI Tested Versions**: `1.0.0` (floor), `1.24.0` (~1yr old), and the latest release
 
 ## Syntax Compatibility Analysis
 
@@ -55,7 +55,7 @@ We support `polars>=1.0.0` because:
 1. All our methods are stable since Polars 1.0
 2. No breaking changes affect us
 3. This widens the user base without adding complexity
-4. CI tests verify compatibility against 1.0.0, 1.24.0, and 1.43.0
+4. CI tests verify compatibility against the floor (1.0.0), a ~1-year-old release, and the latest release
 
 ## Testing Compatibility
 
