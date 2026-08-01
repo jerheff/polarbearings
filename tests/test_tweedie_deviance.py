@@ -150,8 +150,8 @@ class TestMeanTweedieDeviance:
         rows = result.to_dicts()
         a = _reference_tweedie(np.array([2.0, 1.0]), np.array([1.0, 2.0]), 1.0)
         b = _reference_tweedie(np.array([3.0, 4.0]), np.array([2.0, 5.0]), 1.0)
-        assert rows[0]["mean_tweedie_deviance_y_pred"] == pytest.approx(a)
-        assert rows[1]["mean_tweedie_deviance_y_pred"] == pytest.approx(b)
+        assert rows[0]["mean_tweedie_deviance_p1_y_pred"] == pytest.approx(a)
+        assert rows[1]["mean_tweedie_deviance_p1_y_pred"] == pytest.approx(b)
 
 
 class TestMeanPoissonDeviance:

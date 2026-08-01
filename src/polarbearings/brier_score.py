@@ -29,6 +29,9 @@ def brier_score(
         prob: Column name or expression containing predicted probabilities [0, 1].
         weight: Optional name of the column containing sample weights.
         pos_label: Value in ``target`` treated as the positive class (default 1).
+            Every other value counts as negative (one-vs-rest), so a target with
+            more than two classes yields a one-vs-rest score rather than an error —
+            unlike scikit-learn, which raises on a multiclass target.
 
     Returns:
         A Polars expression that computes the Brier score.

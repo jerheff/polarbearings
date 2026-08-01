@@ -22,7 +22,7 @@ import math
 
 import polars as pl
 
-from polarbearings._common import IntoExpr, col_expr, col_name, guarded
+from polarbearings._common import IntoExpr, col_expr, col_name, guarded, param_suffix
 
 
 def _validate_k(k: int | None) -> None:
@@ -54,9 +54,16 @@ def _dcg_expr(gain: pl.Expr, order_by: pl.Expr, k: int | None, log_base: float) 
     return (gains_sorted * discount).sum()
 
 
-def _ranking_alias(name: str, relevance: IntoExpr, score: IntoExpr, k: int | None) -> str:
-    """Build a ``name_relevance_score[_k<k>]`` alias."""
-    alias = f"{name}_{col_name(relevance)}_{col_name(score)}"
+def _ranking_alias(
+    name: str, relevance: IntoExpr, score: IntoExpr, k: int | None, log_base: float = 2.0
+) -> str:
+    """Build a ``name[_lb<base>]_relevance_score[_k<k>]`` alias.
+
+    A non-default ``log_base`` is encoded so two discounts of the same ranking do not
+    collide on one output name inside a single ``select``; at the default base 2 the
+    fragment is empty, leaving existing column names unchanged.
+    """
+    alias = f"{name}{param_suffix('lb', log_base, 2.0)}_{col_name(relevance)}_{col_name(score)}"
     if k is not None:
         alias += f"_k{k}"
     return alias
@@ -93,7 +100,9 @@ def dcg_score(
     """
     _validate_k(k)
     dcg = _dcg_expr(col_expr(relevance).cast(pl.Float64), col_expr(score), k, log_base)
-    return guarded(dcg, values=[relevance, score]).alias(_ranking_alias("dcg", relevance, score, k))
+    return guarded(dcg, values=[relevance, score]).alias(
+        _ranking_alias("dcg", relevance, score, k, log_base)
+    )
 
 
 def ndcg_score(
@@ -135,5 +144,5 @@ def ndcg_score(
     idcg = _dcg_expr(rel, rel, k, log_base)
     result = pl.when(idcg == 0).then(None).otherwise(dcg / idcg)
     return guarded(result, values=[relevance, score]).alias(
-        _ranking_alias("ndcg", relevance, score, k)
+        _ranking_alias("ndcg", relevance, score, k, log_base)
     )

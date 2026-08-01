@@ -10,14 +10,25 @@ from polarbearings._common import (
     col_expr,
     col_name,
     guarded,
+    param_suffix,
     resolve_weight,
     weight_suffix,
     weighted_mean,
 )
 
 
-def _regression_alias(name: str, target: IntoExpr, pred: IntoExpr, weight: WeightInput) -> str:
-    alias = f"{name}_{col_name(target)}_{col_name(pred)}"
+def _regression_alias(
+    name: str, target: IntoExpr, pred: IntoExpr, weight: WeightInput, param: str = ""
+) -> str:
+    """Build a ``name[_param]_target_pred[_weight]`` alias.
+
+    ``param`` carries a hyper-parameter that distinguishes two otherwise identical
+    calls (see :func:`~polarbearings._common.param_suffix`); it sits right after the
+    metric name, matching ``fbeta_score``'s long-standing ``fbeta_2_y_p`` shape. It
+    is ``""`` whenever the parameter is at its default, so existing names are
+    unchanged.
+    """
+    alias = f"{name}{param}_{col_name(target)}_{col_name(pred)}"
     alias += weight_suffix(weight)
     return alias
 
@@ -345,7 +356,7 @@ def mean_pinball_loss(
     result = weighted_mean(loss, resolve_weight(weight))
 
     return guarded(result, values=[target, pred], weight=weight).alias(
-        _regression_alias("mean_pinball_loss", target, pred, weight)
+        _regression_alias("mean_pinball_loss", target, pred, weight, param_suffix("a", alpha, 0.5))
     )
 
 
@@ -414,7 +425,7 @@ def huber_loss(
     result = weighted_mean(loss, resolve_weight(weight))
 
     return guarded(result, values=[target, pred], weight=weight).alias(
-        _regression_alias("huber_loss", target, pred, weight)
+        _regression_alias("huber_loss", target, pred, weight, param_suffix("d", delta, 1.0))
     )
 
 
@@ -527,7 +538,9 @@ def mean_tweedie_deviance(
     result = weighted_mean(dev, resolve_weight(weight))
 
     return guarded(result, values=[target, pred], weight=weight).alias(
-        _regression_alias("mean_tweedie_deviance", target, pred, weight)
+        _regression_alias(
+            "mean_tweedie_deviance", target, pred, weight, param_suffix("p", power, 0.0)
+        )
     )
 
 
@@ -643,7 +656,7 @@ def d2_tweedie_score(
 
     result = pl.when(degenerate).then(None).otherwise(1.0 - num / den)
     return guarded(result, values=[target, pred], weight=weight).alias(
-        _regression_alias("d2_tweedie_score", target, pred, weight)
+        _regression_alias("d2_tweedie_score", target, pred, weight, param_suffix("p", power, 0.0))
     )
 
 
@@ -739,5 +752,5 @@ def d2_pinball_score(target: IntoExpr, pred: IntoExpr, *, alpha: float = 0.5) ->
 
     result = pl.when(den == 0).then(None).otherwise(1.0 - num / den)
     return guarded(result, values=[target, pred]).alias(
-        _regression_alias("d2_pinball_score", target, pred, None)
+        _regression_alias("d2_pinball_score", target, pred, None, param_suffix("a", alpha, 0.5))
     )

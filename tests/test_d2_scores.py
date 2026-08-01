@@ -182,9 +182,9 @@ class TestD2PinballScore:
         )
         result = df.group_by("group").agg(d2_pinball_score("y", "pred", alpha=0.3)).sort("group")
         rows = result.to_dicts()
-        assert rows[0]["d2_pinball_score_y_pred"] == pytest.approx(1.0)
+        assert rows[0]["d2_pinball_score_a0.3_y_pred"] == pytest.approx(1.0)
         b = sk_d2_pinball(np.array([5.0, 6.0, 7.0, 8.0]), np.array([6.0, 6.0, 6.0, 6.0]), alpha=0.3)
-        assert rows[1]["d2_pinball_score_y_pred"] == pytest.approx(b, rel=1e-9)
+        assert rows[1]["d2_pinball_score_a0.3_y_pred"] == pytest.approx(b, rel=1e-9)
 
 
 @given(

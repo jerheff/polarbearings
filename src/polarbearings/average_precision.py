@@ -32,6 +32,9 @@ def average_precision(
         score: Column name or expression containing prediction scores (higher = more likely positive).
         weight: Optional name of the column containing sample weights.
         pos_label: Value in ``target`` treated as the positive class (default 1).
+            Every other value counts as negative (one-vs-rest), so a target with
+            more than two classes yields a one-vs-rest score rather than an error —
+            unlike scikit-learn, which raises on a multiclass target.
 
     Returns:
         A Polars expression that computes the average precision score.
@@ -58,6 +61,10 @@ def average_precision(
         - Returns null when no positive examples exist (AP is undefined).
         - Handles tied scores correctly by grouping them at the same threshold.
         - Higher is better (1.0 is perfect).
+        - Binary (one-vs-rest) only. A target with more than two classes is scored
+          ``pos_label`` against everything else and returns a number;
+          ``sklearn.metrics.average_precision_score`` instead raises on a
+          multiclass target.
     """
     target_float = (col_expr(target) == pos_label).cast(pl.Float64)
     score_col = col_expr(score)
