@@ -2,7 +2,7 @@
 
 The complete catalogue of polarbearings metrics, with per-metric semantics,
 edge cases, and scikit-learn correspondences. For a quick overview and one
-example per family, see the [README](../../README.md).
+example per family, see the [README](https://github.com/jerheff/polarbearings/blob/main/README.md).
 
 Cross-cutting behaviour shared across the metrics — **output naming**, **sample
 weights**, **custom positive class** (`pos_label`), and **missing-value handling**

@@ -175,6 +175,15 @@ bench-compare:
     # Doc-ready Markdown (speedup vs sklearn, version ratios) from the two saved runs.
     uv run python benchmarks/compare.py
 
+# Serve the docs site locally with live reload at http://127.0.0.1:8000
+docs-serve:
+    uv run --group docs mkdocs serve
+
+# Build the docs site into site/ with --strict (fails on broken links/nav),
+# mirroring what Read the Docs builds (see .readthedocs.yaml).
+docs-build:
+    uv run --group docs mkdocs build --strict
+
 # Check code style with ruff (whole project)
 lint:
     uv run ruff check
