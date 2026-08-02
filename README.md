@@ -47,8 +47,10 @@ live at **[polarbearings.readthedocs.io](https://polarbearings.readthedocs.io/)*
 **Using an AI coding agent?** The docs are published in LLM-friendly formats you can
 hand straight to your assistant:
 
-- [`llms.txt`](https://polarbearings.readthedocs.io/en/latest/llms.txt) — a curated, sectioned index of the documentation
-- [`llms-full.txt`](https://polarbearings.readthedocs.io/en/latest/llms-full.txt) — the entire documentation as one file, for loading into context in a single fetch
+- [`llms.txt`](https://polarbearings.readthedocs.io/llms.txt) — a curated, sectioned index of the documentation
+- [`llms-full.txt`](https://polarbearings.readthedocs.io/llms-full.txt) — the entire documentation as one file, for loading into context in a single fetch
+
+  Read the Docs serves these from the site root, tracking the default version — so the links stay stable if the docs are versioned later.
 
 Any page is also available as clean Markdown by appending `index.md` to its URL (e.g.
 [`api/classification/index.md`](https://polarbearings.readthedocs.io/en/latest/api/classification/index.md)).
