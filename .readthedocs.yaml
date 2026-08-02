@@ -13,11 +13,9 @@ build:
 # Build documentation with MkDocs (config lives at the repo root)
 mkdocs:
   configuration: mkdocs.yml
-
-# Fail the build on broken links / nav (mirrors `just docs-build`, which passes
-# --strict). Keeps the published site honest.
-mkdocs_options:
-  strict: true
+  # Turn warnings (broken links / nav) into errors, mirroring `just docs-build`
+  # (mkdocs --strict). Keeps the published site honest.
+  fail_on_warning: true
 
 # Install the docs toolchain from uv.lock (reproducible). `command: sync` reads
 # pyproject.toml + uv.lock; `groups: [docs]` pulls the docs dependency group —
