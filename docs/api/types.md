@@ -1,3 +1,6 @@
+---
+description: Public type aliases in the polarbearings.typing module (IntoExpr, WeightInput, …) used across the metric signatures and importable for your own annotations.
+---
 # Type aliases
 
 The metric signatures use a handful of short type aliases for the values they

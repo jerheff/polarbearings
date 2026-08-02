@@ -1,3 +1,6 @@
+---
+description: Complete catalogue of polarbearings metrics — per-metric semantics, edge cases, output naming, sample weights, and their scikit-learn correspondences.
+---
 # Metrics Reference
 
 The complete catalogue of polarbearings metrics, with per-metric semantics,

@@ -1,3 +1,6 @@
+---
+description: Benchmark methodology and results showing polarbearings metrics running 2–4× faster than scikit-learn as native Polars expressions in the Rust engine.
+---
 # Performance Analysis
 
 ## Methodology
