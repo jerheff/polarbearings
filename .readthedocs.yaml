@@ -1,0 +1,32 @@
+# Read the Docs configuration file
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+
+# Required
+version: 2
+
+# Set the OS, Python version, and other tools you might need
+build:
+  os: ubuntu-24.04
+  tools:
+    python: "3.13"
+
+# Build documentation with MkDocs (config lives at the repo root)
+mkdocs:
+  configuration: mkdocs.yml
+
+# Fail the build on broken links / nav (mirrors `just docs-build`, which passes
+# --strict). Keeps the published site honest.
+mkdocs_options:
+  strict: true
+
+# Install the docs toolchain from uv.lock (reproducible). `command: sync` reads
+# pyproject.toml + uv.lock; `groups: [docs]` pulls the docs dependency group —
+# a PEP 735 group, so it stays out of the published wheel. mkdocstrings reads the
+# package source statically (griffe, via `paths: [src]` in mkdocs.yml), so the
+# package itself does not need to be installed.
+python:
+  install:
+    - method: uv
+      command: sync
+      groups:
+        - docs

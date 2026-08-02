@@ -70,6 +70,21 @@ dev = [
     "numpy>=2.4.6",
     "scikit-learn>=1.9",
 ]
+# Docs site toolchain (MkDocs + Material + mkdocstrings). Read the Docs installs
+# this group from uv.lock via `uv sync --group docs` (see .readthedocs.yaml), and
+# `just docs-serve` / `just docs-build` overlay it locally. A dependency-GROUP (not
+# an optional-dependencies extra) keeps it out of the published wheel's metadata —
+# these are build-time-only tools with no runtime support promise, so their floors
+# stay current like the rest of the dev tooling. mkdocstrings reads src/ statically
+# (griffe), so the package itself need not be installed to build the API reference.
+docs = [
+    "mkdocs-material>=9.6",        # theme (pulls mkdocs + pymdown-extensions)
+    # Floor kept recent on purpose: under `lowest-direct` an old mkdocstrings floor
+    # gets paired with the latest transitive mkdocs-autorefs and breaks (the 0.26 +
+    # autorefs 1.4 combo raises AttributeError on link_titles). 0.30 drives current
+    # autorefs correctly.
+    "mkdocstrings[python]>=0.30",  # API reference from docstrings (pulls griffe)
+]
 # Tooling for the docs/diagnostics notebooks (plot-ready data + Plotly figures).
 # Dev-only; never shipped with the published package.
 notebooks = [

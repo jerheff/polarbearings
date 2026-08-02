@@ -17,7 +17,7 @@ A scope in parentheses (e.g. `fix(ranking):`) is encouraged but optional.
 
 ## How releases work
 
-Automation lives in [`.github/workflows/release-please.yml`](.github/workflows/release-please.yml):
+Automation lives in [`.github/workflows/release-please.yml`](https://github.com/jerheff/polarbearings/blob/main/.github/workflows/release-please.yml):
 
 1. **release-please** maintains a rolling "release X.Y.Z" PR that bumps the
    version in `pyproject.toml` and updates `CHANGELOG.md` from the commits above.

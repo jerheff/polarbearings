@@ -2,9 +2,20 @@
 
 import inspect
 from collections.abc import Sequence
-from typing import Final, TypeAlias
+from typing import Final
 
 import polars as pl
+
+# The metric type aliases live in the public ``polarbearings.typing`` module (so users
+# can import them for their own annotations). They are re-exported here — the ``X as X``
+# form marks the intent — because this module is the package's internal import hub: the
+# rest of the package imports these aliases from ``_common`` alongside the helpers below,
+# and several helpers here are annotated with them.
+from polarbearings.typing import ByInput as ByInput
+from polarbearings.typing import IntoExpr as IntoExpr
+from polarbearings.typing import PosLabel as PosLabel
+from polarbearings.typing import ThresholdValue as ThresholdValue
+from polarbearings.typing import WeightInput as WeightInput
 
 # Polars 1.42 deprecates calling ``explode`` without ``empty_as_null``; in Polars 2.0
 # the default flips from ``True`` to ``False``. Our reshape sites explode a
@@ -18,27 +29,6 @@ EXPLODE_KW: Final[dict[str, bool]] = (
     if "empty_as_null" in inspect.signature(pl.LazyFrame.explode).parameters
     else {}
 )
-
-# A column reference: either a column name or a Polars expression (Polars' own
-# ``IntoExpr`` convention). Every parameter that names a column accepts this, so a
-# computed column (e.g. ``pl.col("raw").rank()``) can be passed without a prior
-# ``with_columns``.
-IntoExpr: TypeAlias = str | pl.Expr
-
-# A sample-weight input: a column reference or ``None`` for the unweighted case.
-WeightInput: TypeAlias = IntoExpr | None
-
-# A positive-class label: any scalar value comparable to the target column
-# (e.g. 1, 100, "cancer", True). Defaults to 1 for backward compatibility.
-PosLabel: TypeAlias = int | float | str | bool
-
-# A ``by=`` grouping argument: one column reference, a sequence of them, or None
-# (no grouping). Accepts any sequence — ``by_columns`` only iterates it.
-ByInput: TypeAlias = IntoExpr | Sequence[IntoExpr] | None
-
-# A classification threshold: a fixed float, or an expression (e.g. a data-derived
-# quantile evaluated in-engine, so each group can threshold at its own value).
-ThresholdValue: TypeAlias = float | pl.Expr
 
 
 def col_expr(col: IntoExpr) -> pl.Expr:
