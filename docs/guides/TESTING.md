@@ -1,3 +1,6 @@
+---
+description: How polarbearings is tested — pytest unit tests, Hypothesis property-based tests, scikit-learn parity checks, and multi-version Polars compatibility.
+---
 # Testing Guide
 
 ## Quick Start (Using Just)

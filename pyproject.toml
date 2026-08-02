@@ -84,6 +84,11 @@ docs = [
     # autorefs 1.4 combo raises AttributeError on link_titles). 0.30 drives current
     # autorefs correctly.
     "mkdocstrings[python]>=0.30",  # API reference from docstrings (pulls griffe)
+    # llms.txt + llms-full.txt for LLM/agent consumers. Works from the rendered
+    # HTML (not source .md), so it captures the mkdocstrings-generated API pages
+    # whose sources are just `:::` stubs. Read the Docs serves the files from the
+    # docs root automatically once they land in the build output.
+    "mkdocs-llmstxt>=0.5",
 ]
 # Tooling for the docs/diagnostics notebooks (plot-ready data + Plotly figures).
 # Dev-only; never shipped with the published package.

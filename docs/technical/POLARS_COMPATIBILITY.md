@@ -1,3 +1,6 @@
+---
+description: Polars version support for polarbearings — minimum 1.0.0, the stable expression APIs it relies on, and the CI-tested floor, mid, and latest releases.
+---
 # Polars Version Compatibility
 
 ## Current Requirements

@@ -1,6 +1,15 @@
 site_name: Polarbearings
 site_description: High-performance machine learning metrics as native Polars expressions
-site_url: https://polarbearings.readthedocs.io/
+# site_url feeds the ABSOLUTE URLs — canonical, og:url, sitemap.xml, and the
+# mkdocs-llmstxt links. (Page-to-page nav and assets are relative, so they resolve
+# under any served path regardless of this value.) Read the Docs serves this project
+# versioned under /en/latest/, and it does NOT inject/rewrite canonical tags for
+# MkDocs; instead it passes the correct canonical to the build as the
+# READTHEDOCS_CANONICAL_URL env var. Consume it (with a local fallback) so those
+# absolute URLs are always right — and auto-adapt to versions, single-version
+# hosting, or a custom domain without ever editing this line.
+# Docs: https://docs.readthedocs.com/platform/stable/canonical-urls.html
+site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://polarbearings.readthedocs.io/en/latest/"]
 repo_url: https://github.com/jerheff/polarbearings
 repo_name: jerheff/polarbearings
 edit_uri: edit/main/docs/
@@ -88,6 +97,43 @@ plugins:
             signature_crossrefs: true
             merge_init_into_class: true
             filters: ["!^_"]
+  # Emit llms.txt (a curated markdown index) and llms-full.txt (the whole corpus
+  # in one file) for LLM/agent consumers. Listed AFTER mkdocstrings so it reads the
+  # fully-rendered API pages, then converts their HTML back to clean markdown. Read
+  # the Docs serves both from the site root once they're in the build output.
+  - llmstxt:
+      markdown_description: >-
+        Polarbearings implements ~40 machine learning metrics as native Polars
+        expressions — 2–4× faster than scikit-learn across ranking, classification,
+        regression, and calibration. Every metric is a Polars expression, usable
+        anywhere an expression is allowed (select / group_by / over / lazy pipelines)
+        and callable as name("target", "score") with optional sample weights.
+      full_output: llms-full.txt
+      sections:
+        Overview:
+          - index.md: Project overview, installation, and quick-start examples.
+        Guides:
+          - guides/METRICS.md: >-
+              Complete metric catalogue — per-metric semantics, edge cases, output
+              naming, sample weights, and scikit-learn correspondences.
+          - guides/TESTING.md: >-
+              How the library is tested — pytest, Hypothesis property-based tests,
+              scikit-learn parity, and multi-version Polars compatibility.
+        Technical:
+          - technical/PERFORMANCE.md: Benchmark methodology and speedup results vs scikit-learn.
+          - technical/POLARS_COMPATIBILITY.md: Supported Polars versions and the stable expression APIs used.
+        API reference:
+          - api/types.md: Public type aliases (IntoExpr, WeightInput, …) used across signatures.
+          - api/ranking.md: Ranking & probabilistic metrics — ROC AUC, average precision, Gini, log loss, Brier.
+          - api/classification.md: Threshold-based classification metrics, confusion matrix, threshold sweep.
+          - api/regression.md: Regression error, deviance, and goodness-of-fit metrics.
+          - api/calibration.md: Calibration curve, expected (ECE) and maximum (MCE) calibration error.
+          - api/curves.md: Diagnostic curve generators — ROC, PR, DET, expected cost, confusion cell.
+          - api/thresholds.md: Threshold specifications and balanced sample / class weights.
+          - api/resampling.md: Bootstrap confidence intervals and deterministic id-keyed data splitting.
+        Project:
+          - changelog.md: Release history and notable changes.
+          - contributing.md: Development setup, testing, and how to add a new metric.
 
 markdown_extensions:
   # Reuse the root README / CHANGELOG / CONTRIBUTING verbatim (single source of
