@@ -1,6 +1,11 @@
 site_name: Polarbearings
 site_description: High-performance machine learning metrics as native Polars expressions
-site_url: https://polarbearings.readthedocs.io/
+# Read the Docs serves this project versioned, under /en/latest/ (the bare domain
+# just 302s there). site_url must match the *served* path so the canonical tags,
+# og:url, sitemap.xml, and the llms.txt links all point at real 200 URLs — the bare
+# domain produced sub-paths that 404. If single-version hosting is ever enabled in
+# the RTD dashboard, drop the /en/latest/ suffix.
+site_url: https://polarbearings.readthedocs.io/en/latest/
 repo_url: https://github.com/jerheff/polarbearings
 repo_name: jerheff/polarbearings
 edit_uri: edit/main/docs/

@@ -39,6 +39,20 @@ df.select(roc_auc("label", "score"))
 # └─────────────────────┘
 ```
 
+## Documentation
+
+Full docs — the metrics catalogue, API reference, performance analysis, and guides —
+live at **[polarbearings.readthedocs.io](https://polarbearings.readthedocs.io/)**.
+
+**Using an AI coding agent?** The docs are published in LLM-friendly formats you can
+hand straight to your assistant:
+
+- [`llms.txt`](https://polarbearings.readthedocs.io/en/latest/llms.txt) — a curated, sectioned index of the documentation
+- [`llms-full.txt`](https://polarbearings.readthedocs.io/en/latest/llms-full.txt) — the entire documentation as one file, for loading into context in a single fetch
+
+Any page is also available as clean Markdown by appending `index.md` to its URL (e.g.
+[`api/classification/index.md`](https://polarbearings.readthedocs.io/en/latest/api/classification/index.md)).
+
 ## Why Polarbearings
 
 Every metric is a *pure Polars expression*. That single design choice is where the
