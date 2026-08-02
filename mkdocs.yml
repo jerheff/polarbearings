@@ -1,11 +1,15 @@
 site_name: Polarbearings
 site_description: High-performance machine learning metrics as native Polars expressions
-# Read the Docs serves this project versioned, under /en/latest/ (the bare domain
-# just 302s there). site_url must match the *served* path so the canonical tags,
-# og:url, sitemap.xml, and the llms.txt links all point at real 200 URLs — the bare
-# domain produced sub-paths that 404. If single-version hosting is ever enabled in
-# the RTD dashboard, drop the /en/latest/ suffix.
-site_url: https://polarbearings.readthedocs.io/en/latest/
+# site_url feeds the ABSOLUTE URLs — canonical, og:url, sitemap.xml, and the
+# mkdocs-llmstxt links. (Page-to-page nav and assets are relative, so they resolve
+# under any served path regardless of this value.) Read the Docs serves this project
+# versioned under /en/latest/, and it does NOT inject/rewrite canonical tags for
+# MkDocs; instead it passes the correct canonical to the build as the
+# READTHEDOCS_CANONICAL_URL env var. Consume it (with a local fallback) so those
+# absolute URLs are always right — and auto-adapt to versions, single-version
+# hosting, or a custom domain without ever editing this line.
+# Docs: https://docs.readthedocs.com/platform/stable/canonical-urls.html
+site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://polarbearings.readthedocs.io/en/latest/"]
 repo_url: https://github.com/jerheff/polarbearings
 repo_name: jerheff/polarbearings
 edit_uri: edit/main/docs/
