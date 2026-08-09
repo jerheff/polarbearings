@@ -140,11 +140,24 @@ This project develops and locks against the **lowest** allowed direct
 dependencies (`[tool.uv] resolution = "lowest-direct"` in pyproject.toml), and
 `.python-version` pins **3.11** — the minimum supported interpreter.
 
-**Why:** the headline guarantee is "supports polars 1.0.0+". Resolving direct
-deps to their floors means `uv sync` installs polars 1.0.0, so `ty check` and
-the test suite catch accidental use of a newer polars API at dev time, not in a
-user's older environment. Transitive deps still resolve to their highest
-compatible versions.
+**Why:** the headline guarantee is "supports polars 1.0.0+". `lowest-direct`
+pins only the *direct* dependencies at their declared lower bounds — this is what
+matters for our shipped dependency (`polars`): `uv sync` installs polars 1.0.0,
+so `ty check` and the test suite catch accidental use of a newer polars API at
+dev time, not in a user's older environment.
+
+**Transitive deps resolve to their highest compatible versions** — `lowest-direct`
+floors direct deps only, never their transitive closure. So refreshing transitives
+forward is *in keeping with* the strategy, not a departure from it:
+
+- `uv lock --upgrade` (sweep every transitive to newest-compatible) is the routine,
+  expected way to keep the locked transitive set current. It leaves the direct
+  floors untouched — polars stays at 1.0.0 — and only moves transitives, which the
+  resolution already targets at highest. Run it, then `just check` + `just docs-build`
+  to validate, and commit the refreshed `uv.lock` like any other maintenance.
+- Plain `uv lock` (after a direct-floor bump) only moves what the changed constraint
+  forces; it does **not** sweep unrelated transitives. Use it when you want a minimal,
+  focused lock diff; use `--upgrade` when you're intentionally refreshing transitives.
 
 **Floor policy:**
 - Only `polars` keeps a **low** floor (1.0.0) on purpose: it is the package's
