@@ -1,6 +1,6 @@
 [[repos]]
 repo = "https://github.com/astral-sh/ruff-pre-commit"
-rev = "cb8c523fd4835aba42af70f4cad5568db4df0b6c"  # frozen: v0.16.0
+rev = "7c55798a78262d14b2074abf623d8a992ebb70d4"  # frozen: v0.16.2
 hooks = [
   { id = "ruff-check", args = ["--fix"] },
   # ruff 0.16 formats Python code blocks inside Markdown, but the upstream hook's
@@ -12,7 +12,7 @@ hooks = [
 
 [[repos]]
 repo = "https://github.com/astral-sh/ty-pre-commit"
-rev = "73d9ef74d17f01127e8a495a7e77ce9941aae703"  # frozen: v0.0.63
+rev = "a4405bd34b6505ed51226ba2a5b5428625177d6a"  # frozen: v0.0.69
 hooks = [
   { id = "ty" },
 ]
@@ -27,7 +27,7 @@ hooks = [
 
 [[repos]]
 repo = "https://github.com/zizmorcore/zizmor-pre-commit"
-rev = "067260dc5fe6ea86b7551bfd6f8b3ba4e6c93129"  # frozen: v1.28.0
+rev = "451b56af716f9f0d0c2b816503a3fd0cf8b036fa"  # frozen: v1.29.0
 hooks = [
   # Static security analysis of the GitHub Actions workflows (the ruff of CI):
   # catches credential persistence, template injection, over-broad permissions.
