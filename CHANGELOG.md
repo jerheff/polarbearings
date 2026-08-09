@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.3.0](https://github.com/jerheff/polarbearings/compare/v0.2.2...v0.3.0) (2026-08-09)
+
+
+### Features
+
+* MkDocs + Read the Docs site and public polarbearings.typing module ([#33](https://github.com/jerheff/polarbearings/issues/33)) ([ef9cc55](https://github.com/jerheff/polarbearings/commit/ef9cc55fe294842cfa36de940dd48759a0b9ea5a))
+
+
+### Bug Fixes
+
+* encode metric hyper-parameters in output aliases; document one-vs-rest ([#30](https://github.com/jerheff/polarbearings/issues/30)) ([21447a0](https://github.com/jerheff/polarbearings/commit/21447a0910726378b32f6363423648d0badee477))
+* use mkdocs.fail_on_warning in RTD config (not mkdocs_options.strict) ([#34](https://github.com/jerheff/polarbearings/issues/34)) ([18f346e](https://github.com/jerheff/polarbearings/commit/18f346ef643a93f0a5a260803984a6e12710b100))
+
+
+### Performance Improvements
+
+* **bench:** measure the metric suite on the lazy path, where CSE applies ([#29](https://github.com/jerheff/polarbearings/issues/29)) ([ec701e9](https://github.com/jerheff/polarbearings/commit/ec701e9baf8a28887d023a7e41f2d941465efc09))
+
+
+### Documentation
+
+* SEO meta descriptions + llms.txt for LLM/agent consumers ([#35](https://github.com/jerheff/polarbearings/issues/35)) ([bca0e7c](https://github.com/jerheff/polarbearings/commit/bca0e7c2463c16b11349c5175abc88f8b21e2e6f))
+
+
+### Continuous Integration
+
+* bump recent Polars leg 1.42.0 -&gt; 1.43.0 ([#27](https://github.com/jerheff/polarbearings/issues/27)) ([227fb53](https://github.com/jerheff/polarbearings/commit/227fb535249af494af76b9d6789b4468f6c3d489))
+* bump recent Polars leg 1.43.0 -&gt; 1.43.2 ([#31](https://github.com/jerheff/polarbearings/issues/31)) ([0b8ea51](https://github.com/jerheff/polarbearings/commit/0b8ea510647f81046ae0e9dfc8cc3343f61685c3))
+* **fuzz:** let nightly fuzz vary its Hypothesis seed ([#13](https://github.com/jerheff/polarbearings/issues/13)) ([690eb77](https://github.com/jerheff/polarbearings/commit/690eb77030296ec5bbd741a3386c9faca273e9f8))
+* **release:** quiet setup-uv cache/workdir warnings in publish-pypi ([#25](https://github.com/jerheff/polarbearings/issues/25)) ([b2f74b7](https://github.com/jerheff/polarbearings/commit/b2f74b7b0169064290588649b203bd5837b140f2))
+
+
+### Miscellaneous Chores
+
+* **deps:** dev tooling bumps, mkdocstrings 1.0, refresh transitives ([#36](https://github.com/jerheff/polarbearings/issues/36)) ([72ddd5d](https://github.com/jerheff/polarbearings/commit/72ddd5dcc05f13f450b29fd05498857e682683f1))
+* **deps:** ruff 0.16 + dev tooling and pinned action bumps ([#28](https://github.com/jerheff/polarbearings/issues/28)) ([cad6149](https://github.com/jerheff/polarbearings/commit/cad6149cc1541b06a007ed46d00ca16f96b12e10))
+* standardize Claude Code gitignore rules ([#32](https://github.com/jerheff/polarbearings/issues/32)) ([1aedd2b](https://github.com/jerheff/polarbearings/commit/1aedd2b9fceee2fb86c9bc415f932ee1002376e0))
+
 ## [0.2.2](https://github.com/jerheff/polarbearings/compare/v0.2.1...v0.2.2) (2026-07-19)
 
 
