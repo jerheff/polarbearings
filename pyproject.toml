@@ -42,65 +42,44 @@ requires = ["uv_build>=0.11.22,<0.13.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
+# Floors kept current so `lowest-direct` gives a modern dev env. numpy/scikit-learn are
+# test-only (the wheel depends on polars alone), so bump them freely like any other tool.
 dev = [
-    # Floors kept current so the `lowest-direct` dev resolution still gives modern
-    # tools, not stale ones. NB: numpy and scikit-learn are dev-only test/parity
-    # deps, NOT package dependencies (the wheel depends only on polars) — there is
-    # no support promise for them, so bump them forward like any other tool.
-    "ty>=0.0.69",
-    "ruff>=0.16.2",
+    "ty>=0.0.72",
+    "ruff>=0.16.3",
     "pytest>=9.1.1",
     "pytest-cov>=7.1",
     "pytest-benchmark>=5.2.3",
     "pytest-timeout>=2.4",
-    # Randomizes test order each run (and seeds stdlib/numpy RNGs) to surface
-    # hidden inter-test state coupling. Reproduce a run with `-p randomly
-    # --randomly-seed=<n>` (the seed is printed in the pytest header).
+    # Randomizes test order to surface inter-test coupling; reproduce with --randomly-seed=<n>.
     "pytest-randomly>=4.1",
-    "hypothesis[numpy]>=6.165.2",
-    # Runs the README's Python code blocks as tests (via the root conftest), so a
-    # renamed metric or changed signature in the docs fails CI. Shared setup frames
-    # live in `<!--- invisible-code-block --->` HTML comments (invisible on GitHub).
+    "hypothesis[numpy]>=6.165.8",
+    # Runs the README's Python blocks as tests (via root conftest), so doc drift fails CI.
     "sybil>=10.1",
-    "mutmut>=3.6",
-    # Capped in practice by our own requires-python: numpy 2.5 dropped Python
-    # 3.11, and `lowest-direct` installs this floor into the 3.11 dev env. 2.4.6
-    # is the last 3.11-compatible release — do not bump past it while we support
-    # 3.11 (uv's resolver will reject it outright).
+    "mutmut>=3.7.0",
+    # 2.4.6 is the last numpy supporting Python 3.11; don't bump past it while we support 3.11.
     "numpy>=2.4.6",
     "scikit-learn>=1.9",
 ]
-# Docs site toolchain (MkDocs + Material + mkdocstrings). Read the Docs installs
-# this group from uv.lock via `uv sync --group docs` (see .readthedocs.yaml), and
-# `just docs-serve` / `just docs-build` overlay it locally. A dependency-GROUP (not
-# an optional-dependencies extra) keeps it out of the published wheel's metadata —
-# these are build-time-only tools with no runtime support promise, so their floors
-# stay current like the rest of the dev tooling. mkdocstrings reads src/ statically
-# (griffe), so the package itself need not be installed to build the API reference.
+# Docs site toolchain. A dependency-group (not an extra) keeps it out of the wheel metadata;
+# Read the Docs installs it via `uv sync --group docs`.
 docs = [
-    "mkdocs-material>=9.6",        # theme (pulls mkdocs + pymdown-extensions)
-    # Floor kept recent on purpose: under `lowest-direct` an old mkdocstrings floor
-    # gets paired with the latest transitive mkdocs-autorefs and breaks (the 0.26 +
-    # autorefs 1.4 combo raises AttributeError on link_titles). 1.0 drives current
-    # autorefs and mkdocstrings-python 2.x correctly (mkdocs itself stays 1.6+).
-    "mkdocstrings[python]>=1.0",   # API reference from docstrings (pulls griffe)
-    # llms.txt + llms-full.txt for LLM/agent consumers. Works from the rendered
-    # HTML (not source .md), so it captures the mkdocstrings-generated API pages
-    # whose sources are just `:::` stubs. Read the Docs serves the files from the
-    # docs root automatically once they land in the build output.
+    "mkdocs-material>=9.7.7",
+    # Floor at 1.0: an older mkdocstrings breaks against the latest transitive mkdocs-autorefs
+    # (AttributeError on link_titles).
+    "mkdocstrings[python]>=1.0.6",
+    # Emits llms.txt / llms-full.txt from the rendered HTML for LLM/agent consumers.
     "mkdocs-llmstxt>=0.5",
 ]
-# Tooling for the docs/diagnostics notebooks (plot-ready data + Plotly figures).
-# Dev-only; never shipped with the published package.
+# Docs/diagnostics notebook tooling; dev-only, never shipped.
 notebooks = [
-    "plotly>=6.8",
-    "nbformat>=5.10.4",
+    "plotly>=6.9.0",
+    "nbformat>=5.11.0",
     "nbconvert>=7.17.1",
     "ipykernel>=7.3",
 ]
-# Per-test memory-limit enforcement for the dedicated "Memory limits" CI job (run
-# with `pytest --memray`). Kept out of `dev` so the Py 3.11-3.14 test matrix doesn't
-# install it (memray is Linux/macOS only). See tests/conftest.py.
+# Per-test memory ceilings for the CI "Memory limits" job. Out of `dev` so the 3.11-3.14
+# matrix skips it (memray is Linux/macOS only).
 memory = [
     "pytest-memray>=1.10.0",
 ]
@@ -108,24 +87,21 @@ memory = [
 [tool.uv]
 required-version = ">=0.11"
 
-# Resolve (and lock) direct dependencies to their LOWEST allowed versions, so
-# development happens against our advertised floors — most importantly
-# polars>=1.0.0. This surfaces accidental use of a newer polars API at dev/CI
-# time rather than only in a user's older environment. Transitive dependencies
-# still resolve to their highest compatible versions ("lowest-direct", not
-# "lowest"). The upper bound is guarded separately by the highest-resolution CI
-# job and `just test-highest`.
+# Lock direct deps at their LOWEST versions (esp. polars>=1.0.0) so dev/CI hits the advertised
+# floors and catches newer-API use early; transitives still resolve highest. The upper bound is
+# guarded by `just test-highest` / the highest-resolution CI job.
 resolution = "lowest-direct"
+# Release-age cooldown: skip anything uploaded within this rolling window (a duration, so uv
+# records `exclude-newer-span` in the lock). Applies to all uv resolution — sync, CI, and the
+# floors `just autoupdate` picks. prek/pinact carry matching cooldowns in their own config.
+exclude-newer = "7 days"
 
-# uv's native build backend (PEP 517). The src/ layout is auto-detected; we only
-# extend the source distribution to also ship the test suite (matching the prior
-# hatchling sdist), so downstream packagers can run the tests.
+# uv's native PEP 517 backend; also ship tests/ in the sdist for downstream packagers.
 [tool.uv.build-backend]
 source-include = ["tests/**"]
 
-# Test PyPI, for dry-run publishing. `explicit = true` keeps it out of dependency
-# resolution — it is only used when named, e.g. `uv publish --index testpypi`.
-# Auth via UV_PUBLISH_TOKEN (a test.pypi.org token) or trusted publishing.
+# Test PyPI for dry-run publishing. `explicit` keeps it out of resolution (used only when
+# named: `uv publish --index testpypi`).
 [[tool.uv.index]]
 name = "testpypi"
 url = "https://test.pypi.org/simple/"
@@ -134,8 +110,7 @@ explicit = true
 
 [tool.ruff]
 line-length = 100
-# Notebooks are narrative docs with embedded outputs, not shipped code; linting
-# generated .ipynb JSON is high-noise/low-value (see also the ty src.exclude).
+# Notebooks are narrative .ipynb, not shipped code (mirrors the ty exclude).
 extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
@@ -147,8 +122,8 @@ select = [
     "B",    # flake8-bugbear
     "C4",   # flake8-comprehensions
     "UP",   # pyupgrade
-    "ANN",  # flake8-annotations — require type hints on functions/params
-    "D",    # pydocstyle — require & format docstrings
+    "ANN",  # flake8-annotations
+    "D",    # pydocstyle
     "N",    # pep8-naming
     "RUF",  # ruff-specific rules
     "SIM",  # flake8-simplify
@@ -158,47 +133,42 @@ select = [
     "ARG",  # flake8-unused-arguments
     "PT",   # flake8-pytest-style
     "PERF", # perflint
-    "FURB", # refurb — modernizing rewrites
-    "T10",  # flake8-debugger — no stray breakpoint()/pdb
-    "A",    # flake8-builtins — don't shadow builtins (min, max, id, type, ...)
-    "EM",   # flake8-errmsg — assign exception messages to a var before raising
-    "ISC",  # flake8-implicit-str-concat — catch accidental adjacent-string concat
-    "FLY",  # flynt — prefer f-strings over str.join of a static sequence
-    "PGH",  # pygrep-hooks — no blanket `# noqa` / `# type: ignore` (require a code)
-    "RSE",  # flake8-raise — no needless parens on `raise Exc()` from `raise Exc`
-    "TID",  # flake8-tidy-imports — import hygiene (no parent-relative imports)
-    "PLE",  # pylint errors — real bugs (bad format strings, `return` in __init__)
-    "PLW",  # pylint warnings — likely-wrong constructs (loop-var shadowing, ...)
+    "FURB", # refurb
+    "T10",  # flake8-debugger
+    "A",    # flake8-builtins
+    "EM",   # flake8-errmsg
+    "ISC",  # flake8-implicit-str-concat
+    "FLY",  # flynt
+    "PGH",  # pygrep-hooks
+    "RSE",  # flake8-raise
+    "TID",  # flake8-tidy-imports
+    "PLE",  # pylint errors
+    "PLW",  # pylint warnings
 ]
 ignore = [
     "E501",    # line length — handled by the formatter
-    "ANN401",  # allow explicit `Any` where the type is genuinely dynamic
-    "RUF002",  # ambiguous unicode in docstrings (µ, ×, ², ₙ are intentional math)
+    "ANN401",  # allow explicit `Any` where genuinely dynamic
+    "RUF002",  # ambiguous unicode in docstrings (µ, ×, ², ₙ are intentional)
     "RUF003",  # ambiguous unicode in comments (same)
-    "RUF022",  # __all__ is grouped by metric category on purpose, not sorted
+    "RUF022",  # __all__ grouped by metric category, not sorted
 ]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-# Tests/benchmarks: don't require type annotations or docstrings on every test
-# function and fixture (noisy, low value). Keep pytest-style + bugbear + naming.
+# Tests/benchmarks: skip annotation/docstring/unused-arg rules (noisy, low value).
 "tests/**" = ["ANN", "D", "ARG"]
 "benchmarks/**" = ["ANN", "D", "ARG"]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
-# ruff >= 0.16 also formats Python code blocks inside Markdown (README, docs/).
-# We keep that on: the README's blocks are executed as tests (Sybil, see
-# conftest.py), so they are real code and should match the formatter that shapes
-# the rest of the package. Use `<!-- fmt: off -->` / `<!-- fmt: on -->` around a
-# block whose hand-wrapping is deliberate.
+# ruff >=0.16 also formats Python blocks in Markdown; kept on since the README blocks run as
+# tests (Sybil). Use `<!-- fmt: off -->` / `<!-- fmt: on -->` for deliberate hand-wrapping.
 
 [tool.ty.src]
-# Notebooks are narrative docs, not part of the typed package (mirrors the ruff
-# extend-exclude).
+# Notebooks aren't part of the typed package (mirrors the ruff extend-exclude).
 exclude = ["notebooks"]
 
 [tool.ty.environment]
@@ -208,18 +178,12 @@ python-version = "3.11"
 testpaths = ["tests"]
 python_files = ["test_*.py", "bench_*.py"]
 python_functions = ["test_*"]
-# --strict-markers: an unregistered/typo'd marker is an error, not a silent no-op.
-# --strict-config: an unknown key or parse error in this section fails loudly.
+# strict-markers + strict-config: a typo'd marker or unknown key fails loudly.
 addopts = ["--strict-markers", "--strict-config"]
-# A test marked xfail that unexpectedly PASSES becomes a failure, so a stale
-# "known failure" can't silently mask a since-fixed (then re-broken) test.
+# An xfail that unexpectedly passes fails the suite, so a fixed-then-rebroken test surfaces.
 xfail_strict = true
-# Assert the pytest plugins the suite relies on are installed, so a broken env
-# fails loudly instead of silently dropping coverage, random ordering, timeouts,
-# etc. memray is intentionally excluded (memory-only group, Linux/macOS); sybil
-# hooks in via the root conftest, not as a pytest plugin. The doctest run uses
-# `--randomly-dont-reorganize` (not `-p no:randomly`) so pytest-randomly stays
-# loaded and this check still holds there.
+# Fail if a relied-on plugin is missing (else coverage/ordering/timeouts silently drop).
+# memray excluded (memory-only group); sybil hooks in via conftest, not as a plugin.
 required_plugins = [
     "hypothesis",
     "pytest-benchmark",
@@ -232,28 +196,19 @@ markers = [
     "limit_memory: pytest-memray per-test peak-memory ceiling (enforced under --memray)",
     "limit_leaks: pytest-memray per-test leak ceiling (enforced under --memray)",
 ]
-# Escalate EVERY warning to a test failure — most importantly the numpy/polars
-# RuntimeWarnings (divide-by-zero, overflow, invalid value) that silently yield
-# NaN/inf, the exact bug class this library exists to get right. Deprecations are
-# included, so the highest-resolution job still flags a phasing-out polars/sklearn
-# API on sight. Add a narrow `"ignore::..."` entry only if a benign third-party
-# warning ever appears.
+# Every warning is a failure — esp. numpy/polars RuntimeWarnings (div-by-zero, overflow,
+# invalid) that silently yield NaN/inf, the bug class this library exists to get right.
 filterwarnings = ["error"]
 
 [tool.coverage.run]
 source = ["polarbearings"]
-# Branch coverage (not just line): a version-gated `if` that only ever takes one
-# arc on a given Polars version is flagged as a partial branch, so the 100% gate
-# can only be met by exercising both arcs — which `just test-cov` / the CI coverage
-# job do by combining a floor run with a 1.36+ run (see those for the rationale).
+# Branch coverage: a version-gated `if` taking one arc on a given Polars version reads as
+# partial, so the 100% gate needs both arcs (floor + 1.36 runs; see `just test-cov`).
 branch = true
 
 [tool.coverage.report]
 omit = ["tests/*", "benchmarks/*"]
-# Single source of truth for the coverage gate: CI and `just test-cov` both fail
-# below 100%. Reaching 100% requires combining a floor (polars 1.0.0) run with a
-# 1.36+ run so the version-gated fast paths (e.g. ECE/MCE over-in-agg >=1.36)
-# execute on both sides — no `# pragma: no cover` needed.
+# 100% gate (CI + `just test-cov`); needs a floor + 1.36 run combined for version-gated paths.
 fail_under = 100
 
 [tool.mutmut]
@@ -261,19 +216,11 @@ paths_to_mutate = ["src/polarbearings/"]
 tests_dir = ["tests/"]
 # Skip the slow property-based tests during mutation runs.
 pytest_add_cli_args = ["-m", "not hypothesis"]
-#
-# CAVEAT — mutmut full-runs are unreliable on this project. mutmut 3.x runs each
-# mutant's tests with an in-process pytest inside a per-mutant os.fork() with no
-# exec (it ignores `test_command`). Polars' rayon engine is fork-unsafe, so a
-# forked child that runs any parallel op (sort, cum_sum, group_by, …) deadlocks
-# and is killed as a spurious "timeout". Timeouts count as "caught", so they can
-# mask a genuine survivor whose covering test happens to use such an op. There is
-# no mutmut option to change this (the fork is hardcoded; --max-children only sets
-# concurrency and a single forked child still deadlocks).
-#
-# SOURCE OF TRUTH for whether a mutant is killed: activate it via the trampoline
-# and run pytest as a normal subprocess (no fork, no deadlock), e.g. from mutants/:
+# CAVEAT — mutmut 3.x forks per mutant (ignoring test_command); Polars' rayon engine is
+# fork-unsafe, so any parallel op deadlocks and is killed as a spurious "timeout" — which
+# counts as "caught" and can mask a genuine survivor. There's no option to disable the fork.
+# SOURCE OF TRUTH: activate a mutant via the trampoline and run pytest as a subprocess (no
+# fork), e.g. from mutants/:
 #   MUTANT_UNDER_TEST=polarbearings.<module>.<mutant> \
 #     PYTHONPATH=src ../.venv/bin/python -m pytest tests/ -m 'not hypothesis'
-# Nonzero exit == killed. Use mutmut to ENUMERATE survivor candidates, then
-# confirm each with this method. See docs/guides/TESTING.md.
+# Nonzero exit == killed. Use mutmut only to ENUMERATE candidates. See docs/guides/TESTING.md.

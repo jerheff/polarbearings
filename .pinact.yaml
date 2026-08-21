@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/suzuki-shunsuke/pinact/refs/heads/main/json-schema/pinact.json
+# pinact — pins GitHub Actions in .github/workflows to immutable commit SHAs.
+# `just autoupdate` runs `pinact run --update` to bump every action to its latest release
+# and re-pin it. See https://github.com/suzuki-shunsuke/pinact
+version: 3
+
+# Release-age cooldown: `--update` will not adopt a tag younger than this many days, so a
+# freshly cut (possibly broken or compromised) action release isn't pinned on day 0. It
+# gates which version is selected, not just an audit — pinact logs "skip tag due to
+# cooldown" and keeps the current pin when nothing older qualifies.
+min_age:
+  value: 7
+
+# Match the existing `@<sha> # <tag>` style already in the workflows (single spaces),
+# so re-pinning doesn't reformat every line.
+separator: " # "

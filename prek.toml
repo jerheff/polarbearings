@@ -1,6 +1,10 @@
+[update]
+freeze = true
+cooldown_days = 7
+
 [[repos]]
 repo = "https://github.com/astral-sh/ruff-pre-commit"
-rev = "7c55798a78262d14b2074abf623d8a992ebb70d4"  # frozen: v0.16.2
+rev = "65dbdb59d2f2d9c3bdc343c566821ad3319ddaa3"  # frozen: v0.16.3
 hooks = [
   { id = "ruff-check", args = ["--fix"] },
   # ruff 0.16 formats Python code blocks inside Markdown, but the upstream hook's
@@ -12,14 +16,14 @@ hooks = [
 
 [[repos]]
 repo = "https://github.com/astral-sh/ty-pre-commit"
-rev = "a4405bd34b6505ed51226ba2a5b5428625177d6a"  # frozen: v0.0.69
+rev = "757b1b0ee6dce6b1541bbe70218055b62aaeb051"  # frozen: v0.0.72
 hooks = [
   { id = "ty" },
 ]
 
 [[repos]]
 repo = "https://github.com/astral-sh/uv-pre-commit"
-rev = "e3e6ef7d9bda544b2e795782dbd7d2a4fbd7eb6d"  # frozen: 0.11.32
+rev = "b84c4a0a90bd58c7d82ae8f0d4d5e77b1ddd3ce6"  # frozen: 0.12.5
 hooks = [
   # Fail if uv.lock is out of sync with pyproject.toml (we commit the lock).
   { id = "uv-lock" },

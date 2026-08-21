@@ -212,29 +212,42 @@ mutant:
 # coverage gate, compat matrix, test-highest, or test-memory; run those for the rest)
 check: quality doctest test
 
-# Report available updates: pyproject deps, prek hooks, and pinned GitHub Actions
-outdated:
+# Apply all available maintenance upgrades in one shot: refresh prek hooks (prek.toml),
+# re-pin GitHub Actions to their latest release (pinact, .github/workflows/), and raise
+# every dev-dependency floor to its newest release (pyproject.toml) — then re-lock with a
+# transitive sweep (uv.lock). Every step honors a release-age cooldown so nothing just
+# published is adopted, each configured in its own tool: prek's `update.cooldown_days`,
+# pinact's `min_age`, and uv's `[tool.uv] exclude-newer` (which also gates the floors —
+# see below). polars is the SOLE runtime dep and is deliberately left at its low floor
+# (the only version-support promise the package makes); nothing else is held low. This
+# MUTATES the tree — review `git diff`, then run `just check` && `just docs-build` first.
+autoupdate:
     #!/usr/bin/env bash
     set -uo pipefail
-    echo "── pyproject.toml dependencies (vs current venv) ─────────"
-    echo "   note: polars/numpy/scikit-learn floors are pinned LOW on purpose"
-    uv pip list --outdated || true
-    echo
     echo "── prek hooks (prek.toml) ────────────────────────────────"
-    prek autoupdate --dry-run || true
+    # freeze + cooldown_days come from the [update] table in prek.toml.
+    prek autoupdate || echo "   (prek autoupdate failed; skipped)"
     echo
-    echo "── GitHub Actions (.github/workflows) ────────────────────"
-    grep -rhoE 'uses: [^ ]+@[a-f0-9]{40} # \S+' .github/workflows/ \
-      | sed 's/.*uses: //' | sort -u \
-      | while read -r ref _ pinned; do
-          repo="${ref%@*}"
-          latest=$(gh api "repos/$repo/releases/latest" --jq .tag_name 2>/dev/null || echo "?")
-          if [ "$latest" = "$pinned" ] || [ "$latest" = "?" ]; then
-            printf '   %-26s %s\n' "$repo" "$pinned"
-          else
-            printf '   %-26s %s → %s\n' "$repo" "$pinned" "$latest"
-          fi
-        done
+    echo "── GitHub Actions (pinact, .github/workflows) ────────────"
+    # pinact re-pins every action to its latest release SHA; min_age (in .pinact.yaml)
+    # applies the cooldown. Needs a token for the GitHub API (release dates + SHAs).
+    if command -v pinact >/dev/null; then
+        GITHUB_TOKEN="$(gh auth token)" pinact run --update || echo "   (pinact failed; skipped)"
+    else
+        echo "   (pinact not installed — run 'brew install pinact'; skipped)"
+    fi
+    echo
+    echo "── dev dependency floors (pyproject.toml) ────────────────"
+    # The floor script resolves each dep at highest via `uv pip compile` (which honors
+    # `[tool.uv] exclude-newer` + requires-python, and does NOT touch uv.lock) and rewrites
+    # the `>=` floors to match — so every floor stays inside the cooldown the re-lock then
+    # enforces. uv owns the version policy; the script only does the in-place TOML edit.
+    uv run --quiet --frozen --no-sync python scripts/bump_dev_floors.py
+    uv lock --quiet --upgrade \
+      || { echo "   re-lock FAILED — new floors may not resolve together; revert pyproject.toml"; exit 1; }
+    uv sync --quiet
+    echo
+    echo "✓ autoupdate complete — review 'git diff', then: just check && just docs-build"
 
 # Clean up cache files and artifacts
 clean:
