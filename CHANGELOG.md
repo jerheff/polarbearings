@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.1](https://github.com/jerheff/polarbearings/compare/v0.3.0...v0.3.1) (2026-08-29)
+
+
+### Miscellaneous Chores
+
+* add `just autoupdate` maintenance target with release-age cooldowns ([#37](https://github.com/jerheff/polarbearings/issues/37)) ([1938aaa](https://github.com/jerheff/polarbearings/commit/1938aaaecddfee201f15a4cc8adcb3f3c204d95c))
+* **deps:** autoupdate tooling — ruff 0.16.4, ty 0.0.74, dev floors + relock ([#39](https://github.com/jerheff/polarbearings/issues/39)) ([2b77e6e](https://github.com/jerheff/polarbearings/commit/2b77e6efc9a81bbe85d5e9738609d1b5c897f1f1))
+* **test:** adopt pytest 9 native TOML table, strict mode, importlib ([#40](https://github.com/jerheff/polarbearings/issues/40)) ([6177179](https://github.com/jerheff/polarbearings/commit/61771794e0fd72e766043e2ca4b2b6960acdf799))
+
 ## [0.3.0](https://github.com/jerheff/polarbearings/compare/v0.2.2...v0.3.0) (2026-08-09)
 
 
