@@ -174,14 +174,12 @@ exclude = ["notebooks"]
 [tool.ty.environment]
 python-version = "3.11"
 
-[tool.pytest.ini_options]
+[tool.pytest]
 testpaths = ["tests"]
 python_files = ["test_*.py", "bench_*.py"]
 python_functions = ["test_*"]
-# strict-markers + strict-config: a typo'd marker or unknown key fails loudly.
-addopts = ["--strict-markers", "--strict-config"]
-# An xfail that unexpectedly passes fails the suite, so a fixed-then-rebroken test surfaces.
-xfail_strict = true
+addopts = ["--import-mode=importlib"]
+strict = true
 # Fail if a relied-on plugin is missing (else coverage/ordering/timeouts silently drop).
 # memray excluded (memory-only group); sybil hooks in via conftest, not as a plugin.
 required_plugins = [
