@@ -26,7 +26,7 @@ jobs:
       polars-recent: ${{ steps.set.outputs.polars-recent }}
     steps:
       - id: set
-        run: echo "polars-recent=1.43.2" >> "$GITHUB_OUTPUT"
+        run: echo "polars-recent=1.44.2" >> "$GITHUB_OUTPUT"
 
   test:
     name: Lower bounds — Py ${{ matrix.python-version }} / Polars ${{ matrix.polars-version }}

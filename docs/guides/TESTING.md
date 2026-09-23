@@ -49,7 +49,8 @@ just test-polars 1.0.0
 ### Supported Polars Versions
 
 - **Minimum**: 1.0.0
-- **CI matrix**: Polars 1.0.0, 1.24.0, 1.42.0 (floor / ~1yr old / latest) × Python
+- **CI matrix**: Polars 1.0.0, 1.24.0, and the latest release (floor / ~1yr old / latest;
+  the recent pin lives in `.github/workflows/test.yml`'s `config` job) × Python
   3.11–3.14
 
 ## Continuous Integration

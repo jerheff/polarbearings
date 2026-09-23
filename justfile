@@ -15,7 +15,7 @@ bench_flags := "--benchmark-only --benchmark-warmup=on --benchmark-disable-gc " 
 
 # The "recent" Polars leg used by test-compat / coverage / memray / bench recipes.
 # Single source of truth — bump here to move the latest tested version.
-polars_recent := "1.43.2"
+polars_recent := "1.44.2"
 
 # List all available commands
 default:
