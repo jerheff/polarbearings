@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Weekly run even when the repo is idle: test-highest picks up new Polars releases
+  # (exempt from the uv cooldown), and every job picks up the newest uv (`latest`),
+  # so upstream breakage surfaces within a week instead of on the next PR.
+  schedule:
+    - cron: "0 9 * * 1" # Mondays 09:00 UTC
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -26,7 +32,7 @@ jobs:
       polars-recent: ${{ steps.set.outputs.polars-recent }}
     steps:
       - id: set
-        run: echo "polars-recent=1.43.2" >> "$GITHUB_OUTPUT"
+        run: echo "polars-recent=2.1.0" >> "$GITHUB_OUTPUT"
 
   test:
     name: Lower bounds — Py ${{ matrix.python-version }} / Polars ${{ matrix.polars-version }}
@@ -38,10 +44,12 @@ jobs:
       fail-fast: false
       matrix:
         # Dev deps resolve to their floors (lowest-direct, the repo default).
-        # Polars is then pinned across its supported range: floor, ~1yr old, recent
-        # (recent from the `config` job's single-source output).
+        # Polars is then pinned across its supported range: floor, mid-1.x, the last
+        # 1.x release (most users' pin across the 2.0 break), and recent (from the
+        # `config` job's single-source output).
         python-version: ["3.11", "3.14"]
-        polars-version: ["1.0.0", "1.24.0", "${{ needs.config.outputs.polars-recent }}"]
+        polars-version:
+          ["1.0.0", "1.24.0", "1.44.2", "${{ needs.config.outputs.polars-recent }}"]
         include:
           - python-version: "3.12"
             polars-version: "1.0.0"
@@ -138,12 +146,14 @@ jobs:
       # so the version-gated fast paths (e.g. ECE/MCE over-in-agg >=1.36) execute on
       # both arcs — no `# pragma: no cover` needed.
       # Both legs run in this one job/checkout so coverage paths align for combine.
+      # `python -m coverage`, not the bare script: since uv 0.13 a venv console
+      # script runs on the venv's interpreter and never sees the `--with` overlay.
       - name: Coverage gate (combined floor + 1.36+, branch, 100%)
         env:
           POLARS_RECENT: ${{ needs.config.outputs.polars-recent }}
         run: |
-          uv run --with 'polars==1.0.0' coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
-          uv run --with "polars==$POLARS_RECENT" coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
+          uv run --with 'polars==1.0.0' python -m coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
+          uv run --with "polars==$POLARS_RECENT" python -m coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
           uv run coverage combine
           uv run coverage report --show-missing
 
