@@ -25,11 +25,16 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Scientific/Engineering",
     "Typing :: Typed",
 ]
 dependencies = [
     "polars>=1.0.0",
+    # No polars 1.x works on Python 3.15: its Series method dispatch tests a code object's
+    # co_consts for `(docstring, None)`, and 3.15 dropped the trailing None, so docstring-only
+    # methods (`unique`, `len`, `any`, ...) silently return None — wrong metrics, no error.
+    "polars>=2.0.0; python_version >= '3.15'",
 ]
 
 [project.urls]
@@ -59,7 +64,12 @@ dev = [
     "mutmut>=3.7.0",
     # 2.4.6 is the last numpy supporting Python 3.11; don't bump past it while we support 3.11.
     "numpy>=2.4.6",
-    "scikit-learn>=1.9",
+    # Python 3.15 needs the first releases shipping cp315 wheels — numpy 2.5.2 and scipy
+    # 1.18.1 (scikit-learn's dep) — which also dropped 3.11, so one floor can't span the
+    # range; without these, lowest-direct sends 3.15 to a from-source (Fortran) build.
+    "numpy>=2.5.2; python_version >= '3.15'",
+    "scipy>=1.18.1; python_version >= '3.15'",
+    "scikit-learn>=1.9.1",
 ]
 # Docs site toolchain. A dependency-group (not an extra) keeps it out of the wheel metadata;
 # Read the Docs installs it via `uv sync --group docs`.
@@ -78,7 +88,7 @@ notebooks = [
     "nbconvert>=7.17.1",
     "ipykernel>=7.3",
 ]
-# Per-test memory ceilings for the CI "Memory limits" job. Out of `dev` so the 3.11-3.14
+# Per-test memory ceilings for the CI "Memory limits" job. Out of `dev` so the 3.11-3.15
 # matrix skips it (memray is Linux/macOS only).
 memory = [
     "pytest-memray>=1.10.0",

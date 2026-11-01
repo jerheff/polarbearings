@@ -12,7 +12,7 @@ Polarbearings is a high-performance machine learning metrics library implemented
   CIs, deterministic data splitting, and threshold/class-weight utilities
 - Thoroughly tested against scikit-learn with property-based testing
 - Full type hints, checked with ty
-- Supports Polars 1.0.0+
+- Supports Polars 1.0.0+ (2.0.0+ on Python 3.15, where no Polars 1.x works)
 
 ## Quick Commands
 
@@ -160,7 +160,8 @@ forward is *in keeping with* the strategy, not a departure from it:
   focused lock diff; use `--upgrade` when you're intentionally refreshing transitives.
 
 **Floor policy:**
-- Only `polars` keeps a **low** floor (1.0.0) on purpose: it is the package's
+- Only `polars` keeps a **low** floor (1.0.0) on purpose (plus a `>=2.0.0` floor for
+  Python 3.15+, where every polars 1.x is broken): it is the package's
   *sole* runtime dependency, so its floor is the *only* version-support promise we
   make.
 - **Everything else is dev-only and keeps a current floor** so `lowest-direct`

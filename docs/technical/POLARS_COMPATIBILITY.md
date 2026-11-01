@@ -5,7 +5,7 @@ description: Polars version support for polarbearings — minimum 1.0.0, the sta
 
 ## Current Requirements
 
-**Minimum Polars Version**: `1.0.0`
+**Minimum Polars Version**: `1.0.0` — `2.0.0` on Python 3.15+ (see Python 3.15 below)
 **CI Tested Versions**: `1.0.0` (floor), `1.24.0` (mid-1.x), `1.44.2` (last 1.x), and the recent release (`2.1.0`); a weekly run also tests the newest Polars release, which is exempt from the dependency cooldown
 
 ## Syntax Compatibility Analysis
@@ -54,6 +54,18 @@ matter:
   engine sums in parallel chunks, so e.g. a `calibration_curve` per-bin mean can
   vary by ~1 ulp from one `collect()` to the next. Compare float results with a
   tolerance (`polars.testing.assert_frame_equal`), not `.equals`.
+
+### Python 3.15
+
+**No Polars 1.x release works on Python 3.15**, up to and including 1.44.2. Polars 1.x
+builds many `Series` methods by dispatching docstring-only stubs to their `Expr`
+implementation, and recognizes a stub by its code object: `co_consts` must be
+`(docstring, None)`. Python 3.15 no longer stores that trailing `None`, so the stubs
+are never wired up — `Series.unique()`, `.len()`, `.any()` and friends silently
+return `None`. polarbearings' eager helpers then crash or, worse, return wrong
+numbers with no error. Polars 2.0 dropped the mechanism, so `pyproject.toml` declares
+`polars>=2.0.0; python_version >= '3.15'` and CI tests 3.15 against 2.0.0 and the
+recent release.
 
 ### Version-gated fast paths (feature-detected)
 
