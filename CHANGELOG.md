@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/jerheff/polarbearings/compare/v0.3.1...v0.4.0) (2026-11-01)
+
+
+### Features
+
+* support Python 3.15 (with polars&gt;=2.0 there) ([#42](https://github.com/jerheff/polarbearings/issues/42)) ([91f185c](https://github.com/jerheff/polarbearings/commit/91f185ca6fbb10663f2e03a4ff5c57f7c8df82fe))
+
+
+### Continuous Integration
+
+* **release:** sign PEP 740 attestations before every uv publish ([#44](https://github.com/jerheff/polarbearings/issues/44)) ([69fd4a8](https://github.com/jerheff/polarbearings/commit/69fd4a874bca53154027fc2229e20e379053ab70))
+
 ## [0.3.1](https://github.com/jerheff/polarbearings/compare/v0.3.0...v0.3.1) (2026-11-01)
 
 
