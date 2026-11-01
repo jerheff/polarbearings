@@ -1,12 +1,12 @@
 ---
-description: Polars version support for polarbearings — minimum 1.0.0, the stable expression APIs it relies on, and the CI-tested floor, mid, and latest releases.
+description: Polars version support for polarbearings — minimum 1.0.0, the stable expression APIs it relies on, and the CI-tested floor, mid, last-1.x, and recent releases.
 ---
 # Polars Version Compatibility
 
 ## Current Requirements
 
 **Minimum Polars Version**: `1.0.0`
-**CI Tested Versions**: `1.0.0` (floor), `1.24.0` (~1yr old), and the latest release
+**CI Tested Versions**: `1.0.0` (floor), `1.24.0` (mid-1.x), `1.44.2` (last 1.x), and the recent release (`2.1.0`); a weekly run also tests the newest Polars release, which is exempt from the dependency cooldown
 
 ## Syntax Compatibility Analysis
 
@@ -35,6 +35,26 @@ After reviewing Polars 1.0 breaking changes, **none affect our implementation**:
 - No DataFrame constructor orientation issues
 - No `cut`/`qcut` usage
 
+### Polars 2.0
+
+None of 2.0's API removals (e.g. `collect(no_optimization=...)`) or deprecations
+(`cut`/`qcut`) touch `src/`, and results are unchanged. Two *behavior* changes
+matter:
+
+- **`LazyFrame.collect()` defaults to the streaming engine** (`engine="auto"` fell
+  back to in-memory on 1.x). Streaming runs many hashed `int_range(0, pl.len())`
+  expressions in one `select` in quadratic time, which made `bootstrap_ci` ~400x
+  slower at 40 replicates — minutes at the default `n_resamples=200`.
+  `bootstrap_ci` now hashes a materialized `with_row_index` column instead:
+  identical replicate weights, linear time on every version. When composing
+  `bootstrap()` / `bootstrap_weight()` into your own *lazy* query, pass `row_index=`
+  / `id_col=` such a column for the same reason. An eager `DataFrame.select` is
+  unaffected.
+- **Float aggregations can differ in the last bit between runs.** The streaming
+  engine sums in parallel chunks, so e.g. a `calibration_curve` per-bin mean can
+  vary by ~1 ulp from one `collect()` to the next. Compare float results with a
+  tolerance (`polars.testing.assert_frame_equal`), not `.equals`.
+
 ### Version-gated fast paths (feature-detected)
 
 Everything works on `polars>=1.0.0`. One hot path additionally detects a newer
@@ -58,7 +78,7 @@ We support `polars>=1.0.0` because:
 1. All our methods are stable since Polars 1.0
 2. No breaking changes affect us
 3. This widens the user base without adding complexity
-4. CI tests verify compatibility against the floor (1.0.0), a ~1-year-old release, and the latest release
+4. CI tests verify compatibility against the floor (1.0.0), a mid-1.x release, the last 1.x release, and the recent 2.x release
 
 ## Testing Compatibility
 
@@ -74,5 +94,6 @@ just test-polars 1.0.0
 
 - Our code uses modern, stable Polars syntax
 - No deprecated methods
-- No breaking changes from Polars 1.0+ affect us
-- Safe to support Polars `>=1.0.0`
+- No breaking changes from Polars 1.0+ affect us; 2.0's streaming default needed
+  one `bootstrap_ci` performance fix (see Polars 2.0 above)
+- Safe to support Polars `>=1.0.0`, including 2.x

@@ -87,7 +87,7 @@ All metrics are implemented as Polars expressions that:
 - Unit tests for basic functionality
 - Property-based tests with Hypothesis for random data
 - Compatibility tests against scikit-learn
-- Multi-version Polars compatibility tests (floor 1.0.0, ~1yr old, and latest — the recent pin lives in `.github/workflows/test.yml`'s `config` job)
+- Multi-version Polars compatibility tests (floor 1.0.0, mid-1.x 1.24.0, last-1.x 1.44.2, and recent — the recent pin lives in `.github/workflows/test.yml`'s `config` job)
 
 ## Important Files
 

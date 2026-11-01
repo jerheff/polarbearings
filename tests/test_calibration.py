@@ -7,6 +7,7 @@ import polars as pl
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
+from polars.testing import assert_frame_equal
 from sklearn.calibration import calibration_curve as sk_cc
 
 from polarbearings import expected_calibration_error, maximum_calibration_error
@@ -126,7 +127,11 @@ class TestMissing:
         )  # null-p, nan-p, null-target rows dropped -> same as clean
         a = calibration_curve(clean, "y", "p", n_bins=3)
         b = calibration_curve(dirty, "y", "p", n_bins=3)
-        assert a.equals(b)
+        # Tolerant, not `.equals`: the per-bin means are float sums, which Polars 2.0's
+        # default streaming engine accumulates in parallel chunks — reruns of one
+        # query can differ in the last bit. (Default tolerances: their kwarg names
+        # changed across the supported Polars range.)
+        assert_frame_equal(a, b)
 
 
 class TestExprColumns:
@@ -134,7 +139,7 @@ class TestExprColumns:
         _, _, df = _make(0)
         a = calibration_curve(df, "y", "p", n_bins=5)
         b = calibration_curve(df, pl.col("y"), pl.col("p"), n_bins=5)
-        assert a.equals(b)
+        assert_frame_equal(a, b)
 
 
 class TestLazy:
@@ -147,7 +152,7 @@ class TestLazy:
         lazy = _calibration_curve(df.lazy(), "y", "p", n_bins=5, strategy="quantile")
         assert isinstance(lazy, pl.LazyFrame)
         eager = _calibration_curve(df, "y", "p", n_bins=5, strategy="quantile")
-        assert lazy.collect().equals(eager.collect())
+        assert_frame_equal(lazy.collect(), eager.collect())
 
 
 class TestByGroup:

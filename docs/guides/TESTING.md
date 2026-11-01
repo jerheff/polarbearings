@@ -39,7 +39,7 @@ uv run pytest --cov=src/polarbearings --cov-report=term-missing tests/
 Use the `just test-polars` and `just test-compat` commands:
 
 ```bash
-# Test against min, ~1 year old, and latest Polars versions
+# Test against the CI matrix: floor, mid-1.x, last 1.x, and recent Polars
 just test-compat
 
 # Test a specific version
@@ -49,7 +49,7 @@ just test-polars 1.0.0
 ### Supported Polars Versions
 
 - **Minimum**: 1.0.0
-- **CI matrix**: Polars 1.0.0, 1.24.0, 1.42.0 (floor / ~1yr old / latest) × Python
+- **CI matrix**: Polars 1.0.0, 1.24.0, 1.44.2, 2.1.0 (floor / mid-1.x / last 1.x / recent) × Python
   3.11–3.14
 
 ## Continuous Integration

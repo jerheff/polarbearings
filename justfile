@@ -14,8 +14,8 @@ bench_flags := "--benchmark-only --benchmark-warmup=on --benchmark-disable-gc " 
     "--benchmark-columns=median,iqr,ops,rounds --benchmark-sort=name --benchmark-group-by=group"
 
 # The "recent" Polars leg used by test-compat / coverage / memray / bench recipes.
-# Single source of truth — bump here to move the latest tested version.
-polars_recent := "1.43.2"
+# Read from the CI `config` job — the single source of truth; bump it there.
+polars_recent := `sed -n 's/.*polars-recent=\([0-9.]*\).*/\1/p' .github/workflows/test.yml`
 
 # List all available commands
 default:
@@ -55,14 +55,18 @@ doctest:
 test-thorough:
     uv run pytest tests/ -m hypothesis --hypothesis-profile=thorough -q
 
-# Test against a specific Polars version (uses ephemeral overlay, venv unchanged)
+# Test against a specific Polars version (uses ephemeral overlay, venv unchanged).
+# Every `--with polars==X` recipe runs `python -m pytest` / `python -m coverage`, never
+# the bare console script: since uv 0.13 a venv script runs on the venv's own
+# interpreter and never sees the overlay — it silently tests the locked polars 1.0.0.
 test-polars version:
-    uv run --with polars=={{version}} pytest tests/ -q --tb=short
+    uv run --with polars=={{version}} python -m pytest tests/ -q --tb=short
 
-# Test against min, ~1 year old, and latest Polars versions
+# Test against the CI matrix's Polars legs: floor, mid-1.x, last 1.x, and recent
 test-compat:
     just test-polars 1.0.0
     just test-polars 1.24.0
+    just test-polars 1.44.2
     just test-polars {{polars_recent}}
 
 # Thorough LOCAL Polars sweep (not a CI gate): every minor from the last 12 months,
@@ -79,7 +83,7 @@ test-sweep recent_days="365" older_cadence="365":
     fail=0; summary=""
     for v in $versions; do
         printf '\n========== polars %s ==========\n' "$v"
-        if uv run --quiet --with "polars==$v" pytest tests/ -q; then
+        if uv run --quiet --with "polars==$v" python -m pytest tests/ -q; then
             summary+="  PASS  $v"$'\n'
         else
             summary+="  FAIL  $v"$'\n'; fail=1
@@ -134,8 +138,8 @@ publish: build
 # matrix's latest. `coverage report` enforces fail_under.
 test-cov:
     rm -f .coverage .coverage.*
-    uv run --with polars==1.0.0 coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
-    uv run --with polars=={{polars_recent}} coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
+    uv run --with polars==1.0.0 python -m coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
+    uv run --with polars=={{polars_recent}} python -m coverage run --parallel-mode -m pytest -m 'not hypothesis' -q
     uv run coverage combine
     uv run coverage report --show-missing
 
@@ -143,7 +147,7 @@ test-cov:
 # recent Polars where the memory pathologies show up. Mirrors the CI memory-limits job.
 test-memory:
     uv sync --group memory
-    uv run --with polars=={{polars_recent}} pytest -m 'not hypothesis' --memray -q
+    uv run --with polars=={{polars_recent}} python -m pytest -m 'not hypothesis' --memray -q
 
 # Cap the size sweep with BENCH_MAX_N (e.g. `BENCH_MAX_N=100000 just bench`).
 # Run performance benchmarks against the current/dev env
@@ -154,7 +158,7 @@ bench:
 # is a true ceteris-paribus comparison. Saves the run under .benchmarks/.
 # Benchmark against a specific Polars version
 bench-polars version:
-    uv run --with polars=={{version}} pytest benchmarks/ {{ bench_flags }} \
+    uv run --with polars=={{version}} python -m pytest benchmarks/ {{ bench_flags }} \
         --benchmark-save=polars_{{ replace(version, ".", "_") }}
 
 # Runs floor vs latest with ONLY polars changing, then diffs the two runs.

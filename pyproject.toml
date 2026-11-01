@@ -96,6 +96,16 @@ resolution = "lowest-direct"
 # floors `just autoupdate` picks. prek/pinact carry matching cooldowns in their own config.
 exclude-newer = "7 days"
 
+# Polars is exempt from the cooldown: it is the one dependency we make a support promise for, so a
+# new release must be testable (test-highest, `just test-polars X`) the day it ships, not a week
+# later. The runtime wheels are listed too — since 1.34 `polars` is a meta-package pinning
+# `polars-runtime-*==<same version>`, which the cooldown would otherwise still hold back.
+[tool.uv.exclude-newer-package]
+polars = false
+polars-runtime-32 = false
+polars-runtime-64 = false
+polars-runtime-compat = false
+
 # uv's native PEP 517 backend; also ship tests/ in the sdist for downstream packagers.
 [tool.uv.build-backend]
 source-include = ["tests/**"]

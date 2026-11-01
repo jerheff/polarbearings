@@ -59,6 +59,9 @@ _POISSON1_CDF: Final = tuple(
 # id (the Box-Muller normal behind the Gamma draw for frequency weights).
 _NORMAL_SALT: Final = 0x9E3779B1
 _TWO_PI: Final = 2.0 * math.pi
+# Materialized row index the whole-result helpers hash for the replicate weights in
+# place of a positional ``int_range`` (see bootstrap_ci and _bootstrap_ci_by).
+_ROW_INDEX: Final = "__pb_row_index"
 
 
 class BootstrapCI(TypedDict):
@@ -277,10 +280,13 @@ def bootstrap(
         n_resamples: Number of bootstrap replicates (B).
         seed: Base seed; replicate ``b`` uses ``seed + b``.
         row_index: Optional column holding a stable per-row index to hash for the
-            weights. Leave None in a whole-frame ``select``; set it (to a column
-            added via ``with_row_index``) when bootstrapping inside ``group_by``,
-            where ``int_range`` is unstable on some Polars versions. The
-            :func:`bootstrap_ci` ``by=`` path sets this automatically.
+            weights. None hashes the positional ``int_range``, which is fine in an
+            eager ``DataFrame.select``. Set it (to a column added via
+            ``with_row_index``) when bootstrapping inside ``group_by``, where
+            ``int_range`` is unstable on some Polars versions, and for a lazy query
+            on Polars 2.0+, whose default streaming engine runs ``n_resamples``
+            ``int_range`` replicates in quadratic time. Same weights either way.
+            :func:`bootstrap_ci` sets this automatically.
         **metric_kwargs: Extra keyword arguments forwarded to ``metric`` (e.g.
             ``threshold``, ``beta``, ``pos_label``).
 
@@ -376,8 +382,7 @@ def _bootstrap_ci_by(
     a DataFrame anyway.
     """
     keys = list(by)
-    ridx = "__pb_row_index"
-    framed = data.lazy().with_row_index(ridx)
+    framed = data.lazy().with_row_index(_ROW_INDEX)
     estimate = metric(*cols, weight=weight, **metric_kwargs)
     # Hash a materialized row index for the weights (int_range is unstable in agg
     # on some Polars versions); see _boot_weight.
@@ -387,7 +392,7 @@ def _bootstrap_ci_by(
         weight=weight,
         n_resamples=n_resamples,
         seed=seed,
-        row_index=ridx,
+        row_index=_ROW_INDEX,
         **metric_kwargs,
     )
     # Generate the per-group distribution as a list column and materialize it, then
@@ -508,8 +513,13 @@ def bootstrap_ci(
         return _bootstrap_ci_by(
             data, metric, cols, weight, n_resamples, level, method, keys, seed, metric_kwargs
         )
+    # Hash a materialized row index, not the positional int_range: Polars 2.0's
+    # default (streaming) engine runs B hashed int_range replicates in O(B^2) time
+    # (~400x slower at B=40). hash_uniform keys on the integer value, so the
+    # replicate weights — and the interval — are identical either way.
     materialized = (
         data.lazy()
+        .with_row_index(_ROW_INDEX)
         .select(
             bootstrap(
                 metric,
@@ -517,7 +527,7 @@ def bootstrap_ci(
                 weight=weight,
                 n_resamples=n_resamples,
                 seed=seed,
-                row_index=None,
+                row_index=_ROW_INDEX,
                 **metric_kwargs,
             ).alias("_dist"),
             metric(*cols, weight=weight, **metric_kwargs).alias("_estimate"),
