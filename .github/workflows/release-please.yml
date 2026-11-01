@@ -16,6 +16,11 @@ name: Release Please
 #      artifacts to real PyPI, gated behind the `pypi` environment's required
 #      reviewer (manual approval).
 #
+# Every publish job signs PEP 740 attestations right before `uv publish` (which
+# uploads them but cannot create them), so each file shows its provenance — this
+# workflow, commit, and run — on PyPI/TestPyPI. Signing the TestPyPI jobs too means
+# each release-PR update exercises the attestation path before a real release.
+#
 # Why the publish steps live in THIS workflow (not a separate `on: release` /
 # `on: push` one): release-please pushes with the default GITHUB_TOKEN, and
 # GITHUB_TOKEN-authored events do not trigger other workflows. Gating jobs on the
@@ -133,6 +138,9 @@ jobs:
 
       - name: Validate package metadata
         run: uvx twine check dist/*
+
+      - name: Sign PEP 740 attestations
+        uses: astral-sh/attest-action@39b6ce43875c196a579e31635b11aa2a2036384a # v0.0.7
 
       - name: Publish to TestPyPI (trusted publishing)
         run: >
@@ -255,6 +263,9 @@ jobs:
           name: release-dist
           path: dist/
 
+      - name: Sign PEP 740 attestations
+        uses: astral-sh/attest-action@39b6ce43875c196a579e31635b11aa2a2036384a # v0.0.7
+
       - name: Publish to TestPyPI (trusted publishing)
         run: >
           uv publish
@@ -279,9 +290,9 @@ jobs:
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "latest"
-          # This job has no repo checkout and installs no dependencies — it only
-          # runs `uv publish` on pre-built artifacts. Skip the cache (nothing to
-          # key on) and silence the empty-workdir warning.
+          # This job has no repo checkout and installs none of the project's
+          # dependencies — it only signs and publishes pre-built artifacts. Skip the
+          # cache (nothing to key on) and silence the empty-workdir warning.
           enable-cache: false
           ignore-empty-workdir: true
 
@@ -290,6 +301,12 @@ jobs:
         with:
           name: release-dist
           path: dist/
+
+      # Signs each file with this job's OIDC identity (the workflow + `pypi`
+      # environment PyPI's trusted publisher already checks), writing
+      # `<file>.publish.attestation` next to it for `uv publish` to upload.
+      - name: Sign PEP 740 attestations
+        uses: astral-sh/attest-action@39b6ce43875c196a579e31635b11aa2a2036384a # v0.0.7
 
       - name: Publish to PyPI (trusted publishing)
         # No --index → real PyPI (upload.pypi.org). Publishes the exact artifacts
