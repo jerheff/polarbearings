@@ -50,7 +50,8 @@ just test-polars 1.0.0
 
 - **Minimum**: 1.0.0
 - **CI matrix**: Polars 1.0.0, 1.24.0, 1.44.2, 2.1.0 (floor / mid-1.x / last 1.x / recent) × Python
-  3.11–3.14
+  3.11–3.14 (every leg on 3.11 and 3.14; floor + recent on 3.12/3.13), plus Python 3.15 ×
+  Polars 2.0.0 / 2.1.0 (no Polars 1.x works on 3.15)
 
 ## Continuous Integration
 

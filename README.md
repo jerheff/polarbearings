@@ -292,7 +292,7 @@ scikit-learn compatibility tests across multiple Polars versions — see
 ## Requirements
 
 - **Python**: 3.11+
-- **Polars**: 1.0.0+
+- **Polars**: 1.0.0+ (2.0.0+ on Python 3.15, where no Polars 1.x release works)
 
 ## Roadmap
 
