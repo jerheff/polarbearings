@@ -24,7 +24,8 @@ jobs:
   # every job below (incl. the test matrix) references one value. GitHub Actions
   # supports neither YAML anchors nor `env` inside `strategy.matrix`, so a job
   # output consumed via the `needs` context is the one way to keep this in-file
-  # and DRY. Bump the version here and nowhere else.
+  # and DRY. This line is the only place the version lives (the justfile reads it
+  # too), and bump-polars.yml rewrites it automatically when Polars releases.
   config:
     name: Config
     runs-on: ubuntu-latest

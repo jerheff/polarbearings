@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Lets bump-polars.yml run this on its bot-pushed branch (GITHUB_TOKEN pushes don't
+  # trigger push/pull_request workflows; workflow_dispatch is the exception).
+  workflow_dispatch: {}
 
 permissions:
   contents: read

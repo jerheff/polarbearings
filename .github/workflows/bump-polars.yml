@@ -1,0 +1,101 @@
+name: Bump recent Polars
+
+# Keeps the CI's "recent" Polars leg (test.yml's `config` job, `polars-recent=X.Y.Z`)
+# on the newest stable Polars release, replacing the hand-made "ci: bump recent Polars
+# leg" PRs. Weekly, it asks PyPI for the newest stable polars (scripts/bump_polars_recent.py);
+# if that is newer than the pin, it force-pushes a one-line commit to a rolling branch and
+# opens (or retitles) a single PR. A newer release while that PR is still open just moves
+# the same PR forward. Merging stays manual: the PR's CI run is the compat check, and a
+# failing run is the signal that a Polars release broke something.
+#
+# Why the explicit `gh workflow run` dispatches: pushes and PRs made with the default
+# GITHUB_TOKEN do not trigger `push`/`pull_request` workflows, but `workflow_dispatch` is
+# the documented exception. Dispatching Tests/Lint/Build on the bump branch attaches their
+# check runs to the PR's head commit, so the required checks report without a PAT or App.
+#
+# One-time repo setting: Settings → Actions → General → "Allow GitHub Actions to create
+# and approve pull requests" must be on, or `gh pr create` is refused.
+
+on:
+  schedule:
+    - cron: "17 7 * * 1" # Mondays 07:17 UTC (off the hour to dodge the scheduler rush)
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: bump-polars
+  cancel-in-progress: false
+
+env:
+  BRANCH: ci/bump-polars-recent
+
+jobs:
+  bump:
+    name: Bump recent Polars leg
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the bump branch
+      pull-requests: write # open / retitle the bump PR
+      actions: write # dispatch Tests/Lint/Build on the bump branch
+
+    steps:
+      # Credentials persist so the push below can use them; nothing in this job uploads
+      # artifacts or runs untrusted code, which is what artipacked guards against.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true # zizmor: ignore[artipacked]
+
+      # Stdlib-only script on the runner's system Python: no uv/deps needed to edit one line.
+      - name: Resolve newest Polars and rewrite the pin
+        id: bump
+        run: python3 scripts/bump_polars_recent.py
+
+      - name: Push branch, open PR, dispatch CI
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OLD: ${{ steps.bump.outputs.old }}
+          NEW: ${{ steps.bump.outputs.new }}
+        run: |
+          set -euo pipefail
+
+          # Idempotent: if the open bump branch already pins $NEW, there is nothing to do
+          # (no re-push, no duplicate CI run every week while the PR waits for review).
+          if git fetch --quiet origin "$BRANCH" 2>/dev/null \
+             && git show "origin/$BRANCH:.github/workflows/test.yml" | grep -q "polars-recent=$NEW\b"; then
+            echo "$BRANCH already pins $NEW; nothing to do."
+            exit 0
+          fi
+
+          title="ci: bump recent Polars leg $OLD -> $NEW"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git commit --quiet -am "$title"
+          git push --force origin "$BRANCH"
+
+          body=$(cat <<EOF
+          Automated bump of the CI's recent Polars leg (\`test.yml\` → \`config\` job) from
+          \`$OLD\` to \`$NEW\`, the newest stable release on PyPI.
+
+          - Release notes: https://github.com/pola-rs/polars/releases/tag/py-$NEW
+          - Tests, Lint, and Build were dispatched on this branch; their checks show below.
+          - Green → merge. Red → a Polars change touches the library; fix on this branch
+            (the next scheduled run leaves the branch alone while it already pins \`$NEW\`;
+            a newer Polars release resets the branch from main, dropping fix commits).
+
+          Opened by \`.github/workflows/bump-polars.yml\`.
+          EOF
+          )
+
+          pr=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$pr" ]; then
+            gh pr edit "$pr" --title "$title" --body "$body"
+          else
+            gh pr create --base main --head "$BRANCH" --title "$title" --body "$body"
+          fi
+
+          for wf in test.yml lint.yml build.yml; do
+            gh workflow run "$wf" --ref "$BRANCH"
+          done

@@ -14,7 +14,8 @@ bench_flags := "--benchmark-only --benchmark-warmup=on --benchmark-disable-gc " 
     "--benchmark-columns=median,iqr,ops,rounds --benchmark-sort=name --benchmark-group-by=group"
 
 # The "recent" Polars leg used by test-compat / coverage / memray / bench recipes.
-# Read from the CI `config` job — the single source of truth; bump it there.
+# Read from the CI `config` job — the single source of truth. The weekly bump-polars.yml
+# workflow bumps it there automatically; `just bump-polars` does the same edit locally.
 polars_recent := `sed -n 's/.*polars-recent=\([0-9.]*\).*/\1/p' .github/workflows/test.yml`
 
 # List all available commands
@@ -68,6 +69,12 @@ test-compat:
     just test-polars 1.24.0
     just test-polars 1.44.2
     just test-polars {{polars_recent}}
+
+# Bump the CI's recent Polars leg (test.yml `config` job) to the newest stable Polars on
+# PyPI — the same edit the weekly bump-polars.yml workflow makes. Never downgrades; a no-op
+# when already current. Pass `--dry-run` to only report. Then `just test-compat`.
+bump-polars *args:
+    python3 scripts/bump_polars_recent.py {{args}}
 
 # Thorough LOCAL Polars sweep (not a CI gate): every minor from the last 12 months,
 # one per year for older releases, plus the floor — the version list is pulled live

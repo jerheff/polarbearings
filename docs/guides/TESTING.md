@@ -49,9 +49,11 @@ just test-polars 1.0.0
 ### Supported Polars Versions
 
 - **Minimum**: 1.0.0
-- **CI matrix**: Polars 1.0.0, 1.24.0, 1.44.2, 2.1.0 (floor / mid-1.x / last 1.x / recent) × Python
-  3.11–3.14 (every leg on 3.11 and 3.14; floor + recent on 3.12/3.13), plus Python 3.15 ×
-  Polars 2.0.0 / 2.1.0 (no Polars 1.x works on 3.15)
+- **CI matrix**: Polars 1.0.0, 1.24.0, 1.44.2, and recent (floor / mid-1.x / last 1.x / newest
+  stable) × Python 3.11–3.14 (every leg on 3.11 and 3.14; floor + recent on 3.12/3.13), plus
+  Python 3.15 × Polars 2.0.0 / recent (no Polars 1.x works on 3.15). "Recent" is the
+  `polars-recent` pin in `test.yml`'s `config` job; the weekly `bump-polars.yml` workflow opens a
+  PR whenever a newer stable Polars ships (`just bump-polars` does the same edit locally)
 
 ## Continuous Integration
 
