@@ -6,7 +6,7 @@ description: Polars version support for polarbearings — minimum 1.0.0, the sta
 ## Current Requirements
 
 **Minimum Polars Version**: `1.0.0` — `2.0.0` on Python 3.15+ (see Python 3.15 below)
-**CI Tested Versions**: `1.0.0` (floor), `1.24.0` (mid-1.x), `1.44.2` (last 1.x), and the recent release (`2.1.0`); a weekly run also tests the newest Polars release, which is exempt from the dependency cooldown
+**CI Tested Versions**: `1.0.0` (floor), `1.24.0` (mid-1.x), `1.44.2` (last 1.x), and the newest stable release (kept current automatically by the `bump-polars.yml` workflow); a weekly run also tests the newest Polars release, which is exempt from the dependency cooldown
 
 ## Syntax Compatibility Analysis
 
