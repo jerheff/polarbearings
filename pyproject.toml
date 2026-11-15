@@ -134,6 +134,10 @@ line-length = 100
 extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
+# Preview is on only so individually named preview rules (DOC501) can be selected;
+# explicit-preview-rules keeps whole-family selectors (e.g. "RUF") on stable rules.
+preview = true
+explicit-preview-rules = true
 select = [
     "E",    # pycodestyle errors
     "W",    # pycodestyle warnings
@@ -164,6 +168,7 @@ select = [
     "TID",  # flake8-tidy-imports
     "PLE",  # pylint errors
     "PLW",  # pylint warnings
+    "DOC501", # pydoclint: raised exception missing from the docstring's Raises section
 ]
 ignore = [
     "E501",    # line length — handled by the formatter
@@ -193,6 +198,20 @@ exclude = ["notebooks"]
 
 [tool.ty.environment]
 python-version = "3.11"
+
+[tool.ty.terminal]
+# Warning-level diagnostics fail the check too (ty exits 0 on warnings by default).
+error-on-warning = true
+
+[tool.ty.rules]
+# Opt-in: bare generics (`list`, `dict`) in annotations.
+missing-type-argument = "error"
+
+[[tool.ty.overrides]]
+# Opt-in for the shipped package only: an `Any` value must not flow into a precisely
+# annotated return/assignment unchecked. Too noisy for tests/benchmarks (Polars getters).
+include = ["src/**"]
+rules = { unsound-return-statement = "error", unsound-assignment = "error" }
 
 [tool.pytest]
 testpaths = ["tests"]

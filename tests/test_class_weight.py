@@ -10,7 +10,7 @@ from sklearn.utils.class_weight import compute_class_weight, compute_sample_weig
 from polarbearings.class_weight import balanced_class_weights, balanced_sample_weight
 
 
-def _assert_matches_sklearn(labels: list, target: str = "y") -> None:
+def _assert_matches_sklearn(labels: list[int | str], target: str = "y") -> None:
     """Check balanced_sample_weight row-by-row against sklearn."""
     df = pl.DataFrame({target: labels})
     result = df.select(balanced_sample_weight(target)).to_series().to_list()

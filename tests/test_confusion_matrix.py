@@ -20,7 +20,7 @@ from polarbearings import confusion_matrix, precision, quantiles, recall, thresh
 from polarbearings._common import EXPLODE_KW
 
 
-def _cells(df: pl.DataFrame, expr: pl.Expr) -> dict:
+def _cells(df: pl.DataFrame, expr: pl.Expr) -> dict[str, int]:
     """Materialise the struct expression to a plain {tp, fp, fn, tn} dict.
 
     Drops the struct's ``threshold`` field so the cell assertions stay focused on
