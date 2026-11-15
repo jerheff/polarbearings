@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.1](https://github.com/jerheff/polarbearings/compare/v0.4.0...v0.4.1) (2026-11-15)
+
+
+### Documentation
+
+* add a findings log for performance and approach experiments ([#47](https://github.com/jerheff/polarbearings/issues/47)) ([e10034e](https://github.com/jerheff/polarbearings/commit/e10034e925334e391e33a7a2519a386f535c69a5))
+
+
+### Continuous Integration
+
+* automate the recent Polars leg bump ([#45](https://github.com/jerheff/polarbearings/issues/45)) ([2b6fdf4](https://github.com/jerheff/polarbearings/commit/2b6fdf424db7ba9c581d60227059d73fa7bfc523))
+
+
+### Miscellaneous Chores
+
+* **lint:** enforce documented raises and stricter ty checks ([#48](https://github.com/jerheff/polarbearings/issues/48)) ([16a6a83](https://github.com/jerheff/polarbearings/commit/16a6a83c9a0903e310598e61b1c5915047d9de86))
+
 ## [0.4.0](https://github.com/jerheff/polarbearings/compare/v0.3.1...v0.4.0) (2026-11-01)
 
 
