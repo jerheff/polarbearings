@@ -5,6 +5,8 @@ A parking lot for metrics and model-evaluation utilities that fit the
 the scikit-learn analog (where one exists), why it fits, and the main
 implementation wrinkle. Items that ship graduate to the [Shipped since this list was
 written](#shipped-since-this-list-was-written) section at the bottom.
+Performance and approach experiments (tried, measured, adopted or rejected) are
+tracked separately in [FINDINGS.md](FINDINGS.md).
 
 ## Cross-validation fold assignment (partly shipped)
 
