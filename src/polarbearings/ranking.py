@@ -32,6 +32,9 @@ def _validate_k(k: int | None) -> None:
     silently truncate the ranking instead of erroring, and ``k=0`` is meaningless.
     Validating eagerly turns a confusing collect-time ``ComputeError`` (or a silent
     wrong answer) into an immediate, named failure.
+
+    Raises:
+        ValueError: If ``k`` is not None and less than 1.
     """
     if k is not None and k < 1:
         msg = f"k must be a positive integer or None, got {k!r}."

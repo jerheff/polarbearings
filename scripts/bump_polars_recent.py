@@ -39,7 +39,11 @@ def _parse(ver: str) -> Version | None:
 
 
 def latest_stable(releases: dict[str, list[dict[str, object]]]) -> str:
-    """Return the highest stable, not-fully-yanked version in a PyPI ``releases`` map."""
+    """Return the highest stable, not-fully-yanked version in a PyPI ``releases`` map.
+
+    Raises:
+        SystemExit: If no stable, non-yanked release is present.
+    """
     candidates = [
         (pv, ver)
         for ver, files in releases.items()
@@ -60,7 +64,11 @@ def _emit(**outputs: str) -> None:
 
 
 def main() -> None:
-    """Resolve the newest Polars release and rewrite the pin if it is newer."""
+    """Resolve the newest Polars release and rewrite the pin if it is newer.
+
+    Raises:
+        SystemExit: If the workflow does not contain exactly one ``polars-recent`` pin.
+    """
     dry_run = "--dry-run" in sys.argv[1:]
     text = _WORKFLOW.read_text(encoding="utf-8")
     pins = _PIN.findall(text)

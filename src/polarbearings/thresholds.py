@@ -35,7 +35,11 @@ ThresholdsLike: TypeAlias = int | Sequence[float] | ThresholdSpec
 
 
 def _interior_fractions(n: int) -> list[float]:
-    """Return ``n`` evenly spaced fractions strictly inside ``(0, 1)``."""
+    """Return ``n`` evenly spaced fractions strictly inside ``(0, 1)``.
+
+    Raises:
+        ValueError: If ``n < 1``.
+    """
     if n < 1:
         msg = "number of thresholds must be >= 1."
         raise ValueError(msg)
