@@ -16,11 +16,12 @@ edit_uri: edit/main/docs/
 copyright: Copyright &copy; Jeremy Heffner — MIT License
 
 # docs_dir defaults to `docs`. Internal working material is not published: audits,
-# scratch idea dumps, and the raw Polars-release log are excluded from the build
-# entirely (this also suppresses the "not in nav" warning under --strict).
+# scratch idea dumps, the findings log, and the raw Polars-release log are excluded
+# from the build entirely (this also suppresses the "not in nav" warning under --strict).
 exclude_docs: |
   audit-*.md
   FUTURE_IDEAS.md
+  FINDINGS.md
   polars-releases-2025-2026.md
 
 theme:
