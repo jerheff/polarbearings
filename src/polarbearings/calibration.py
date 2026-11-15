@@ -66,9 +66,9 @@ _BINS_MIN_EDGES_MSG = "`bins` must contain at least two edges."
 _NBINS_MIN_MSG = "`n_bins` must be >= 1."
 
 
-def _unknown_strategy_error(strategy: object) -> ValueError:
-    """The shared 'unknown strategy' error for both binning paths."""
-    return ValueError(f"Unknown strategy {strategy!r}; use 'uniform' or 'quantile'.")
+def _unknown_strategy_msg(strategy: object) -> str:
+    """The shared 'unknown strategy' error message for both binning paths."""
+    return f"Unknown strategy {strategy!r}; use 'uniform' or 'quantile'."
 
 
 def _bin_id(prob_f: pl.Expr, interior: Sequence[float | pl.Expr]) -> pl.Expr:
@@ -90,7 +90,12 @@ def _bin_edges(
     strategy: BinStrategy,
     bins: Sequence[float] | None,
 ) -> list[float]:
-    """Resolve the monotonic bin edges (length ``n_bins + 1``)."""
+    """Resolve the monotonic bin edges (length ``n_bins + 1``).
+
+    Raises:
+        ValueError: If ``bins`` has fewer than two edges, ``n_bins < 1``, the
+            ``"quantile"`` strategy meets an empty column, or ``strategy`` is unknown.
+    """
     if bins is not None:
         edges = sorted(float(b) for b in bins)
         if len(edges) < 2:
@@ -114,7 +119,7 @@ def _bin_edges(
             msg = "Cannot compute quantile bins on an empty column."
             raise ValueError(msg)
         return [float(v) for v in row]
-    raise _unknown_strategy_error(strategy)
+    raise ValueError(_unknown_strategy_msg(strategy))
 
 
 def calibration_curve(
@@ -246,6 +251,10 @@ def _bin_setup(
     as :func:`calibration_curve`, validates them, and builds the per-row bin id
     (number of interior edges strictly below the prediction). ``n_used`` is the
     number of bins, needed only by the per-bin ``filter`` fallback.
+
+    Raises:
+        ValueError: If ``bins`` has fewer than two edges, ``n_bins < 1``, or
+            ``strategy`` is unknown.
     """
     prob_f = col_expr(prob).cast(pl.Float64)
     is_pos = (col_expr(target) == pos_label).cast(pl.Float64)
@@ -268,7 +277,7 @@ def _bin_setup(
         n_used = n_bins
         interior = [prob_f.quantile(i / n_bins, interpolation="linear") for i in range(1, n_bins)]
     else:
-        raise _unknown_strategy_error(strategy)
+        raise ValueError(_unknown_strategy_msg(strategy))
 
     return prob_f, is_pos, _bin_id(prob_f, interior), n_used
 

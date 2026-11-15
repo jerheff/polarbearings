@@ -83,10 +83,11 @@ _PPF_CLAMP: Final = 1e-12
 def _metric_name(metric: Callable[..., pl.Expr]) -> str:
     """Return a display name for a metric callable (handles functools.partial)."""
     name = getattr(metric, "__name__", None)
-    if name is not None:
+    if isinstance(name, str):
         return name
     func = getattr(metric, "func", None)  # functools.partial
-    return getattr(func, "__name__", "metric")
+    name = getattr(func, "__name__", None)
+    return name if isinstance(name, str) else "metric"
 
 
 def _is_weightable(metric: Callable[..., pl.Expr]) -> bool:
